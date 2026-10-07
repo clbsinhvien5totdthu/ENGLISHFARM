@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>English Farm 🌱</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- Toàn bộ game nằm trong #farm-app: có thể copy khối này vào bất kỳ trang nào -->
+<div id="farm-app">
+  <header id="hud">
+    <div id="stats"><span id="day"></span><span id="coins"></span></div>
+    <div id="seeds" aria-label="Chọn hạt giống"></div>
+    <button id="bookBtn" type="button">📖 Sổ từ</button>
+  </header>
+  <div id="game-container"></div>
+  <footer id="bar">
+    <span id="hint">WASD / phím mũi tên: đi · E hoặc Space: hành động · 1-6: chọn hạt</span>
+    <button id="actBtn" type="button">Hành động</button>
+  </footer>
+  <div id="modal" hidden>
+    <div class="card" role="dialog" aria-modal="true">
+      <h2 id="mTitle"></h2>
+      <p id="mText"></p>
+      <div id="mBtns"></div>
+    </div>
+  </div>
+  <div id="toast" role="status"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
