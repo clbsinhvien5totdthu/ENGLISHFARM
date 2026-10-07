@@ -22,7 +22,14 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch
 const $ = s => document.querySelector('#farm-app ' + s);
 const crop = id => CROPS.find(c => c.id === id);
 const shuffle = a => a.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(x => x[1]);
-let open = false;
+let open = false, clk = 360; // clk = phút trong ngày (360 = 06:00)
+const hhmm = m => { m = Math.floor(m); return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+const dark = h => h < 6 ? .5 : h < 8 ? .5 * (8 - h) / 2 : h < 17 ? 0 : h < 20.5 ? .5 * (h - 17) / 3.5 : .5;
+const sfx = (f, d = .1, type = 'square') => { try {
+  const a = sfx.a || (sfx.a = new (window.AudioContext || window.webkitAudioContext)());
+  const o = a.createOscillator(), g = a.createGain(); o.type = type; o.frequency.value = f;
+  g.gain.value = .04; g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + d);
+  o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + d); } catch (e) {} };
 
 function modal(title, html, btns) {
   open = true;
@@ -51,14 +58,15 @@ function quiz(title, prompt, answer, done) {
   modal(title, prompt, shuffle([answer, ...wrong]).map(w => ({
     label: w,
     fn: el => {
-      if (w === answer) { closeModal(); done(!tried); }
-      else { tried = true; el.disabled = true; $('#mText').innerHTML = prompt + '<br><em>Chưa đúng, thử lại nhé!</em>'; }
+      if (w === answer) { sfx(660); setTimeout(() => sfx(880, .16), 90); closeModal(); done(!tried); }
+      else { tried = true; sfx(150, .22, 'sawtooth'); el.disabled = true; $('#mText').innerHTML = prompt + '<br><em>Chưa đúng, thử lại nhé!</em>'; }
     }
   })));
 }
 
+function dayText() { $('#day').textContent = (clk >= 1080 ? '🌙 Ngày ' : '🌤 Ngày ') + S.day + ' · ' + hhmm(clk); }
 function hud() {
-  $('#day').textContent = '🌤 Ngày ' + S.day;
+  dayText();
   $('#coins').textContent = '🪙 ' + S.coins;
   const box = $('#seeds'); box.innerHTML = '';
   S.unlocked.forEach((id, i) => {
@@ -86,12 +94,32 @@ class Farm extends Phaser.Scene {
   tex(k, w, h, f) { const g = this.add.graphics(); f(g); g.generateTexture(k, w, h); g.destroy(); }
 
   create() {
-    this.tex('grass', 32, 32, g => { g.fillStyle(0x7cc062); g.fillRect(0,0,32,32); g.fillStyle(0x6db554); [[4,6],[20,3],[12,18],[26,24],[6,27]].forEach(p => g.fillRect(p[0],p[1],3,3)); });
-    this.tex('momo', 32, 32, g => { g.fillStyle(0xff9a1f); g.fillRect(4,8,24,22); g.fillTriangle(4,8,4,0,12,8); g.fillTriangle(28,8,28,0,20,8); g.fillStyle(0xffffff); g.fillRect(10,20,12,10); g.fillStyle(0x222222); g.fillRect(9,13,3,3); g.fillRect(20,13,3,3); });
-    this.tex('lily', 32, 32, g => { g.fillStyle(0xff69b4); g.fillRect(6,12,20,20); g.fillStyle(0xffd9b8); g.fillRect(8,2,16,12); g.fillStyle(0x5a3a1a); g.fillRect(8,0,16,5); g.fillStyle(0x222222); g.fillRect(12,8,2,2); g.fillRect(19,8,2,2); });
-    this.tex('house', 96, 96, g => { g.fillStyle(0x8b4513); g.fillRect(6,36,84,56); g.fillStyle(0xb5382a); g.fillTriangle(0,40,48,2,96,40); g.fillStyle(0xf2d28b); g.fillRect(36,56,24,36); g.fillRect(12,48,16,16); });
-    this.tex('tree', 48, 64, g => { g.fillStyle(0x6b4423); g.fillRect(19,38,10,26); g.fillStyle(0x2e7d32); g.fillCircle(24,24,22); g.fillStyle(0x3a9440); g.fillCircle(16,18,10); });
+    this.tex('grass', 32, 32, g => { g.fillStyle(0x7cc062); g.fillRect(0,0,32,32); g.fillStyle(0x72b858); [[4,6],[20,3],[12,18],[26,24],[6,27]].forEach(p => g.fillRect(p[0],p[1],3,3)); g.fillStyle(0x92d374); [[14,8],[28,12],[2,20],[18,28]].forEach(p => g.fillRect(p[0],p[1],2,2)); });
+    this.tex('momo', 32, 32, g => { g.fillStyle(0x7a3d0a); g.fillRect(3,7,26,24); g.fillTriangle(3,8,3,-1,13,8); g.fillTriangle(29,8,29,-1,19,8);
+      g.fillStyle(0xff9a1f); g.fillRect(4,8,24,22); g.fillTriangle(4,8,4,1,12,8); g.fillTriangle(28,8,28,1,20,8);
+      g.fillStyle(0xffb3a7); g.fillTriangle(6,8,6,4,10,8); g.fillTriangle(26,8,26,4,22,8);
+      g.fillStyle(0xe27d10); g.fillRect(14,9,4,5); g.fillRect(4,18,4,3); g.fillRect(24,18,4,3);
+      g.fillStyle(0xffffff); g.fillRect(10,21,12,9); g.fillStyle(0x222222); g.fillRect(9,13,4,5); g.fillRect(19,13,4,5);
+      g.fillStyle(0xffffff); g.fillRect(10,13,1,1); g.fillRect(20,13,1,1); g.fillStyle(0xff6f91); g.fillRect(15,18,2,2); });
+    this.tex('lily', 32, 32, g => { g.fillStyle(0x5a3a1a); g.fillRect(6,0,20,8); g.fillRect(5,4,3,14); g.fillRect(24,4,3,14);
+      g.fillStyle(0xffd9b8); g.fillRect(8,3,16,11); g.fillStyle(0x5a3a1a); g.fillRect(8,3,16,3);
+      g.fillStyle(0xff69b4); g.fillRect(6,14,20,18); g.fillStyle(0xffffff); g.fillRect(11,18,10,14);
+      g.fillStyle(0x222222); g.fillRect(12,8,2,3); g.fillRect(19,8,2,3); g.fillStyle(0xff9aa8); g.fillRect(9,11,3,2); g.fillRect(21,11,3,2); });
+    this.tex('house', 96, 96, g => { g.fillStyle(0x000000, .18); g.fillEllipse(48,92,92,10);
+      g.fillStyle(0x9c5a2e); g.fillRect(6,36,84,56); g.fillStyle(0x84491f); [44,52,60,68,76,84].forEach(y => g.fillRect(6,y,84,1));
+      g.fillStyle(0x6e3b17); g.fillRect(66,6,12,24); g.fillStyle(0x8a1f17); g.fillTriangle(-2,42,48,0,98,42); g.fillStyle(0xb5382a); g.fillTriangle(4,40,48,6,92,40);
+      g.fillStyle(0x6b3a22); g.fillRect(36,56,24,36); g.fillStyle(0xf2d28b); g.fillRect(38,58,20,34); g.fillStyle(0x6b3a22); g.fillRect(53,76,3,3);
+      g.fillStyle(0x6e3b17); g.fillRect(10,46,20,20); g.fillStyle(0x8fd3ff); g.fillRect(12,48,16,16); g.fillStyle(0x6e3b17); g.fillRect(19,48,2,16); g.fillRect(12,55,16,2);
+      g.fillStyle(0x6e3b17); g.fillRect(66,46,20,20); g.fillStyle(0x8fd3ff); g.fillRect(68,48,16,16); g.fillStyle(0x6e3b17); g.fillRect(75,48,2,16); g.fillRect(68,55,16,2); });
+    this.tex('tree', 48, 64, g => { g.fillStyle(0x000000, .2); g.fillEllipse(24,60,36,10);
+      g.fillStyle(0x6b4423); g.fillRect(19,38,10,24); g.fillStyle(0x56361a); g.fillRect(25,38,4,24);
+      g.fillStyle(0x24692a); g.fillCircle(24,25,23); g.fillStyle(0x2e7d32); g.fillCircle(22,22,20); g.fillStyle(0x3a9440); g.fillCircle(16,18,11); g.fillStyle(0x56b255); g.fillCircle(14,14,5); });
     this.tex('soil', 56, 56, g => { g.fillStyle(0x8a5e34); g.fillRect(0,0,56,56); g.fillStyle(0x744a27); [10,24,38,50].forEach(y => g.fillRect(4,y,48,3)); g.lineStyle(2,0x4a3320); g.strokeRect(1,1,54,54); });
+    this.tex('spark', 6, 6, g => { g.fillStyle(0xffffff); g.fillRect(0,0,6,6); });
+    this.tex('shadow', 28, 10, g => { g.fillStyle(0x000000, .28); g.fillEllipse(14,5,26,8); });
+    this.tex('flower', 8, 8, g => { g.fillStyle(0xffffff); g.fillRect(3,0,2,2); g.fillRect(0,3,2,2); g.fillRect(6,3,2,2); g.fillRect(3,6,2,2); g.fillStyle(0xffe066); g.fillRect(3,3,2,2); });
+    this.tex('path', 32, 32, g => { g.fillStyle(0xd8b87a); g.fillRect(0,0,32,32); g.fillStyle(0xc4a263); [[4,5],[19,9],[9,22],[25,26]].forEach(p => g.fillRect(p[0],p[1],3,2)); });
+    this.tex('pond', 160, 100, g => { g.fillStyle(0x2f6f9f); g.fillEllipse(80,50,158,98); g.fillStyle(0x4aa3d8); g.fillEllipse(80,50,144,84); g.fillStyle(0x8fd3ff); g.fillRect(40,34,22,3); g.fillRect(96,56,30,3); g.fillRect(62,70,16,3); });
 
     const W = 1280, H = 960;
     this.physics.world.setBounds(0, 0, W, H);
@@ -101,31 +129,42 @@ class Farm extends Phaser.Scene {
     let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     for (let i = 0; i < 45; i++) {
       const x = 40 + rnd() * (W - 80), y = 40 + rnd() * (H - 80);
-      if (x > 80 && x < 900 && y > 60 && y < 520) continue; // chừa khu nông trại
+      if ((x > 80 && x < 900 && y > 60 && y < 520) || (x > 880 && x < 1140 && y > 680 && y < 840)) continue; // chừa khu nông trại
       this.solids.create(x, y, 'tree');
     }
     this.solids.refresh();
+    this.solids.children.each(t => t.setDepth(t.y));
+    for (let i = 0; i < 16; i++) this.add.image(214 + i * 18, 224 + i * 6.4, 'path').setDepth(.1);
+    for (let i = 0; i < 80; i++) { const x = rnd() * W, y = rnd() * H; if (x > 430 && x < 870 && y > 250 && y < 490) continue; this.add.image(x, y, 'flower').setTint([0xffffff, 0xffd54a, 0xff8fb3, 0xb28dff][i % 4]).setDepth(.2); }
+    const pond = this.add.image(1010, 760, 'pond').setDepth(.3);
+    this.tweens.add({ targets: pond, alpha: .82, yoyo: true, repeat: -1, duration: 1700, ease: 'Sine.InOut' });
 
     this.lily = this.physics.add.sprite(340, 250, 'lily').setImmovable(true);
-    this.add.text(340, 218, 'Lily', { fontSize:'14px', color:'#fff', backgroundColor:'#00000088', padding:{ x:4, y:1 } }).setOrigin(.5);
+    this.add.text(340, 218, 'Lily', {depth: 30, fontSize:'14px', color:'#fff', backgroundColor:'#00000088', padding:{ x:4, y:1 } }).setOrigin(.5);
+    this.add.image(340, 266, 'shadow').setDepth(.5);
     this.player = this.physics.add.sprite(420, 340, 'momo').setCollideWorldBounds(true);
+    this.shadow = this.add.image(0, 0, 'shadow').setDepth(.5);
     this.physics.add.collider(this.player, this.solids);
     this.physics.add.collider(this.player, this.lily);
 
     // 15 ô đất (5 x 3)
     this.pv = S.plots.map((p, i) => {
       const x = 520 + (i % 5) * 64, y = 300 + Math.floor(i / 5) * 64;
-      return { x, y, bg:this.add.image(x, y, 'soil'), em:this.add.text(x, y - 2, '', { fontSize:'30px' }).setOrigin(.5) };
+      return { x, y, bg:this.add.image(x, y, 'soil').setDepth(1), em:this.add.text(x, y - 2, '', { fontSize:'30px' }).setOrigin(.5).setDepth(2) };
     });
     this.pv.forEach((_, i) => this.paint(i));
-    this.mark = this.add.rectangle(0, 0, 60, 60).setStrokeStyle(3, 0xffffff).setVisible(false);
+    this.mark = this.add.rectangle(0, 0, 60, 60).setStrokeStyle(3, 0xffffff).setVisible(false).setDepth(3);
+    this.night = this.add.rectangle(0, 0, 960, 540, 0x0a1445, 0).setOrigin(0).setScrollFactor(0).setDepth(2000);
 
-    this.cameras.main.startFollow(this.player, true, .09, .09).setBounds(0, 0, W, H);
+    this.cameras.main.startFollow(this.player, true, .09, .09).setBounds(0, 0, W, H).setZoom(1.25);
     const K = Phaser.Input.Keyboard.KeyCodes;
     this.keys = this.input.keyboard.addKeys({ up:K.W, down:K.S, left:K.A, right:K.D, u2:K.UP, d2:K.DOWN, l2:K.LEFT, r2:K.RIGHT, e:K.E, sp:K.SPACE });
     this.input.on('pointerdown', p => { if (!open) this.target = { x:p.worldX, y:p.worldY }; });
     this.hintText = '';
     hud();
+    if (S.day === 1 && !Object.keys(S.learned).length) modal('English Farm 🌱',
+      '<b>“Welcome to the farm!”</b><br>Chào mừng bạn! Xới đất → gieo hạt → tưới nước → đi ngủ → thu hoạch. Mỗi bước trả lời đúng một từ tiếng Anh để nhận coin.',
+      [{ label:'Bắt đầu chơi 🌾', fn:closeModal }]);
   }
 
   paint(i) {
@@ -133,7 +172,17 @@ class Farm extends Phaser.Scene {
     v.bg.setAlpha(p.s ? 1 : .3).setTint(p.w ? 0x6b4a2b : 0xffffff);
     let t = '';
     if (p.s === 2) { const c = crop(p.c); t = p.g >= c.days ? c.e : (p.g >= c.days - 1 ? '🌿' : '🌱'); }
-    v.em.setText(t);
+    if (v.em.text !== t) { v.em.setText(t); if (t) this.tweens.add({ targets: v.em, scale: { from: .2, to: 1 }, duration: 280, ease: 'Back.Out' }); }
+  }
+
+  fx(i, color, text) {
+    const v = this.pv[i];
+    const em = this.add.particles(v.x, v.y, 'spark', { speed: { min: 40, max: 120 }, lifespan: 550, scale: { start: 1.4, end: 0 }, tint: color, emitting: false }).setDepth(900);
+    em.explode(14); this.time.delayedCall(700, () => em.destroy());
+    if (text) {
+      const t = this.add.text(v.x, v.y - 20, text, { fontSize: '20px', fontStyle: 'bold', color: '#fff', stroke: '#2a1d10', strokeThickness: 4 }).setOrigin(.5).setDepth(901);
+      this.tweens.add({ targets: t, y: t.y - 46, alpha: 0, duration: 1100, ease: 'Cubic.Out', onComplete: () => t.destroy() });
+    }
   }
 
   ready(p) { return p.s === 2 && p.g >= crop(p.c).days; }
@@ -169,11 +218,11 @@ class Farm extends Phaser.Scene {
   plot(i) {
     const p = S.plots[i];
     const after = () => { this.paint(i); hud(); save(); };
-    if (p.s === 0) { p.s = 1; toast('Đã xới đất'); return after(); }
+    if (p.s === 0) { p.s = 1; toast('Đã xới đất'); this.fx(i, 0xb98a5a); sfx(220, .08); return after(); }
     if (p.s === 1) {
       const c = crop(S.sel);
       return quiz('Gieo hạt', `Cây này tiếng Anh là gì?<div class="big">${c.e}</div>`, c.en, first => {
-        p.s = 2; p.c = c.id; p.g = 0; p.w = false;
+        p.s = 2; p.c = c.id; p.g = 0; p.w = false; this.fx(i, 0x9be564, '🌱');
         S.learned[c.id] = (S.learned[c.id] || 0) + 1;
         if (first) { S.coins += 3; toast(`${c.en} = ${c.vi}. Đúng ngay lần đầu +3 🪙`); } else toast(`${c.en} = ${c.vi}`);
         after();
@@ -185,11 +234,11 @@ class Farm extends Phaser.Scene {
         const gain = c.price + (first ? 5 : 0);
         S.coins += gain; p.s = 1; p.c = null; p.g = 0; p.w = false;
         S.learned[c.id] = (S.learned[c.id] || 0) + 1;
-        toast(`Thu hoạch ${c.en}! +${gain} 🪙`);
+        toast(`Thu hoạch ${c.en}! +${gain} 🪙`); this.fx(i, 0xffd54a, '+' + gain + ' 🪙');
         after();
       });
     }
-    if (!p.w) { p.w = true; toast('Đã tưới nước 💧'); return after(); }
+    if (!p.w) { p.w = true; toast('Đã tưới nước 💧'); this.fx(i, 0x6ec6ff, '💧'); sfx(520, .12, 'sine'); return after(); }
     toast('Cây cần thời gian — hãy đi ngủ để sang ngày mới.');
   }
 
@@ -211,7 +260,7 @@ class Farm extends Phaser.Scene {
         const cam = this.cameras.main; cam.fadeOut(500);
         cam.once('camerafadeoutcomplete', () => {
           S.plots.forEach(p => { if (p.s === 2 && p.w) p.g++; p.w = false; });
-          S.day++; this.pv.forEach((_, i) => this.paint(i)); hud(); save();
+          S.day++; clk = 360; this.late = false; this.pv.forEach((_, i) => this.paint(i)); hud(); save();
           cam.fadeIn(500); toast('Good morning! Ngày ' + S.day);
         });
       } },
@@ -219,7 +268,7 @@ class Farm extends Phaser.Scene {
     ]);
   }
 
-  update() {
+  update(time, delta) {
     const k = this.keys, J = Phaser.Input.Keyboard.JustDown;
     if (open) { this.player.setVelocity(0); return; }
     const L = k.left.isDown || k.l2.isDown, R = k.right.isDown || k.r2.isDown, U = k.up.isDown || k.u2.isDown, D = k.down.isDown || k.d2.isDown;
@@ -232,6 +281,14 @@ class Farm extends Phaser.Scene {
     this.player.setVelocity(vx, vy);
     if (vx || vy) this.player.body.velocity.normalize().scale(190);
 
+    clk = Math.min(clk + delta * .006, 1500);
+    this.night.setAlpha(dark(clk / 60));
+    const tick = Math.floor(clk / 10); if (tick !== this.tick) { this.tick = tick; dayText(); }
+    if (clk >= 1380 && !this.late) { this.late = true; toast('Muộn rồi — về nhà đi ngủ thôi! 🌙'); }
+    const moving = !!(vx || vy);
+    this.player.setDepth(this.player.y).setAngle(moving ? Math.sin(time / 60) * 7 : 0);
+    if (vx) this.player.setFlipX(vx < 0);
+    this.shadow.setPosition(this.player.x, this.player.y + 14);
     this.cur = this.look();
     const t = this.label(this.cur);
     if (t !== this.hintText) { this.hintText = t; $('#hint').textContent = t; }
