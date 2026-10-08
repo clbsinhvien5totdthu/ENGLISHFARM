@@ -79,7 +79,6 @@ const PHRASES = [
 ];
 
 // ====== ĐỒ ĂN Ở TIỆM: hồi stamina ======
-const fico = f => { const I = window.ASSETS.icons || {}, k = { Bread:'bread', Salad:'salad', Soup:'pho' }[f.en]; return I[k] ? `<img class="ico" src="${I[k]}" width="26" height="26" alt="">` : f.e; };
 const FOOD = [
   { e:'🍞', en:'Bread', vi:'bánh mì',  cost:6,  st:20 },
   { e:'🥗', en:'Salad', vi:'sa-lát',   cost:12, st:40 },
@@ -145,6 +144,105 @@ let open = false, clk = 360; // clk = phút trong ngày (360 = 06:00)
 const hhmm = m => { m = Math.floor(m); return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
 const dark = h => h < 6 ? .5 : h < 8 ? .5 * (8 - h) / 2 : h < 17 ? 0 : h < 20.5 ? .5 * (h - 17) / 3.5 : .5;
 
+// ====== THỜI GIAN · THỜI TIẾT · VẬT NUÔI (mới) ======
+const TIME_SPEED = .0045;           // tốc độ đồng hồ (phút game / ms). Muốn ngày dài hơn → giảm số này
+const RESCUE = .35;                 // xác suất cụ Moss cứu khi bị móc túi lúc nửa đêm
+let warn = 0, robbed = false;       // cảnh báo giờ ngủ · đã xảy ra vụ móc túi trong ngày chưa
+const CINE = { on:false };          // đang chiếu cut scene / màn tổng kết (chặn phím Esc, chặn di chuyển)
+
+// thời tiết của 1 ngày: { k:'sun'|'cloud'|'rain', a:giờ bắt đầu mưa, b:giờ tạnh }
+const rollWx = () => {
+  const r = Math.random();
+  if (r < .24) { const a = 7 + Math.floor(Math.random() * 5); return { k:'rain', a, b:Math.min(23, a + 4 + Math.floor(Math.random() * 6)) }; }
+  return r < .42 ? { k:'cloud' } : { k:'sun' };
+};
+if (!S.wx) S.wx = { k:'sun' };
+if (!S.nextWx) S.nextWx = rollWx();
+const wxNow = () => { const w = S.wx || { k:'sun' }; if (w.k !== 'rain') return w.k; const h = clk / 60; return h >= w.a && h < w.b ? 'rain' : 'cloud'; };
+const WX_NAME = { sun:'☀️ Trời nắng', cloud:'☁️ Trời nhiều mây', rain:'🌧️ Trời mưa' };
+const todKey = () => { const h = clk / 60; return h < 6 ? 'night' : h < 11 ? 'morning' : h < 17 ? 'noon' : h < 20 ? 'evening' : 'night'; };
+const TOD_NAME = { morning:'🌅 Buổi sáng', noon:'☀️ Buổi trưa', evening:'🌇 Chiều tối', night:'🌙 Ban đêm' };
+
+// dữ liệu lưu cũ: bổ sung các trường mới (thùng hàng, sản phẩm vật nuôi…)
+if (!S.inv.goods) S.inv.goods = {};
+if (!S.bin) S.bin = {}; ['crops', 'fish', 'goods'].forEach(k => { if (!S.bin[k]) S.bin[k] = {}; });
+if (!S.petDone) S.petDone = {};
+S.petDay = S.petDay || 0; S.daisyDay = S.daisyDay || 0; S.peteDay = S.peteDay || 0; S.scopeDay = S.scopeDay || 0; S.rainDay = S.rainDay || 0;
+
+// sản phẩm từ vật nuôi (bỏ vào thùng để bán)
+const GOODS = {
+  egg:  { e:'🥚', en:'Egg',  vi:'trứng', price:10 },
+  milk: { e:'🥛', en:'Milk', vi:'sữa',   price:25 },
+  wool: { e:'🧶', en:'Wool', vi:'len',   price:30 }
+};
+// con vật: sp = tốc độ đi · prod = sản phẩm mỗi ngày · snd = tiếng kêu · line = câu tiếng Anh học kèm
+const ANIMALS = {
+  chicken: { en:'Chicken', vi:'con gà',   e:'🐔', sp:22, hop:2, sh:.5,  prod:'egg',  snd:'cluck', line:['The chicken lays an egg every morning.', 'Con gà đẻ một quả trứng mỗi sáng.'] },
+  cow:     { en:'Cow',     vi:'con bò',   e:'🐄', sp:14, hop:1, sh:1.2, prod:'milk', snd:'moo',   line:['The cow gives us fresh milk.', 'Con bò cho chúng ta sữa tươi.'] },
+  sheep:   { en:'Sheep',   vi:'con cừu',  e:'🐑', sp:16, hop:1.5, sh:.8, prod:'wool', snd:'baa',   line:['The sheep has soft white wool.', 'Con cừu có bộ lông trắng mềm.'] },
+  rabbit:  { en:'Rabbit',  vi:'con thỏ',  e:'🐇', sp:34, hop:5, sh:.4,  snd:'select', line:['The rabbit hops very fast.', 'Con thỏ nhảy rất nhanh.'] },
+  duck:    { en:'Duck',    vi:'con vịt',  e:'🦆', sp:18, hop:1, sh:.0,  snd:'quack', line:['The duck is swimming in the water.', 'Con vịt đang bơi dưới nước.'] },
+  cat:     { en:'Cat',     vi:'con mèo',  e:'🐈', sp:20, hop:2, sh:.5,  snd:'meow',  line:['The cat is sleeping in the sun.', 'Con mèo đang ngủ dưới nắng.'] },
+  dog:     { en:'Dog',     vi:'con chó',  e:'🐕', sp:0,  hop:0, sh:.6,  snd:'woof',  line:['The dog is my best friend.', 'Con chó là bạn thân của tôi.'] }
+};
+
+// ====== PIXEL ART VẼ BẰNG CODE ======
+// rows: mỗi hàng viết dạng "ký tự + số lần", ví dụ ".6R2.4" = 6 ô trống, 2 ô đỏ, 4 ô trống
+const pxCanvas = (rows, pal, s = 2) => {
+  const parsed = rows.map(r => { const a = []; r.replace(/(.)(\d+)/g, (m, c, n) => { for (let i = 0; i < +n; i++) a.push(c); }); return a; });
+  const w = Math.max(...parsed.map(r => r.length)), c = document.createElement('canvas'); c.width = w * s; c.height = parsed.length * s;
+  const g = c.getContext('2d');
+  parsed.forEach((r, y) => r.forEach((ch, x) => { if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(x * s, y * s, s, s); } }));
+  return c;
+};
+const ANI_PX = {
+  chicken: { pal:{ W:'#fff7e6', R:'#e03a2e', K:'#222', Y:'#f2a81d', O:'#e8921a', G:'#e8d9b8' }, rows:[
+    '.6R2.4', '.5W4.3', '.5W1K1W1Y2.2', '.5W4R1.2', '.2W7.3', '.1W3G3W3.2', 'W4G3W3.2', '.1W9.2', '.2W7.3', '.4O1.1O1.5', '.3O2.1O2.4' ] },
+  cow: { pal:{ W:'#f5f5f0', k:'#2a2a2a', P:'#f2a0a8', K:'#111', h:'#e8e0c0', H:'#3a2a20' }, rows:[
+    '.14h1.2h1.4', '.13W6.3', '.13W1K1W3P1.3', '.13W3P3.3', '.3W15.4', '.2W2k4W3k2W3.6', '.2W2k4W9.5', '.2W9k3W3.5', '.2W6k3W6.5', '.2W15.5', '.3W13.6',
+    '.3W2.1W2.4W2.1W2.5', '.3W2.1W2.4W2.1W2.5', '.3H2.1H2.4H2.1H2.5' ] },
+  sheep: { pal:{ F:'#f4f4ef', f:'#dcdcd2', D:'#3a3030', K:'#fff' }, rows:[
+    '.3F9.4', '.2F11.3', '.1F12D2.1', '.1F11D1K1D1.1', '.1F12D2.1', '.1f1F11D1.2', '.1F12.3', '.2F10.4', '.3F8.5', '.3D1.1D1.4D1.1D1.3', '.3D1.1D1.4D1.1D1.3' ] },
+  dog: { pal:{ B:'#b9743a', b:'#8a5226', K:'#111', N:'#222', T:'#ff7a8a', W:'#f5e6cf' }, rows:[
+    '.9b1.1b1.2', '.8B5.1', '.8B1K1B1N2.1', '.8B3W1T1.1', 'b1.1B9.3', '.1B11.2', '.1B10.3', '.1B1.1B1.4B1.1B1.3', '.1B1.1B1.4B1.1B1.3', '.1b1.1b1.4b1.1b1.3' ] },
+  rabbit: { pal:{ w:'#e8e0d6', p:'#f2a0a8', K:'#111', N:'#e58a98', t:'#ffffff' }, rows:[
+    '.6w1.1w1.1', '.6w1.1w1.1', '.5w4.1', '.5w1K1w1N1.1', '.2w7.1', '.1w8.1', 't1w8.1', '.1w8.1', '.1w2.4w2.1' ] },
+  duck: { pal:{ Y:'#f5d84a', O:'#f08a1e', K:'#222', B:'#e0a820' }, rows:[
+    '.7Y3.2', '.6Y2K1Y2.1', '.7Y3O2', 'Y1.1Y8.2', 'Y10.2', '.1Y10.1', '.1Y3B5Y1.2', '.2Y8.2', '.3Y6.3' ] },
+  cat: { pal:{ C:'#e8913a', c:'#b5651d', K:'#111', N:'#f08aa0' }, rows:[
+    '.7C1.1C1.2', '.7C3.2', '.7C1K1C1N1.1', '.2C8.2', '.1C10.1', 'c1C10.1', '.1C10.1', '.1C2.2C2.5', '.1c2.2c2.5' ] },
+  bfly: { pal:{ p:'#ff8fc8', K:'#222' }, rows:[ 'p2.2p2', 'p1.1K2.1p1', 'p2.2p2' ] }
+};
+
+// biểu tượng 16x16 cho ô thời tiết / buổi trong ngày (vẽ từng pixel)
+function skyIcon(kind, bare) {
+  const c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d');
+  const R = (col, x, y, w = 1, h = 1) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+  const D = (col, cx, cy, r) => { for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) if ((x + .5 - cx) ** 2 + (y + .5 - cy) ** 2 <= r * r) R(col, x, y); };
+  const bands = cols => cols.forEach((col, i) => R(col, 0, Math.round(i * 16 / cols.length), 16, Math.ceil(16 / cols.length) + 1));
+  const rays = (cx, cy, col) => { for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; R(col, Math.round(cx + Math.cos(a) * 6.2 - .5), Math.round(cy + Math.sin(a) * 6.2 - .5)); } };
+  const cloud = (cols, y0) => { D(cols[0], 5, y0 + 3, 3); D(cols[0], 9, y0 + 1.5, 3.8); D(cols[0], 12, y0 + 4, 2.8); R(cols[0], 3, y0 + 3, 11, 3); R(cols[1], 3, y0 + 5, 11, 1); };
+  if (kind === 'sun') { if (!bare) bands(['#4fb3f0', '#6cc4f7']); rays(8, 8, '#ffe27a'); D('#ffd23f', 8, 8, 4.2); D('#fff2a8', 7, 7, 2); }
+  else if (kind === 'cloud') { bands(['#8fb4d8', '#a9c6e2']); D('#ffe9a0', 12, 4, 2); cloud(['#ffffff', '#d6e2ee'], 5); }
+  else if (kind === 'rain') { bands(['#5d6f86', '#74879e']); cloud(['#cfd8e3', '#aebccc'], 1); ['4,10', '7,11', '10,10', '13,11', '5,13', '9,13'].forEach(p => { const q = p.split(','); R('#7fd0ff', +q[0], +q[1], 1, 2); }); }
+  else if (kind === 'morning') { bands(['#ffd9a0', '#ffc08a']); D('#ffe27a', 11, 11, 3.5); R('#5fae5a', 0, 12, 16, 4); D('#5fae5a', 4, 12, 4); D('#4a9a4a', 12, 14, 4); }
+  else if (kind === 'noon') { bands(['#3fa9f5', '#7cc9fa']); rays(8, 5, '#fff3a0'); D('#ffe14a', 8, 5, 3.4); R('#5fae5a', 0, 13, 16, 3); R('#4a9a4a', 0, 13, 16, 1); }
+  else if (kind === 'evening') { bands(['#5a4a9a', '#c8648a', '#f2a05a']); D('#ffcf6a', 8, 12, 3.6); R('#2d3b5a', 0, 12, 16, 4); D('#2d3b5a', 3, 12, 3); D('#2d3b5a', 13, 12, 3); }
+  else if (kind === 'night') { bands(['#0b1445', '#14205f']); const t = document.createElement('canvas'); t.width = t.height = 16; const tg = t.getContext('2d'); tg.fillStyle = '#fff3b0';
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { if ((x + .5 - 10) ** 2 + (y + .5 - 6) ** 2 <= 13 && !((x + .5 - 12) ** 2 + (y + .5 - 5) ** 2 <= 9)) tg.fillRect(x, y, 1, 1); }
+    g.drawImage(t, 0, 0); [[3, 3], [6, 10], [13, 12], [2, 12], [14, 2], [8, 14]].forEach(p => R('#ffffff', p[0], p[1])); }
+  else if (kind === 'moon') { D('#fff3b0', 8, 8, 6.5); g.globalCompositeOperation = 'destination-out'; D('#000', 11.5, 6, 5.2); g.globalCompositeOperation = 'source-over'; }
+  return c;
+}
+const iconURL = (k, bare) => skyIcon(k, bare).toDataURL();
+let _sk = '';
+function skyIcons() {
+  const w = wxNow(), t = todKey(), k = w + t; if (k === _sk) return; _sk = k;
+  const put = (id, kind, tip) => { const b = $(id); if (!b) return; const g = b.querySelector('canvas').getContext('2d'); g.clearRect(0, 0, 16, 16); g.drawImage(skyIcon(kind), 0, 0); b.title = tip; };
+  put('#wxBox', w, 'Thời tiết: ' + WX_NAME[w]); put('#todBox', t, TOD_NAME[t]);
+}
+
+
 // ====== ÂM THANH (tổng hợp bằng WebAudio, không cần file mp3) ======
 const AU = { c:null, m:null, nb:null, on:(() => { try { return localStorage.getItem('efSound') !== '0'; } catch (e) { return true; } })() };
 function au() {
@@ -201,7 +299,14 @@ const SND = {
   sleep: () => [523, 440, 392, 330].forEach((f, i) => tone(f, .5, 'sine', .05, i * .35)),
   wake:  () => { [392, 523, 659].forEach((f, i) => tone(f, .25, 'triangle', .05, i * .13)); SND.bird(); },
   bird:  () => { const b = 2400 + Math.random() * 1100; tone(b, .07, 'sine', .022, 0, b * 1.3); tone(b * 1.2, .08, 'sine', .022, .1, b); tone(b * 1.35, .06, 'sine', .018, .2, b * 1.1); },
-  cricket: () => [0, .1, .2].forEach(d => tone(4300, .05, 'sine', .01, d))
+  cricket: () => [0, .1, .2].forEach(d => tone(4300, .05, 'sine', .01, d)),
+  thunder: () => { noise(.5, 260, 'lowpass', .3); noise(.5, 180, 'lowpass', .22, .35); tone(60, .7, 'sine', .14, 0, 32); },
+  cluck: () => { tone(700, .05, 'square', .03); tone(540, .06, 'square', .03, .08); tone(660, .05, 'square', .025, .16); },
+  moo:   () => tone(190, .6, 'sawtooth', .035, 0, 130),
+  baa:   () => { tone(430, .4, 'sawtooth', .03, 0, 340); tone(440, .25, 'sawtooth', .02, .22, 360); },
+  woof:  () => { tone(320, .1, 'square', .05, 0, 190); tone(300, .1, 'square', .04, .16, 180); },
+  quack: () => { tone(540, .09, 'square', .04, 0, 380); tone(520, .09, 'square', .04, .13, 360); },
+  meow:  () => tone(640, .35, 'sine', .045, 0, 920)
 };
 const snd = n => { try { if (SND[n]) SND[n](); } catch (e) {} };
 // nhạc nền nhẹ (thang âm ngũ cung), chỉ chạy sau khi người chơi bấm / nhấn phím lần đầu
@@ -262,14 +367,17 @@ function gainExp(n) {
 // Sang ngày mới: cây lớn, hồi đầy stamina
 function newDay() {
   S.plots.forEach(p => { if (p.s === 2 && p.w) p.g++; p.w = false; });
-  S.day++; clk = 360; late = false; S.stamina = maxSt();
+  S.day++; clk = 360; warn = 0; robbed = false; S.stamina = maxSt();
+  S.wx = S.nextWx || rollWx(); S.nextWx = rollWx(); S.rainDay = 0; // thời tiết hôm nay + dự báo ngày mai
 }
 
-function dayText() { $('#day').textContent = (clk >= 1080 ? '🌙 Ngày ' : '🌤 Ngày ') + S.day + ' · ' + hhmm(clk); }
+function dayText() {
+  const d = $('#day'); d.textContent = (clk >= 1080 ? '🌙 Ngày ' : '🌤 Ngày ') + S.day + ' · ' + hhmm(clk);
+  d.classList.toggle('late', clk >= 1320); skyIcons();
+}
 function hud() {
   dayText(); storyCheck();
-  { const ic = window.ASSETS.icons && window.ASSETS.icons;
-    $('#coins').innerHTML = (ic && ic.coin ? `<img class="ico" src="${ic.coin}" width="22" height="22" alt="">` : '🪙') + ' ' + S.coins; }
+  $('#coins').textContent = '🪙 ' + S.coins;
   $('#lvl').textContent = '⭐ Lv ' + S.lvl;
   const mx = maxSt(), need = expNeed(S.lvl);
   $('#stFill').style.width = Math.max(0, S.stamina / mx * 100) + '%';
@@ -333,11 +441,11 @@ function bag() {
   const o = owned();
   const crops = got.length
     ? '<ul class="book">' + got.map(c => `<li>${ico(c.id, 22)} <b>${c.en}</b> — ${c.vi} <small>×${S.inv.crops[c.id]} · ${c.price}🪙/quả</small></li>`).join('') + '</ul>'
-    : '<p><small>Chưa có nông sản. Thu hoạch cây chín để bỏ vào túi, rồi bán ở Seed Shop.</small></p>';
+    : '<p><small>Chưa có nông sản. Thu hoạch cây chín để bỏ vào túi, rồi bỏ vào 📦 thùng bán hàng ở nông trại.</small></p>';
   const btns = o.map(id => { const c = crop(id); return { on: id === S.sel, html: `${id === S.sel ? '✋ ' : ''}${sico(id, 26)} ${c.en} <small>(${c.vi})</small> ×${seedCount(id)}`,
     fn: () => { S.sel = id; snd('select'); hud(); save(); bag(); } }; });
   btns.push({ label:'Đóng', fn:closeModal });
-  modal('🎒 Túi đồ', '<b>🧺 Nông sản</b>' + crops + fishList() + '<b>🌱 Hạt giống</b> <small>— bấm để cầm trên tay rồi đi gieo' + (o.length ? '' : '. Chưa có hạt: mua ở Seed Shop hoặc học bài với cô Emma') + '</small>', btns);
+  modal('🎒 Túi đồ', '<b>🧺 Nông sản</b>' + crops + fishList() + goodsList() + binLine() + '<b>🌱 Hạt giống</b> <small>— bấm để cầm trên tay rồi đi gieo' + (o.length ? '' : '. Chưa có hạt: mua ở Seed Shop hoặc học bài với cô Emma') + '</small>', btns);
 }
 
 // ====== CÔ EMMA: BÀI HỌC B1 / B2 ======
@@ -591,6 +699,224 @@ function captain() {
   modal('Captain Hai ⚓', `<b>“Fresh fish? I will buy them!”</b><br>(Cá tươi à? Tôi mua hết!)<br><small>📖 Đã câu được ${dex}/${FISH.length} loài · ⚡${COST_FISH} stamina mỗi lần thả câu</small>` + (got.length ? '' : '<br><small>Bạn chưa có cá để bán.</small>'), btns);
 }
 
+// ====== VẬT NUÔI: chơi với con vật → học từ + nhận sản phẩm mỗi ngày ======
+function petAnimal(a) {
+  const d = ANIMALS[a.kind];
+  if (S.petDay !== S.day) { S.petDay = S.day; S.petDone = {}; }
+  const first = !S.petDone[a.id]; S.petDone[a.id] = 1;
+  snd(d.snd || 'chat');
+  let extra = '';
+  if (first && d.prod) { S.inv.goods[d.prod] = (S.inv.goods[d.prod] || 0) + 1; extra = ` · +1 ${GOODS[d.prod].e} ${GOODS[d.prod].en} (${GOODS[d.prod].vi})`; }
+  save();
+  modal(d.e + ' ' + d.en, `<div class="big">${d.e}</div><b>${d.en.toLowerCase()}</b> = ${d.vi}<div class="sent">${d.line[0]}</div>${d.line[1]}<br>` +
+    (first ? `🎓 +2 EXP${extra}` : '<small>Hôm nay bạn đã chơi với bạn này rồi 💕 Mai quay lại nhé!</small>'), [{ label:'OK 👍', fn:closeModal }]);
+  if (first) gainExp(2);
+}
+
+// ====== THÙNG BÁN HÀNG (nông trại): bỏ hàng vào, qua đêm mới có tiền ======
+const listItems = src => {
+  const out = [];
+  CROPS.forEach(c => { const n = src.crops[c.id] || 0; if (n > 0) out.push({ k:'crops', id:c.id, ic:ico(c.id, 22), en:c.en, vi:c.vi, price:c.price, n }); });
+  FISH.forEach(f => { const n = src.fish[f.id] || 0; if (n > 0) out.push({ k:'fish', id:f.id, ic:f.e, en:f.en, vi:f.vi, price:f.price, n }); });
+  Object.keys(GOODS).forEach(id => { const n = src.goods[id] || 0; if (n > 0) { const g = GOODS[id]; out.push({ k:'goods', id, ic:g.e, en:g.en, vi:g.vi, price:g.price, n }); } });
+  return out;
+};
+const itemsValue = a => a.reduce((t, x) => t + x.n * x.price, 0);
+const binCount = () => listItems(S.bin).reduce((t, x) => t + x.n, 0);
+const binValue = () => itemsValue(listItems(S.bin));
+const goodsList = () => { const g = listItems({ crops:{}, fish:{}, goods:S.inv.goods }); return g.length ? '<b>🥚 Sản phẩm vật nuôi</b><ul class="book">' + g.map(x => `<li>${x.ic} <b>${x.en}</b> — ${x.vi} <small>×${x.n} · ${x.price}🪙</small></li>`).join('') + '</ul>' : ''; };
+const binLine = () => binCount() ? `<p><small>📦 Trong thùng bán hàng: ${binCount()} món (~${binValue()} 🪙) — tiền vào ví sáng mai.</small></p>` : '';
+
+function binUI(keep) {
+  snd('bag');
+  const inv = listItems(S.inv), inb = listItems(S.bin);
+  const move = (arr, from, to) => { arr.forEach(x => { to[x.k][x.id] = (to[x.k][x.id] || 0) + x.n; delete from[x.k][x.id]; }); snd('place'); save(); binUI(true); };
+  const rows = inb.length ? '<ul class="book">' + inb.map(x => `<li>${x.ic} <b>${x.en}</b> <small>×${x.n} · ${x.n * x.price}🪙</small></li>`).join('') + '</ul>' : '<p><small>Thùng đang trống.</small></p>';
+  const btns = inv.map(x => ({ html:`${x.ic} Bỏ ${x.en} <small>(${x.vi})</small> ×${x.n} — ${x.n * x.price} 🪙`, fn:() => move([x], S.inv, S.bin) }));
+  if (inv.length > 1) btns.push({ label:`📦 Bỏ tất cả — ${itemsValue(inv)} 🪙`, fn:() => move(inv, S.inv, S.bin) });
+  if (inb.length) btns.push({ label:'↩ Lấy lại tất cả', fn:() => move(inb, S.bin, S.inv) });
+  btns.push({ label:'Đóng', fn:closeModal });
+  modal('📦 Thùng bán hàng', '<b>“Put your goods in the box.”</b><br>(Hãy bỏ hàng vào thùng.)<br><small>🌙 Qua đêm, Lily sẽ đến lấy hàng — tiền được cộng vào ví lúc bạn thức dậy. Nhớ ngủ trước 24:00!</small>' +
+    `<br><b>Trong thùng</b> — ước tính ${itemsValue(inb)} 🪙` + rows + (inv.length ? '' : '<small>Túi bạn chưa có gì để bán. Thu hoạch, câu cá hoặc chơi với vật nuôi nhé!</small>'), btns, keep);
+}
+
+// ====== CUT SCENE & MÀN TỔNG KẾT (lớp DOM phủ lên game) ======
+const texEl = (key, sc) => {
+  const s = activeScene(), c = document.createElement('canvas'); let src = null;
+  try { src = s.textures.get(key).getSourceImage(); } catch (e) {}
+  const w = src ? src.width : 32, h = src ? src.height : 32; c.width = w; c.height = h; if (src) c.getContext('2d').drawImage(src, 0, 0);
+  c.style.width = w * sc + 'px'; c.style.height = h * sc + 'px'; return c;
+};
+const heroEl = sc => { const M = window.ASSET_META, w = M.hero[0], h = M.hero[1], c = document.createElement('canvas'); c.width = w; c.height = h;
+  if (IMG.hero) c.getContext('2d').drawImage(IMG.hero, 0, 0, w, h, 0, 0, w, h); c.style.width = w * sc + 'px'; c.style.height = h * sc + 'px'; return c; };
+function countTo(node, from, to, ms) {
+  const t0 = performance.now();
+  const f = now => { const k = Math.min(1, (now - t0) / ms); node.textContent = Math.round(from + (to - from) * k); if (k < 1 && node.isConnected) requestAnimationFrame(f); };
+  requestAnimationFrame(f);
+}
+function timeline(steps) { // steps: [[ms, fn], …] — skip() chạy nốt mọi bước còn lại ngay lập tức
+  const ids = [], ran = steps.map(() => false), run = i => { if (!ran[i]) { ran[i] = true; steps[i][1](); } };
+  steps.forEach((s, i) => ids.push(setTimeout(() => run(i), s[0])));
+  return { skip() { ids.forEach(clearTimeout); steps.forEach((s, i) => run(i)); } };
+}
+function stars(box) { let h = ''; for (let i = 0; i < 40; i++) h += `<i style="left:${Math.random() * 100}%;top:${Math.random() * 62}%;opacity:${.4 + Math.random() * .6}"></i>`; box.innerHTML = h; }
+function coinBurst(el) {
+  for (let i = 0; i < 6; i++) { const s = document.createElement('span'); s.className = 'cn-coin'; s.textContent = '🪙'; s.style.left = (38 + Math.random() * 24) + '%'; s.style.top = (46 + Math.random() * 10) + '%'; s.style.animationDelay = (i * 60) + 'ms'; el.appendChild(s); setTimeout(() => s.remove(), 1300); }
+}
+
+// Nửa đêm mà chưa ngủ: bị móc túi (hoặc được cụ Moss cứu)
+function robbery() {
+  open = true; CINE.on = true;
+  const sc = activeScene(), saved = Math.random() < RESCUE, had = S.coins;
+  const loss = saved || had <= 0 ? 0 : Math.min(had, Math.max(5, Math.round(had * (.3 + Math.random() * .3))));
+  const el = $('#cine'); el.hidden = false; el.className = 'cn robbery';
+  el.innerHTML = '<div class="cs-sky"></div><img class="cs-moon" alt="" src="' + iconURL('moon', true) + '"><div class="cs-stars"></div><div class="cs-ground"></div><div class="cs-stage"></div><div class="cs-cap"></div>' +
+    '<div class="cs-bar top"></div><div class="cs-bar bot"></div><div class="cs-btns"><button type="button" id="csSkip">⏭ Bỏ qua</button><button type="button" id="csGo" hidden>Tiếp tục ➜</button></div>';
+  stars(el.querySelector('.cs-stars'));
+  setTimeout(() => el.classList.add('in'), 30);
+  const stage = el.querySelector('.cs-stage'), cap = el.querySelector('.cs-cap');
+  const say = (vi, en) => { cap.innerHTML = vi + (en ? '<small>' + en + '</small>' : ''); };
+  const actor = (node, left) => { const d = document.createElement('div'); d.className = 'sp'; d.style.left = left; d.appendChild(node); stage.appendChild(d); return d; };
+  const mv = (a, left, ms) => { a.style.transition = 'left ' + ms + 'ms linear'; void a.offsetWidth; a.style.left = left; };
+  const put = (a, txt, cls, l, b) => { const s = document.createElement('span'); s.className = cls; s.textContent = txt; s.style.left = l + 'px'; s.style.bottom = b + 'px'; a.appendChild(s); return s; };
+  const bub = (a, txt, ms) => { const b = put(a, txt, 'bub', 30, 0); b.style.bottom = '100%'; setTimeout(() => b.remove(), ms || 1400); };
+  const hero = actor(heroEl(2.4), '46%'); hero.firstChild.style.animation = 'nod 2.4s ease-in-out infinite';
+  const zz = put(hero, '💤', 'bub zz', 70, 0); zz.style.bottom = '100%';
+  const hb = put(hero, '💰', 'bag', 84, 26);
+  const th = actor(texEl('thief', 3), '-20%'), tb = put(th, '💰', 'bag', 70, 40); tb.style.display = 'none';
+  const mo = actor(texEl('moss', 3), '112%'), lan = put(mo, '🏮', 'bag lan', -24, 36); lan.style.display = 'none';
+  const go = el.querySelector('#csGo'), skip = el.querySelector('#csSkip');
+  let applied = false;
+  const apply = () => { if (applied) return; applied = true; if (loss) { S.coins -= loss; snd('error'); } hud(); save(); };
+  const fin = () => { apply(); go.hidden = false; skip.hidden = true; go.focus(); };
+  const st = [], at = (ms, fn) => st.push([ms, fn]);
+  at(0, () => { say('🕛 Đã quá nửa đêm… bạn mệt quá nên ngồi xuống ven đường và ngủ thiếp đi.', 'It is midnight. You fall asleep by the road.'); snd('sleep'); });
+  at(2800, () => { say('👤 Một bóng đen lén lút tiến lại gần…', 'Someone is sneaking closer…'); mv(th, '32%', 2600); snd('cricket'); });
+  [3300, 3900, 4500, 5100].forEach(t => at(t, () => snd('step')));
+  at(5700, () => { say('🤏 Hắn thò tay vào túi bạn…', 'He is reaching for your money bag!'); bub(th, '…', 1400); });
+  if (had <= 0) {
+    at(7000, () => { say('🤨 Hắn lục túi bạn… nhưng chẳng có đồng nào!', 'Your pockets are empty!'); bub(th, '💢', 1400); snd('wrong'); });
+    at(8600, () => { mv(th, '-25%', 1400); snd('step'); });
+    at(10200, () => { say('😅 May mà ví bạn trống không — kẻ gian bỏ đi tay trắng.', 'Always sleep before midnight!'); fin(); });
+  } else if (saved) {
+    at(7000, () => { hb.style.display = 'none'; tb.style.display = 'block'; say('😱 Hắn giật lấy túi tiền của bạn!', 'He grabs your money bag!'); snd('error'); });
+    at(8200, () => { say('🧙 Cụ Moss: “Hey! Stop, thief!”', 'Này! Đứng lại, đồ trộm!'); lan.style.display = 'block'; mv(mo, '64%', 1800); snd('chat'); });
+    at(9600, () => { bub(th, '❗', 1300); tb.style.display = 'none'; hb.style.display = 'block'; mv(th, '-25%', 1100); snd('wrong'); });
+    at(10700, () => { snd('step'); });
+    at(11200, () => { say('🧙 Cụ Moss: “Always go to bed before midnight, young one.”', 'Hãy đi ngủ trước nửa đêm nhé, cháu.'); mv(mo, '58%', 900); snd('chat'); });
+    at(13400, () => { say('✨ Nhờ cụ Moss, bạn không mất đồng nào! Cụ còn tặng bạn một món quà nhỏ.', 'Elder Moss saved your money!'); snd('levelup'); fin(); });
+  } else {
+    at(7000, () => { hb.style.display = 'none'; tb.style.display = 'block'; say('😱 Hắn giật lấy túi tiền của bạn!', 'Stop! My money!'); snd('error'); });
+    at(8000, () => { bub(hero, '❗', 1400); mv(th, '115%', 1500); snd('step'); });
+    at(10200, () => { say(`🌅 Bạn tỉnh dậy trong nhà… túi tiền nhẹ bẫng. Mất ${loss} 🪙!`, 'Always sleep before midnight!'); fin(); });
+  }
+  const tl = timeline(st);
+  skip.onclick = () => tl.skip();
+  go.onclick = () => sleepSummary(sc, { forced:true, loss, saved });
+  skip.focus();
+}
+
+// Sang ngày mới: thu tiền từ thùng hàng (có hoạt ảnh đếm tiền), báo thời tiết, rồi về nhà thức dậy
+function sleepSummary(sc, o) {
+  o = o || {};
+  const items = listItems(S.bin), total = itemsValue(items), endDay = S.day;
+  const gift = o.saved ? rewardSeed() : null;
+  const before = S.coins;
+  S.coins += total; S.bin = { crops:{}, fish:{}, goods:{} };
+  newDay();
+  if (o.forced) S.stamina = Math.round(maxSt() * .7);
+  save();
+  const after = S.coins;
+  const el = $('#cine'); el.hidden = false; el.className = 'cn morning'; open = true; CINE.on = true;
+  el.innerHTML = '<div class="cn-sky dawn"></div><div class="cn-sky night"></div><div class="cn-stars"></div><img class="cn-sun" alt="" src="' + iconURL('sun', true) + '"><div class="cn-hill h1"></div><div class="cn-hill h2"></div>' +
+    '<div class="cn-card" role="dialog"><h2 id="cnT">🌙 Ngày ' + endDay + ' kết thúc…</h2><div id="cnSub" class="cn-sub">Bạn ngủ say… 💤</div><ul id="cnRows" class="cn-rows"></ul>' +
+    '<div id="cnTot" class="cn-tot" hidden>💰 Doanh thu đêm qua: <b>+<span id="cnSum">0</span> 🪙</b></div>' +
+    '<div id="cnWal" class="cn-wal" hidden>Ví: <span id="cnFrom">' + before + '</span> ➜ <b><span id="cnTo">' + before + '</span> 🪙</b></div><div id="cnExtra" class="cn-extra"></div>' +
+    '<div class="cn-btns"><button type="button" id="cnSkip">⏭ Bỏ qua</button><button type="button" id="cnGo" hidden>☀️ Bắt đầu ngày mới</button></div></div>';
+  stars(el.querySelector('.cn-stars'));
+  const rowsEl = $('#cnRows'), go = $('#cnGo'), skip = $('#cnSkip');
+  const st = [], at = (ms, fn) => st.push([ms, fn]);
+  let run = 0, t = 3300;
+  at(0, () => snd('sleep'));
+  at(1500, () => { el.classList.add('dawned'); $('#cnT').textContent = '☀️ Chào buổi sáng! Ngày ' + S.day; $('#cnSub').textContent = 'Lily đã đến lấy hàng trong thùng của bạn…'; snd('wake'); });
+  if (!items.length) {
+    at(t, () => { $('#cnSub').innerHTML = 'Thùng hàng đêm qua trống trơn. Hãy bỏ nông sản vào <b>📦 thùng</b> ở nông trại để bán nhé!'; });
+    t += 700;
+  } else {
+    at(t - 150, () => { $('#cnTot').hidden = false; });
+    items.forEach((x, i) => at(t + i * 520, () => {
+      const li = document.createElement('li');
+      li.innerHTML = x.ic + ' <span>' + x.en + ' ×' + x.n + ' <small>(' + x.price + '🪙/cái)</small></span><b>+' + x.n * x.price + '</b>';
+      rowsEl.appendChild(li); rowsEl.scrollTop = 9999;
+      const from = run; run += x.n * x.price; countTo($('#cnSum'), from, run, 380); snd('coin'); coinBurst(el);
+    }));
+    t += items.length * 520 + 300;
+  }
+  at(t, () => { $('#cnWal').hidden = false; countTo($('#cnTo'), before, after, 900); if (total) { snd('levelup'); coinBurst(el); } });
+  t += 1200;
+  at(t, () => {
+    const w = S.wx, ex = [];
+    ex.push(`<li>${WX_NAME[w.k]}${w.k === 'rain' ? ` — mưa khoảng ${w.a}h đến ${w.b}h, cây được tưới tự nhiên 💧` : ''}</li>`);
+    if (o.forced && o.saved) ex.push(`<li>🧙 Cụ Moss cứu bạn, không mất đồng nào! Quà: ${sico(gift, 20)} hạt ${crop(gift).en}</li>`);
+    else if (o.forced && o.loss) ex.push(`<li>😱 Bạn bị móc túi mất <b>${o.loss} 🪙</b>. Nhớ ngủ trước 24:00 nhé!</li>`);
+    else if (o.forced) ex.push('<li>😅 May mà ví trống rỗng, kẻ gian chẳng lấy được gì.</li>');
+    if (o.forced) ex.push('<li>⚡ Ngủ ngoài đường không ngon giấc: stamina chỉ còn 70%</li>');
+    if (o.cozy) ex.push(`<li>🛋️ Nhà ấm cúng: +${o.cozy} EXP</li>`);
+    $('#cnExtra').innerHTML = '<ul class="sum">' + ex.join('') + '</ul>';
+    $('#cnSum').textContent = total; $('#cnTo').textContent = after;
+    go.hidden = false; skip.hidden = true; go.focus();
+  });
+  const tl = timeline(st);
+  skip.onclick = () => tl.skip();
+  go.onclick = () => {
+    el.hidden = true; el.innerHTML = ''; el.className = ''; CINE.on = false; open = false;
+    hud(); save(); snd('wake');
+    if (sc && sc.scene.key === 'Home') { sc.cameras.main.fadeIn(500); sc.leaving = false; } else if (sc) sc.scene.start('Home', { from:sc.scene.key });
+    toast('Good morning! Ngày ' + S.day + ' · ' + WX_NAME[wxNow()]);
+    if (o.cozy) gainExp(o.cozy);
+  };
+  skip.focus();
+}
+
+// ====== HIỆU ỨNG MƯA / SẤM CHỚP / ĐOM ĐÓM (canvas phủ lên game) ======
+const FX = { drops:[], ff:[], flash:0, nextBolt:0, last:0, node:null };
+function rainSound(on) {
+  if (!AU.c || !AU.nb) return;
+  if (on && AU.on && !FX.node) { try { const a = AU.c, s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+    s.buffer = AU.nb; s.loop = true; f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = .5; g.gain.value = 0; s.connect(f); f.connect(g); g.connect(AU.m); s.start(); FX.node = g; } catch (e) {} }
+  if (FX.node) FX.node.gain.value = on && AU.on ? .022 : 0;
+}
+function fxLoop(now) {
+  requestAnimationFrame(fxLoop);
+  const cv = $('#fx'); if (!cv) return;
+  const box = cv.parentElement, w = box.clientWidth, h = box.clientHeight; if (!w || !h) return;
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const g = cv.getContext('2d'); g.clearRect(0, 0, w, h);
+  const dt = Math.min(.05, (now - (FX.last || now)) / 1000); FX.last = now;
+  const sc = activeScene(), key = sc ? sc.scene.key : 'Boot';
+  const out = key !== 'Home' && key !== 'Boot' && !CINE.on, wx = wxNow(), hr = clk / 60, raining = out && wx === 'rain';
+  rainSound(raining);
+  if (raining) {
+    while (FX.drops.length < 150) FX.drops.push({ x:Math.random(), y:Math.random(), s:.8 + Math.random() * .6 });
+    g.fillStyle = 'rgba(50,70,100,.10)'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = 'rgba(200,225,255,.55)'; g.lineWidth = 1.5; g.beginPath();
+    FX.drops.forEach(d => { d.y += dt * 1.3 * d.s; d.x -= dt * .18 * d.s; if (d.y > 1) { d.y = -.05; d.x = Math.random() * 1.2; } if (d.x < 0) d.x += 1.2; const x = d.x * w, y = d.y * h; g.moveTo(x, y); g.lineTo(x - 5, y + 14 * d.s); });
+    g.stroke();
+    if (now > FX.nextBolt) { if (FX.nextBolt) { FX.flash = 1; setTimeout(() => snd('thunder'), 350); } FX.nextBolt = now + 9000 + Math.random() * 9000; }
+  } else { FX.nextBolt = 0; if (out && wx === 'cloud') { g.fillStyle = 'rgba(70,90,120,.05)'; g.fillRect(0, 0, w, h); } }
+  if (FX.flash > 0) { g.fillStyle = 'rgba(255,255,255,' + (FX.flash * .4) + ')'; g.fillRect(0, 0, w, h); FX.flash = Math.max(0, FX.flash - dt * 2.5); }
+  if (out && !raining && (hr >= 19.5 || hr < 5.5)) {
+    while (FX.ff.length < 22) FX.ff.push({ x:Math.random(), y:.2 + Math.random() * .7, p:Math.random() * 6.28, s:.4 + Math.random() * .6 });
+    FX.ff.forEach(f => {
+      f.x += Math.sin(now / 1500 * f.s + f.p) * dt * .05; f.y += Math.cos(now / 1900 * f.s + f.p) * dt * .04; f.x = (f.x + 1) % 1; f.y = Math.min(.95, Math.max(.1, f.y));
+      const a = .35 + .55 * Math.abs(Math.sin(now / 500 + f.p));
+      g.fillStyle = 'rgba(255,240,150,' + a * .25 + ')'; g.beginPath(); g.arc(f.x * w, f.y * h, 7, 0, 7); g.fill();
+      g.fillStyle = 'rgba(255,250,190,' + a + ')'; g.beginPath(); g.arc(f.x * w, f.y * h, 2, 0, 7); g.fill();
+    });
+  }
+}
+
+
 function makeTextures(sc) {
   const tex = (k, w, h, f) => { if (sc.textures.exists(k)) return; const g = sc.add.graphics(); f(g); g.generateTexture(k, w, h); g.destroy(); };
   const person = (g, hair, shirt, extra) => {
@@ -670,36 +996,57 @@ function makeTextures(sc) {
   tex('fountain', 64, 64, g => { g.fillStyle(0x000000, .2); g.fillEllipse(32,54,58,10);
     g.fillStyle(0x9aa0a6); g.fillCircle(32,38,26); g.fillStyle(0x4aa3d8); g.fillCircle(32,38,20); g.fillStyle(0x8fd3ff); g.fillCircle(32,38,9);
     g.fillStyle(0x9aa0a6); g.fillRect(29,12,6,26); g.fillStyle(0xcfe9ff); g.fillCircle(32,10,5); g.fillRect(24,18,2,6); g.fillRect(38,18,2,6); });
-}
 
-// ====== SPRITE BỔ SUNG: cây, đồ trang trí, đèn ======
-const LAMP_POST = {"off": 5, "on": 15}; // vị trí cột đèn trong ảnh tắt / sáng (để hai ảnh chồng khít nhau)
-const isNight = () => clk >= 1080 || clk < 360;
-function plantTree(sc, x, y, small) {
-  const ks = Object.keys(window.ASSETS.trees || {}).filter(k => k !== 'bush' && !(small && (k === 'banyan' || k === 'jackfruit')));
-  if (!ks.length || !sc.textures.exists('tr_' + ks[0])) { const s = sc.solids.create(x, y, 'tree'); s.setDepth(y + s.height / 2 - 4); return s; }
-  const k = ks[Math.floor((Math.abs(Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1) * ks.length)], foot = y + 28;
-  const img = sc.add.image(x, foot, 'tr_' + k).setOrigin(.5, 1).setDepth(foot);
-  const col = sc.solids.create(x, foot - 5, 'shadow'); col.setVisible(false); col.isTree = true; col.treeImg = img; // chỉ gốc cây chặn đường
-  return col;
-}
-// đặt vật trang trí theo chân (origin .5,1); solid = [rộng, cao] của vùng chặn ở chân
-function putProp(sc, key, x, foot, solid) {
-  if (!sc.textures.exists(key)) return null;
-  const s = sc.add.image(x, foot, key).setOrigin(.5, 1).setDepth(foot);
-  if (solid) { const z = sc.add.zone(x, foot - solid[1] / 2, solid[0], solid[1]); sc.physics.add.existing(z, true); sc.physics.add.collider(sc.player, z); }
-  return s;
-}
-// đèn lồng trên cột: ban ngày tắt, ban đêm sáng
-function putLamp(sc, x, foot) {
-  const off = putProp(sc, 'lamp_off', x, foot, [14, 8]); if (!off) return;
-  const dx = (LAMP_POST.off - off.width / 2) - (LAMP_POST.on - sc.textures.get('lamp_on').getSourceImage().width / 2);
-  const on = sc.add.image(x + dx, foot, 'lamp_on').setOrigin(.5, 1).setDepth(foot + .1).setVisible(false);
-  (sc.lamps = sc.lamps || []).push(on);
+  // --- MỚI: vật nuôi (pixel art), thùng bán hàng, cối xay gió, đồi, vườn, cầu… ---
+  Object.keys(ANI_PX).forEach(k => { if (!sc.textures.exists('a_' + k)) sc.textures.addCanvas('a_' + k, pxCanvas(ANI_PX[k].rows, ANI_PX[k].pal, 2)); });
+  tex('daisy', 32, 32, g => person(g, 0xf2c14e, 0x66bb6a, h => { h.fillStyle(0xff6f91); h.fillRect(6,0,20,4); h.fillRect(9,-1,5,3); h.fillStyle(0xffffff); h.fillRect(16,1,4,2); }));
+  tex('pete', 32, 32, g => person(g, 0x6b4a2b, 0xd9822b, h => { h.fillStyle(0xf3e7c9); h.fillRect(5,0,22,5); h.fillRect(9,-1,14,2); h.fillStyle(0x8a5a2b); h.fillRect(5,4,22,2); }));
+  tex('thief', 32, 32, g => person(g, 0x151515, 0x2b2b3a, h => {
+    h.fillStyle(0x151515); h.fillRect(5,0,22,8); h.fillRect(5,0,4,17); h.fillRect(23,0,4,17); h.fillRect(9,11,14,5);
+    h.fillStyle(0xffffff); h.fillRect(12,8,3,2); h.fillRect(19,8,3,2);
+    h.fillStyle(0xdddddd); [18,22,26,30].forEach(y => h.fillRect(7,y,18,2)); }));
+  tex('bin', 48, 40, g => { g.fillStyle(0x000000, .2); g.fillEllipse(24,37,44,7);
+    g.fillStyle(0x6e3b17); g.fillRect(3,14,42,24); g.fillStyle(0x9c5a2e); g.fillRect(5,16,38,20);
+    g.fillStyle(0x84491f); [22,28,34].forEach(y => g.fillRect(5,y,38,2));
+    g.fillStyle(0x5a2f12); g.fillRect(1,8,46,8); g.fillStyle(0x7a4420); g.fillRect(3,9,42,5);
+    g.fillStyle(0xf2b632); g.fillCircle(24,26,6); g.fillStyle(0xffe08a); g.fillCircle(24,26,3.5); g.fillStyle(0xf2b632); g.fillRect(23,23,2,6); });
+  tex('windmill', 112, 144, g => { g.fillStyle(0x000000, .2); g.fillEllipse(56,140,96,10);
+    g.fillStyle(0xe8d7b0); g.fillTriangle(26,138,86,138,38,50); g.fillTriangle(86,138,74,50,38,50);
+    g.fillStyle(0xd2bf94); g.fillTriangle(70,138,86,138,74,50); g.fillTriangle(70,138,74,50,64,50);
+    g.fillStyle(0xc4b07e); [72,92,112].forEach(y => g.fillRect(38 - (y - 50) * .12, y, 38 + (y - 50) * .24, 2));
+    g.fillStyle(0x8a2a1f); g.fillTriangle(28,54,56,14,84,54); g.fillStyle(0xb5382a); g.fillTriangle(34,52,56,20,78,52);
+    g.fillStyle(0x6b3a22); g.fillRect(47,110,18,28); g.fillStyle(0xf2d28b); g.fillRect(49,112,14,26);
+    g.fillStyle(0x6e3b17); g.fillRect(49,74,14,14); g.fillStyle(0x8fd3ff); g.fillRect(51,76,10,10); g.fillStyle(0x6e3b17); g.fillRect(55,76,2,10); });
+  tex('blades', 100, 100, g => { g.fillStyle(0xf3e7c9);
+    g.fillRect(54,6,22,36); g.fillRect(58,54,36,22); g.fillRect(24,58,22,36); g.fillRect(6,24,36,22);
+    g.fillStyle(0xd9c79a); [14,22,30].forEach(o => { g.fillRect(54,6 + o - 6,22,2); g.fillRect(58 + 36 - o - 4,54,2,22); g.fillRect(24,58 + 36 - o - 4,22,2); g.fillRect(6 + o - 6,24,2,22); });
+    g.fillStyle(0x6b3a22); g.fillRect(46,2,8,96); g.fillRect(2,46,96,8); g.fillStyle(0x4a2a14); g.fillCircle(50,50,7); });
+  tex('gazebo', 120, 112, g => { g.fillStyle(0x000000, .2); g.fillEllipse(60,104,112,12);
+    g.fillStyle(0xcaa46a); g.fillRect(8,84,104,18); g.fillStyle(0xb48e56); g.fillRect(8,98,104,4);
+    g.fillStyle(0x8a5a2e); g.fillRect(14,44,8,46); g.fillRect(98,44,8,46); g.fillRect(56,44,8,46);
+    g.fillStyle(0x6b3a22); g.fillRect(14,44,3,46); g.fillRect(98,44,3,46); g.fillRect(56,44,3,46);
+    g.fillStyle(0x8a2a1f); g.fillRect(6,42,108,8); g.fillStyle(0x8a2a1f); g.fillTriangle(0,46,60,4,120,46);
+    g.fillStyle(0xb5382a); g.fillTriangle(8,44,60,10,112,44); g.fillStyle(0xd0503e); g.fillTriangle(20,42,60,16,60,42); });
+  tex('bench', 44, 26, g => { g.fillStyle(0x000000, .18); g.fillEllipse(22,24,40,5);
+    g.fillStyle(0x84491f); g.fillRect(2,0,40,6); g.fillStyle(0x9c5a2e); g.fillRect(2,8,40,8); g.fillStyle(0x5a2f12); g.fillRect(5,16,4,8); g.fillRect(35,16,4,8); });
+  tex('lamp', 16, 56, g => { g.fillStyle(0x000000, .2); g.fillEllipse(8,54,14,4);
+    g.fillStyle(0x3a3a3a); g.fillRect(7,14,2,40); g.fillRect(4,50,8,4); g.fillRect(2,2,12,3); g.fillRect(2,16,12,3); g.fillRect(2,2,2,16); g.fillRect(12,2,2,16);
+    g.fillStyle(0xffd27a); g.fillRect(4,5,8,11); g.fillStyle(0xfff0b0); g.fillRect(6,7,3,5); });
+  tex('telescope', 40, 48, g => { g.fillStyle(0x000000, .2); g.fillEllipse(20,46,34,6);
+    g.lineStyle(3, 0x4a3320); g.lineBetween(20,28,8,46); g.lineBetween(20,28,32,46); g.lineBetween(20,28,20,46);
+    g.fillStyle(0x2f5f9e); g.fillTriangle(6,24,10,16,34,6); g.fillTriangle(6,24,34,6,32,14); g.fillStyle(0xd4a62a); g.fillRect(14,15,4,10); g.fillRect(26,8,3,9);
+    g.fillStyle(0x8fd3ff); g.fillCircle(34,9,3); g.fillStyle(0x222222); g.fillCircle(8,22,3); });
+  tex('cliff', 32, 56, g => { g.fillStyle(0x8a6a4a); g.fillRect(0,0,32,56);
+    g.fillStyle(0x6aa84f); g.fillRect(0,0,32,7); g.fillStyle(0x4d8738); g.fillRect(0,6,32,2);
+    g.fillStyle(0x7a5c3e); [[0,12,14,14],[16,20,16,12],[4,34,12,12],[18,40,14,10]].forEach(r => g.fillRect(r[0],r[1],r[2],r[3]));
+    g.fillStyle(0x9a7a56); [[2,10,10,3],[18,18,12,3],[6,32,8,3],[20,38,10,3]].forEach(r => g.fillRect(r[0],r[1],r[2],r[3]));
+    g.fillStyle(0x5a4630); g.fillRect(0,48,32,8); g.fillRect(15,26,2,8); g.fillRect(8,14,2,6); });
+  tex('hedge', 32, 32, g => { g.fillStyle(0x2e7d32); g.fillRect(0,0,32,32); g.fillStyle(0x3fa04a); [[2,3],[12,6],[22,2],[6,14],[18,16],[26,10],[10,24],[24,26]].forEach(p => g.fillRect(p[0],p[1],6,5));
+    g.fillStyle(0x1f5f26); [[8,10],[20,8],[2,22],[16,28],[28,20]].forEach(p => g.fillRect(p[0],p[1],5,4)); g.fillStyle(0x56bb5c); g.fillRect(0,0,32,2); });
+  tex('sand', 32, 32, g => { g.fillStyle(0xe8d7a0); g.fillRect(0,0,32,32); g.fillStyle(0xd8c68a); [[4,5],[19,9],[9,22],[25,26],[14,14]].forEach(p => g.fillRect(p[0],p[1],3,2)); });
 }
 
 // ====== CẢNH CƠ SỞ: di chuyển, thời gian, tương tác dùng chung ======
-let late = false;
 const activeScene = () => game.scene.getScenes(true)[0];
 class Base extends Phaser.Scene {
   init(data) { this.from = data && data.from; this.leaving = false; this.target = null; }
@@ -728,17 +1075,71 @@ class Base extends Phaser.Scene {
     this.input.on('pointerdown', p => { if (!open && !this.leaving) this.target = { x:p.worldX, y:p.worldY }; });
     this.hintText = '';
     this.mm = { r:[], n:[], exits:[] }; this.roadCells = null; this._trees = null;
+    this.animals = [];
+    if (this.scene.key !== 'Home') { // chú chó Biscuit đi theo bạn
+      this.dogSh = this.add.image(px - 28, py + 8, 'shadow').setDepth(.5).setScale(.7);
+      this.dog = this.add.image(px - 28, py + 8, 'a_dog').setOrigin(.5, 1).setDepth(py);
+    } else { this.dog = null; }
   }
+
 
   // nhân vật đứng yên có va chạm + bóng + nhãn tên
   npc(key, x, y, name) {
-    const s = this.physics.add.sprite(x, y, key).setImmovable(true).setDepth(y), tall = s.height > 40;
-    if (tall) { s.setOrigin(.5, .78); s.body.setSize(22, 14).setOffset(9, 40); }
-    this.add.image(x, y + (tall ? 10 : 16), 'shadow').setDepth(.5);
-    if (name) this.add.text(x, y - (tall ? 50 : 32), name, { fontSize:'14px', color:'#fff', backgroundColor:'#00000088', padding:{ x:4, y:1 } }).setOrigin(.5).setDepth(1500);
+    const s = this.physics.add.sprite(x, y, key).setImmovable(true).setDepth(y);
+    this.add.image(x, y + 16, 'shadow').setDepth(.5);
+    if (name) this.add.text(x, y - 32, name, { fontSize:'14px', color:'#fff', backgroundColor:'#00000088', padding:{ x:4, y:1 } }).setOrigin(.5).setDepth(1500);
     this.physics.add.collider(this.player, s);
     this.mm.n.push(s);
     return s;
+  }
+
+  // vật cản hình chữ nhật (toạ độ góc trên-trái)
+  block(x, y, w, h) { const z = this.add.zone(x + w / 2, y + h / 2, w, h); this.physics.add.existing(z, true); this.physics.add.collider(this.player, z); return z; }
+
+  // ---- vật nuôi đi lang thang trong khung rect = [x, y, w, h]; ex = các khung cấm ----
+  addAnimal(kind, x, y, rect, ex) {
+    const d = ANIMALS[kind], n = this.animals.length;
+    const sh = this.add.image(x, y, 'shadow').setDepth(.5).setScale(d.sh || 1);
+    if (!d.sh) sh.setVisible(false);
+    const s = this.add.image(x, y, 'a_' + kind).setOrigin(.5, 1).setDepth(y);
+    const a = { id:this.scene.key + kind + n, kind, s, sh, x, y, rect, ex:ex || [], vx:0, vy:0, t:Math.random() * 1500, sp:d.sp || 20 };
+    for (let i = 0; i < 40 && this.animalBlocked(a, a.x, a.y); i++) { a.x = rect[0] + 10 + Math.random() * (rect[2] - 20); a.y = rect[1] + 10 + Math.random() * (rect[3] - 20); }
+    this.animals.push(a); return a;
+  }
+  animalBlocked(a, x, y) {
+    const r = a.rect;
+    if (x < r[0] || x > r[0] + r[2] || y < r[1] || y > r[1] + r[3]) return true;
+    if (a.ex.some(e => x > e[0] && x < e[0] + e[2] && y > e[1] && y < e[1] + e[3])) return true;
+    return this.solids.getChildren().some(o => Math.abs(o.x - x) < o.width / 2 + 8 && y > o.y - o.height / 2 - 4 && y < o.y + o.height / 2 + 8);
+  }
+  tickAnimals(time, delta) {
+    this.animals.forEach(a => {
+      const d = ANIMALS[a.kind];
+      a.t -= delta;
+      if (a.t <= 0) {
+        if (Math.random() < .4) { a.vx = a.vy = 0; a.t = 700 + Math.random() * 2200; }
+        else { const ang = Math.random() * 6.283; a.vx = Math.cos(ang) * a.sp; a.vy = Math.sin(ang) * a.sp * .55; a.t = 600 + Math.random() * 1600; }
+      }
+      let hop = 0;
+      if (a.vx || a.vy) {
+        const nx = a.x + a.vx * delta / 1000, ny = a.y + a.vy * delta / 1000;
+        if (this.animalBlocked(a, nx, ny)) { a.vx = a.vy = 0; a.t = 150 + Math.random() * 400; }
+        else { a.x = nx; a.y = ny; if (Math.abs(a.vx) > 1) a.s.setFlipX(a.vx < 0); hop = Math.abs(Math.sin(time / 110 + a.x)) * (d.hop || 1); }
+      }
+      a.s.setPosition(a.x, a.y - hop).setDepth(a.y); a.sh.setPosition(a.x, a.y - 1);
+    });
+  }
+  animalAt() {
+    let best = null, d = 54;
+    this.animals.forEach(a => { const dd = Phaser.Math.Distance.Between(this.player.x, this.player.y, a.x, a.y - 6); if (dd < d) { d = dd; best = a; } });
+    return best;
+  }
+  // chú chó Biscuit đi theo người chơi
+  followDog(delta) {
+    const d = this.dog; if (!d) return;
+    const p = this.player, tx = p.x - 28, ty = p.y + 4, dx = tx - d.x, dy = ty - d.y, dist = Math.hypot(dx, dy);
+    if (dist > 34) { const v = Math.min(dist * 3, 160) * delta / 1000; d.x += dx / dist * v; d.y += dy / dist * v; if (Math.abs(dx) > 2) d.setFlipX(dx < 0); }
+    d.setDepth(d.y); this.dogSh.setPosition(d.x, d.y - 1);
   }
 
   go(key) {
@@ -765,10 +1166,21 @@ class Base extends Phaser.Scene {
     const sm = (cur, to) => Math.abs(to - cur) < 4 ? to : cur + (to - cur) * ease;
     b.setVelocity(sm(b.velocity.x, tx), sm(b.velocity.y, ty));
 
-    clk = Math.min(clk + delta * .006, 1500);
-    this.night.setAlpha(dark(clk / 60));
+    clk = Math.min(clk + delta * TIME_SPEED, 1500);
+    const wxn = wxNow(), dim = wxn === 'rain' ? .16 : wxn === 'cloud' ? .06 : 0;
+    this.night.setAlpha(Math.min(.62, dark(clk / 60) + dim));
     const tick = Math.floor(clk / 10); if (tick !== this.tick) { this.tick = tick; dayText(); }
-    if (clk >= 1380 && !late) { late = true; toast('Muộn rồi — về nhà đi ngủ thôi! 🌙'); }
+    // mưa bắt đầu: cây đã gieo được tưới tự nhiên
+    if (wxn === 'rain' && S.rainDay !== S.day) {
+      S.rainDay = S.day; S.plots.forEach(p => { if (p.s === 2) p.w = true; });
+      if (this.pv) this.pv.forEach((v, i) => this.paint(i));
+      toast('🌧️ Trời mưa rồi! Cây trồng được tưới nước miễn phí 💧'); snd('thunder'); save();
+    }
+    // cảnh báo giờ ngủ: trước 24:00, không thì bị móc túi
+    if (clk >= 1320 && warn < 1) { warn = 1; toast('🌙 22:00 — hãy về nhà đi ngủ trước 24:00, kẻo bị kẻ gian móc túi!'); }
+    else if (clk >= 1380 && warn < 2) { warn = 2; toast('⚠️ 23:00 rồi! Còn 1 tiếng nữa là nửa đêm!'); snd('error'); }
+    else if (clk >= 1410 && warn < 3) { warn = 3; toast('🚨 23:30! Chạy về nhà ngủ ngay!'); snd('error'); }
+    if (clk >= 1440 && !robbed) { robbed = true; this.player.setVelocity(0); robbery(); return false; }
     const moving = !!(vx || vy);
     this.stepT = moving ? (this.stepT || 0) + delta : 220;
     if (this.stepT > 300) { this.stepT = 0; snd(this.scene.key === 'Home' ? 'wood' : 'step'); }
@@ -787,7 +1199,7 @@ class Base extends Phaser.Scene {
     }
     if (this.face !== 'side') p.setFlipX(false);
     if (moving) p.anims.play('walk-' + this.face, true);
-    else { p.anims.stop(); p.setFrame({ down:0, up:6, side:12 }[this.face]); }
+    else { p.anims.stop(); p.setFrame({ down:0, up:4, side:8 }[this.face]); }
   }
 
   // nền: cỏ ngẫu nhiên + đường đất tự ghép góc / ngã ba / ngã tư theo các ô lân cận (ô 64px)
@@ -815,20 +1227,23 @@ class Base extends Phaser.Scene {
       const x = 30 + rnd() * (this.W - 60), y = 50 + rnd() * (this.H - 70);
       if (!ok(x, y)) continue;
       // không đặt bụi đè lên cây / nhà (hết lỗi bụi hoa chồng lên tán cây)
-      if (this.solids.getChildren().some(o => { const t = o.treeImg, cx = t ? t.x : o.x, hw = (t ? t.width : o.width) / 2, top = t ? t.y - t.height : o.y - o.height / 2, bot = t ? t.y : o.y + o.height / 2; return Math.abs(cx - x) < hw + 24 && y > top - 4 && y - 40 < bot; })) continue;
+      if (this.solids.getChildren().some(o => Math.abs(o.x - x) < o.width / 2 + 24 && y > o.y - o.height / 2 - 4 && y - 40 < o.y + o.height / 2)) continue;
       this.add.image(x, y, k % 3 === 2 ? 'bushF' : 'bushG').setOrigin(.5, 1).setDepth(y); k++;
     }
   }
 
   interact() {
-    this.cur = this.look();
-    const t = this.label(this.cur);
+    let c = this.look();
+    if (!c || c.t === 'fish' || c.t === 'river') { const a = this.animalAt(); if (a) c = { t:'animal', a }; }
+    this.cur = c;
+    const an = c && c.t === 'animal' ? ANIMALS[c.a.kind] : null;
+    const t = an ? `E: chơi với ${an.e} ${an.en} (${an.vi}) — học 1 câu mới` : this.label(c);
     if (t !== this.hintText) { this.hintText = t; $('#hint').textContent = t; }
     const k = this.keys, J = Phaser.Input.Keyboard.JustDown;
     if (J(k.e) || J(k.sp)) this.act();
   }
 
-  act() { if (!open && !this.leaving && this.cur) this.doAct(this.cur); }
+  act() { if (!open && !this.leaving && this.cur) { if (this.cur.t === 'animal') petAnimal(this.cur.a); else this.doAct(this.cur); } }
 
   // bản đồ nhỏ (góc phải trên): đường, công trình, cây, NPC, lối ra và vị trí người chơi
   drawMini(time) {
@@ -842,7 +1257,7 @@ class Base extends Phaser.Scene {
     g.fillStyle = '#5c8f3e'; g.fillRect(X(0), Y(0), this.W * sc, this.H * sc);
     if (this.roadCells) { g.fillStyle = '#d8b87a'; this.roadCells.forEach(k => { const p = k.split(','); g.fillRect(X(p[0] * 64), Y(p[1] * 64), 64 * sc + .6, 64 * sc + .6); }); }
     this.mm.r.forEach(r => { g.fillStyle = r[4] || '#b5651d'; g.fillRect(X(r[0]), Y(r[1]), Math.max(2, r[2] * sc), Math.max(2, r[3] * sc)); });
-    if (!this._trees) this._trees = this.solids.getChildren().filter(o => o.isTree || (o.texture && o.texture.key === 'tree'));
+    if (!this._trees) this._trees = this.solids.getChildren().filter(o => o.texture && o.texture.key === 'tree');
     g.fillStyle = '#2e6b32'; this._trees.forEach(t => g.fillRect(X(t.x) - 1, Y(t.y) - 2, 3, 3));
     if (this.mm.spots) { g.fillStyle = '#ffd54a'; this.mm.spots.forEach((p, i) => { if (!S.foraged.includes(i)) g.fillRect(X(p.x) - 1.5, Y(p.y) - 1.5, 3, 3); }); }
     g.fillStyle = '#7fe3ff'; this.mm.exits.forEach(e => g.fillRect(X(e[0]), Y(e[1]), Math.max(3, e[2] * sc), Math.max(3, e[3] * sc)));
@@ -853,10 +1268,10 @@ class Base extends Phaser.Scene {
   }
 
   update(time, delta) {
-    if (this.lamps) { const n = isNight(); this.lamps.forEach(l => { if (l.visible !== n) l.setVisible(n); }); }
     if (!this.move(time, delta)) return;
     this.edge();
     this.interact();
+    this.tickAnimals(time, delta); this.followDog(delta);
     this.drawMini(time);
   }
 }
@@ -877,9 +1292,8 @@ class Boot extends Phaser.Scene {
       const ct = T.addCanvas('grassS', cv); for (let i = 0; i < 6; i++) ct.add('g' + i, 0, i * 32, 0, 32, 32); }
     Object.keys(window.ASSETS.bld || {}).forEach(k => { if (IMG['b_' + k]) T.addImage('b_' + k, IMG['b_' + k]); }); // công trình pixel-art
     T.addImage('shopimg', IMG.shop); T.addImage('bushG', IMG.bushG); T.addImage('bushF', IMG.bushF);
-    [['down', 0], ['up', 6], ['side', 12]].forEach(([k, st]) => this.anims.create({
-      key:'walk-' + k, frames:this.anims.generateFrameNumbers('hero', { start:st, end:st + 5 }), frameRate:9, repeat:-1 }));
-    PLUS.forEach(([k]) => { if (IMG['x_' + k]) T.addImage(k, IMG['x_' + k]); }); // sprite bổ sung (cây, hàng rào, bà, ...)
+    [['down', 0], ['up', 4], ['side', 8]].forEach(([k, st]) => this.anims.create({
+      key:'walk-' + k, frames:this.anims.generateFrameNumbers('hero', { start:st, end:st + 3 }), frameRate:10, repeat:-1 }));
     this.scene.start('Farm');
   }
 }
@@ -900,8 +1314,9 @@ class Farm extends Base {
       if ((x > 80 && x < 900 && y > 60 && y < 520) || (x > 880 && x < 1140 && y > 680 && y < 840)) continue; // chừa khu nông trại
       if (x > 150 && y > 530 && y < 690) continue; // chừa con đường nhà → thị trấn
       if (x > 500 && x < 780 && (y < 150 || y > H - 150)) continue; // chừa lối lên Rừng / xuống Hồ
-      plantTree(this, x, y);
+      this.solids.create(x, y, 'tree');
     }
+    this.binObj = this.solids.create(430, 440, 'bin'); // thùng bán hàng
     this.solids.refresh();
     this.solids.children.each(t => t.setDepth(t.y + t.height / 2 - 4)); // sắp lớp theo chân cây / nhà
     // đường đất (ô 64px): nhà → xuống dưới → sang thị trấn (phải) + nhánh rẽ ra ruộng
@@ -926,7 +1341,12 @@ class Farm extends Base {
     this.emma = this.npc('emma', 340, 250, 'Emma 🎓 English');
     this.physics.add.collider(this.player, this.solids);
     this.physics.add.collider(this.player, this.house.zone);
-    this.decorFarm();
+    this.add.text(430, 408, '📦 Thùng bán hàng', { fontSize:'14px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
+    this.mm.r.push([406, 420, 48, 40, '#9c5a2e']);
+    for (let i = 0; i < 3; i++) this.addAnimal('chicken', 130 + i * 70, 440, [90, 380, 300, 130]);
+    for (let i = 0; i < 2; i++) this.addAnimal('cow', 940 + i * 90, 430, [900, 360, 250, 190]);
+    for (let i = 0; i < 2; i++) this.addAnimal('sheep', 1000 + i * 80, 500, [900, 360, 250, 190]);
+    for (let i = 0; i < 2; i++) this.addAnimal('duck', 990 + i * 40, 760, [950, 738, 120, 46]);
 
     // 15 ô đất (5 x 3)
     this.pv = S.plots.map((p, i) => {
@@ -938,42 +1358,11 @@ class Farm extends Base {
 
     hud();
     const showWelcome = () => modal('English Farm 🌱',
-      '<b>“Welcome to the farm!”</b><br>Chào mừng bạn! Mở <b>🎒 Túi đồ</b> (phím B) → chọn hạt giống → xới đất → gieo hạt → tưới nước → vào nhà đi ngủ → thu hoạch. Làm nông tốn ⚡ stamina.<br>🎓 Nói chuyện với <b>cô Emma</b> để học từ vựng B1/B2: lấy EXP, lên cấp và nhận 🌱 hạt giống thưởng. Đi sang phải để vào 🏘️ thị trấn: mua hạt giống, bán nông sản, ăn đồ hồi stamina.',
+      '<b>“Welcome to the farm!”</b><br>Chào mừng bạn! Mở <b>🎒 Túi đồ</b> (phím B) → chọn hạt giống → xới đất → gieo hạt → tưới nước → vào nhà đi ngủ → thu hoạch. Làm nông tốn ⚡ stamina.<br>🎓 Nói chuyện với <b>cô Emma</b> để học từ vựng B1/B2: lấy EXP, lên cấp và nhận 🌱 hạt giống thưởng. Đi sang phải để vào 🏘️ thị trấn: mua hạt giống, ăn đồ hồi stamina; qua cầu, vườn hoa và đồi cao cũng rất đáng ghé. Bán nông sản bằng cách bỏ vào 📦 thùng ở nông trại, nhớ đi ngủ trước 24:00 kẻo bị móc túi!',
       [{ label:'Bắt đầu chơi 🌾', fn:closeModal }]);
     const first = S.day === 1 && !Object.keys(S.learned).length && !Object.keys(S.words).length;
     if (!S.story.intro) talk(PROLOGUE, () => { S.story.intro = true; save(); hud(); if (first) showWelcome(); });
     else if (first) showWelcome();
-  }
-
-
-  // hàng rào quanh ruộng, hộp thư, thùng bán nông sản, đèn lồng, biển chỉ đường, đồ nông thôn
-  decorFarm() {
-    if (!this.textures.exists('fn_h')) return;
-    const fh = this.textures.get('fn_h').getSourceImage().width, X0 = 480, X1 = 816, TOP = 266, BOT = 474;
-    const n = Math.round((X1 - X0) / fh), w = (X1 - X0) / n;
-    for (let i = 0; i < n; i++) {
-      const x = X0 + w * (i + .5);
-      putProp(this, 'fn_h', x, TOP, [w * .95, 10]);
-      if (i !== Math.floor(n / 2)) putProp(this, 'fn_h', x, BOT, [w * .95, 10]); // chừa 1 lối vào ruộng ở giữa hàng dưới
-    }
-    [300, 336, 372, 408, 440].forEach(y => putProp(this, 'fn_post', X1, y, [10, 8]));
-    [440, 408].forEach(y => putProp(this, 'fn_post', X0, y, [10, 8])); putProp(this, 'fn_post', X0, 300, [10, 8]); // chừa lối đường đất bên trái
-    putProp(this, 'fn_post', X0 + w * Math.floor(n / 2), BOT, [10, 8]); putProp(this, 'fn_post', X0 + w * (Math.floor(n / 2) + 1), BOT, [10, 8]);
-    this.mail = putProp(this, 'p_mail', 150, 300, [18, 8]);
-    this.bin = putProp(this, 'bin_closed', 866, 392, [40, 12]);
-    putLamp(this, 180, 470); putLamp(this, 275, 470); putLamp(this, 1190, 535);
-    putProp(this, 'p_sign', 1238, 574, [14, 8]); putProp(this, 'p_sign', 520, 84, [14, 8]); putProp(this, 'p_sign', 520, 906, [14, 8]);
-    putProp(this, 'pr_hay', 66, 300, [34, 12]); putProp(this, 'pr_wood', 70, 345, [36, 12]); putProp(this, 'pr_jar', 112, 360, [24, 10]);
-    putProp(this, 'pr_tray1', 330, 292); putProp(this, 'pr_tray2', 420, 296);
-  }
-
-  sellBin() {
-    const got = CROPS.filter(c => (S.inv.crops[c.id] || 0) > 0);
-    if (!got.length) { snd('error'); return toast('Thùng trống — hãy thu hoạch nông sản rồi mang ra đây bán 🧺'); }
-    const total = got.reduce((t, c) => t + c.price * S.inv.crops[c.id], 0);
-    modal('🧺 Thùng bán nông sản', `<b>“Sell everything in the bin?”</b><br>(Bán toàn bộ nông sản trong túi?)<br><small>${got.map(c => `${ico(c.id, 22)} ${c.en} ×${S.inv.crops[c.id]}`).join(' · ')}</small>`, [
-      { label:`Bán hết — +${total} 🪙`, fn:() => { got.forEach(c => delete S.inv.crops[c.id]); S.coins += total; snd('coin'); hud(); save(); toast(`Đã bán được +${total} 🪙`); closeModal(); } },
-      { label:'Để lại', fn:closeModal }]);
   }
 
   // ảnh cây: 0 = cây con · 1 = đang lớn · 2 = chín (sẵn sàng thu hoạch)
@@ -1015,11 +1404,8 @@ class Farm extends Base {
     let best = null, d = 62;
     this.pv.forEach((v, i) => { const dd = Phaser.Math.Distance.Between(px, py, v.x, v.y); if (dd < d) { d = dd; best = { t:'plot', i }; } });
     if (best) return best;
+    if (Phaser.Math.Distance.Between(px, py, this.binObj.x, this.binObj.y) < 70) return { t:'bin' };
     if (Phaser.Math.Distance.Between(px, py, this.emma.x, this.emma.y) < 85) return { t:'emma' };
-    const nb = this.bin && Phaser.Math.Distance.Between(px, py, this.bin.x, this.bin.y - 14) < 80;
-    if (this.bin) { const k = nb ? 'bin_open' : 'bin_closed'; if (this.bin.texture.key !== k) this.bin.setTexture(k); }
-    if (nb) return { t:'bin' };
-    if (this.mail && Phaser.Math.Distance.Between(px, py, this.mail.x, this.mail.y - 14) < 60) return { t:'mail' };
     if (Phaser.Math.Distance.Between(px, py, this.house.x, this.house.y) < 120) return { t:'house' };
     return null;
   }
@@ -1027,8 +1413,7 @@ class Farm extends Base {
   label(c) {
     if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: hành động · 1-9 hoặc [ ]: chọn hạt · B: túi đồ · đi sang phải: thị trấn';
     if (c.t === 'emma') return 'E: học tiếng Anh với cô Emma 🎓 (B1/B2)';
-    if (c.t === 'bin') return 'E: bán nông sản trong thùng 🧺';
-    if (c.t === 'mail') return 'E: đọc lại thư của ông ✉️';
+    if (c.t === 'bin') return 'E: bỏ nông sản vào thùng 📦 (qua đêm tiền sẽ vào ví)';
     if (c.t === 'house') return 'E: vào nhà 🏠 (ngủ, trang trí)';
     const p = S.plots[c.i];
     if (p.s === 0) return `E: xới đất (⚡${COST.till})`;
@@ -1039,7 +1424,7 @@ class Farm extends Base {
   }
 
   doAct(c) {
-    if (c.t === 'plot') this.plot(c.i); else if (c.t === 'emma') { if (!turnIn('Farm:emma')) emma(); } else if (c.t === 'bin') this.sellBin(); else if (c.t === 'mail') talk(PROLOGUE); else this.go('Home');
+    if (c.t === 'plot') this.plot(c.i); else if (c.t === 'bin') binUI(); else if (c.t === 'emma') { if (!turnIn('Farm:emma')) emma(); } else this.go('Home');
   }
 
   plot(i) {
@@ -1054,7 +1439,7 @@ class Farm extends Base {
       if (seedCount(c.id) <= 0) { snd('error'); return toast('Hết hạt giống rồi 🌱 — mua ở Seed Shop hoặc học bài với cô Emma.'); }
       if (!can(COST.sow)) return;
       use(COST.sow); S.inv.seeds[c.id]--;
-      p.s = 2; p.c = c.id; p.g = 0; p.w = false;
+      p.s = 2; p.c = c.id; p.g = 0; p.w = wxNow() === 'rain';
       S.learned[c.id] = (S.learned[c.id] || 0) + 1;
       snd('sow'); this.fx(i, 0x9be564, '🌱');
       toast(`Đã gieo ${c.en} = ${c.vi} · còn ${seedCount(c.id)} hạt`);
@@ -1084,18 +1469,20 @@ class Town extends Base {
   constructor() { super('Town'); }
 
   create() {
-    const W = 1120, H = 640;
+    const W = 1760, H = 1120;
     this.boot(W, H, 70, 332);
-    // đường chính + lối vào từng cửa
+    // ---- đường (ô 64px): đường chính kéo dài qua cầu · lối lên đồi · lối vào khu vườn ----
     const cells = new Set(), road = (x0, y0, x1, y1) => { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) cells.add(x + ',' + y); };
-    road(0, 5, 17, 5);                                   // đường chính
+    road(0, 5, 26, 5);                                   // đường chính
     road(3, 4, 3, 4); road(8, 4, 8, 4); road(13, 4, 13, 4); // lối vào tiệm hạt giống / nhà dân / decor
     road(6, 6, 6, 6);                                    // lối xuống quầy ăn
-    const plaza = new Set(); road(10, 6, 12, 8);          // sân đài phun nước (lát đất đặc)
+    const plaza = new Set(); road(10, 6, 12, 8);          // sân giếng nước (lát đất đặc)
     for (let x = 10; x <= 12; x++) for (let y = 5; y <= 8; y++) plaza.add(x + ',' + y);
+    road(12, 9, 12, 10);                                 // lối lên Đồi Cao
+    road(9, 6, 9, 13); road(1, 13, 9, 13); road(4, 11, 4, 15); // lối vào + đường trong khu vườn
     this.paintGround(cells, plaza);
 
-    const place = (key, x, y) => { if (key === 'tree') return plantTree(this, x, y, true); const s = this.solids.create(x, y, key); s.setDepth(y + s.height / 2 - 4); return s; };
+    const place = (key, x, y) => { const s = this.solids.create(x, y, key); s.setDepth(y + s.height / 2 - 4); return s; };
     // Công trình pixel-art: vẽ theo đáy (origin .5,1), vật cản chỉ ở phần chân → đi vòng ra sau được
     const bldg = (key, x, bottom, solidH = 56, solidW = .8) => {
       const s = this.add.image(x, bottom, 'b_' + key).setOrigin(.5, 1).setDepth(bottom);
@@ -1107,12 +1494,8 @@ class Town extends Base {
     this.homesB = bldg('homes', 560, 275, 50, .85);      // nhà dân (2 căn)
     this.foodB  = bldg('food', 380, 545, 50, .8);        // quầy đồ ăn
     this.decorB = bldg('decor', 840, 268, 50, .8);       // tiệm nội thất / trang trí
-    this.wellB  = bldg('well', 700, 505, 40, .55);       // giếng nước (thay đài phun nước)
+    this.wellB  = bldg('well', 700, 505, 40, .55);       // giếng nước
     this.dinhB  = bldg('dinh', 950, 572, 56, .85);       // đình làng
-    putLamp(this, 140, 318); putLamp(this, 470, 318); putLamp(this, 790, 318); putLamp(this, 640, 400);
-    putProp(this, 'p_sign', 72, 314, [14, 8]);
-    putProp(this, 'pr_mill', 262, 598, [36, 12]); putProp(this, 'pr_mortar', 300, 604, [26, 10]); putProp(this, 'pr_jar', 236, 580, [22, 10]);
-    putProp(this, 'pr_tray1', 520, 590); putProp(this, 'pr_hay', 610, 600, [30, 12]); putProp(this, 'pr_wood', 640, 596, [34, 12]);
     this.mm.exits.push([0, 0, 8, H]);
     if (S.story.ch >= 5) { // sau cốt truyện: đèn lồng sáng quanh Đình làng
       for (let i = 0; i < 8; i++) {
@@ -1121,21 +1504,114 @@ class Town extends Base {
         this.tweens.add({ targets: [glow, lamp], alpha: { from: .55, to: 1 }, yoyo: true, repeat: -1, duration: 700 + i * 90 });
       }
     }
-    // hàng cây viền thị trấn
-    for (let x = 30; x < W; x += 66) { if (!(x > 80 && x < 360)) place('tree', x, 40); if (!(x + 20 > 800 && x + 20 < 1090)) place('tree', x + 20, 610); }
-    for (let y = 120; y < 280; y += 70) place('tree', W - 24, y);
-    for (let y = 400; y < 590; y += 70) place('tree', W - 24, y);
+
+    // ============ SÔNG + CẦU ============
+    const RX = 1184, RW = 104, inRiver = x => x > 1150 && x < 1322;
+    this.add.tileSprite(RX - 16, 0, 16, H, 'sand').setOrigin(0).setDepth(.15);
+    this.add.tileSprite(RX + RW, 0, 16, H, 'sand').setOrigin(0).setDepth(.15);
+    this.water = this.add.tileSprite(RX, 0, RW, H, 'water').setOrigin(0).setDepth(.2);
+    this.add.rectangle(RX, 0, RW, H).setOrigin(0).setStrokeStyle(3, 0x1e4f73).setDepth(.25);
+    this.add.tileSprite(RX - 16, 322, RW + 32, 60, 'wood').setOrigin(0).setDepth(.4);
+    { const g = this.add.graphics().setDepth(.45);
+      g.fillStyle(0x6e3b17); g.fillRect(RX - 16, 312, RW + 32, 10); g.fillRect(RX - 16, 382, RW + 32, 10);
+      g.fillStyle(0x9c5a2e); g.fillRect(RX - 16, 314, RW + 32, 3); g.fillRect(RX - 16, 384, RW + 32, 3);
+      g.fillStyle(0x4a2a14); for (let x = RX - 12; x < RX + RW + 16; x += 28) { g.fillRect(x, 306, 6, 16); g.fillRect(x, 380, 6, 16); } }
+    this.block(RX, 0, RW, 316); this.block(RX, 388, RW, H - 388);
+    this.mm.r.push([RX, 0, RW, H, '#3a86bf']);
+    this.riverZone = [[1120, 1184], [1288, 1345]];
+
+    // ============ ĐỒI CAO (chỗ cao) ============
+    const PX0 = 700, PY0 = 690, PW = 420, PH = 260;
+    { const g = this.add.graphics().setDepth(.4), rnd = this.rng(77);
+      g.fillStyle(0x86c765); g.fillRect(PX0, PY0, PW, PH);
+      for (let i = 0; i < 90; i++) { g.fillStyle(i % 3 ? 0x7ab95b : 0x95d674); g.fillRect(PX0 + 8 + rnd() * (PW - 20), PY0 + 8 + rnd() * (PH - 20), 3, 3); }
+      g.fillStyle(0x4d8738); g.fillRect(PX0, PY0, PW, 8); g.fillRect(PX0, PY0, 8, PH); g.fillRect(PX0 + PW - 8, PY0, 8, PH);
+      g.fillStyle(0x8a6a4a); g.fillRect(PX0 - 12, PY0 + 6, 12, PH); g.fillRect(PX0 + PW, PY0 + 6, 12, PH);
+      g.fillStyle(0x5a4630); g.fillRect(PX0 - 12, PY0 + 6, 3, PH); g.fillRect(PX0 + PW + 9, PY0 + 6, 3, PH);
+      // bậc thang đi lên đồi (x 768-832)
+      for (let i = 0; i < 6; i++) { const y = 672 + i * 8; g.fillStyle(i % 2 ? 0xb7a47c : 0xd8c79e); g.fillRect(768, y, 64, 8); g.fillStyle(0x8a7850); g.fillRect(768, y + 6, 64, 2); }
+      g.fillStyle(0x8a7850); g.fillRect(764, 672, 4, 48); g.fillRect(832, 672, 4, 48); }
+    this.add.tileSprite(PX0, PY0 + PH, PW, 56, 'cliff').setOrigin(0).setDepth(.41);
+    this.block(PX0, 684, 68, 14); this.block(832, 684, PX0 + PW - 832, 14);     // mép phía bắc (chừa cầu thang)
+    this.block(PX0 - 12, 690, 14, PH); this.block(PX0 + PW - 2, 690, 14, PH);   // mép tây / đông
+    this.block(PX0, PY0 + PH - 6, PW, 62);                                      // vách đá phía nam
+    this.mm.r.push([PX0, PY0, PW, PH + 56, '#8fcf6a'], [768, 672, 64, 48, '#d8c79e']);
+    this.gazebo = this.add.image(900, 905, 'gazebo').setOrigin(.5, 1).setDepth(905);
+    this.block(850, 880, 12, 14); this.block(938, 880, 12, 14);
+    this.scope = this.add.image(1040, 810, 'telescope').setOrigin(.5, 1).setDepth(810);
+    this.block(1028, 796, 24, 14);
+    this.add.image(1030, 890, 'bench').setOrigin(.5, 1).setDepth(890);
+    { const rnd = this.rng(5), cols = [0xff6f91, 0xffd54a, 0xffffff, 0xb28cff];
+      for (let i = 0; i < 26; i++) { const fx = PX0 + 24 + rnd() * (PW - 48), fy = PY0 + 40 + rnd() * (PH - 60); if (fx > 770 && fx < 960 && fy > 800) continue; this.add.image(fx, fy, 'flower').setTint(cols[i % 4]).setDepth(fy); } }
+    place('tree', 745, 770); place('tree', 1085, 745); place('tree', 1085, 905);
+
+    // ============ KHU VƯỜN HOA (chỗ thấp, phía tây-nam) ============
+    const GX0 = 56, GY0 = 696, GW = 528, GH = 394;
+    const hedge = (x, y, w, h) => { this.add.tileSprite(x, y, w, h, 'hedge').setOrigin(0).setDepth(y + h); this.block(x, y, w, h - 4); this.mm.r.push([x, y, w, h, '#2e7d32']); };
+    hedge(GX0, GY0, GW, 28); hedge(GX0, GY0 + GH - 28, GW, 28); hedge(GX0, GY0, 24, GH);
+    hedge(GX0 + GW - 24, GY0, 24, 136); hedge(GX0 + GW - 24, 896, 24, GY0 + GH - 896);
+    const bed = (x, y, w, h, seed) => {
+      this.add.rectangle(x, y, w, h, 0x7a4f2c).setOrigin(0).setStrokeStyle(3, 0x4a3320).setDepth(.5);
+      const rnd = this.rng(seed), cols = [0xff6f91, 0xffd54a, 0xffffff, 0xb28cff, 0xff9a3c, 0x6ec6ff];
+      for (let i = 0; i < Math.floor(w * h / 260); i++) { const fx = x + 8 + rnd() * (w - 16), fy = y + 10 + rnd() * (h - 16); this.add.image(fx, fy, 'flower').setTint(cols[Math.floor(rnd() * cols.length)]).setDepth(fy); }
+      this.mm.r.push([x, y, w, h, '#d86a9a']);
+    };
+    bed(96, 736, 130, 80, 3); bed(350, 736, 190, 80, 4); bed(96, 930, 130, 90, 5); bed(350, 930, 190, 90, 6);
+    place('fountain', 288, 972);
+    this.daisy = this.npc('daisy', 206, 872, 'Daisy 🌼');
+    this.add.image(150, 914, 'bench').setOrigin(.5, 1).setDepth(914); this.add.image(480, 914, 'bench').setOrigin(.5, 1).setDepth(914);
+    this.bfly = [];
+    [0xff8fc8, 0xffd54a, 0x8fd3ff, 0xc8a2ff, 0xffffff].forEach((tint, i) => {
+      const b = this.add.image(120 + i * 80, 790 + (i % 2) * 150, 'a_bfly').setScale(1.6).setTint(tint).setDepth(1400); this.bfly.push(b);
+      this.tweens.add({ targets: b, scaleY: { from: 1.6, to: .7 }, yoyo: true, repeat: -1, duration: 140 });
+      const mv = () => this.tweens.add({ targets: b, x: Phaser.Math.Between(GX0 + 40, GX0 + GW - 60), y: Phaser.Math.Between(GY0 + 50, GY0 + GH - 60), duration: Phaser.Math.Between(1800, 3400), ease: 'Sine.InOut', onComplete: mv });
+      mv();
+    });
+
+    // ============ BỜ ĐÔNG: cối xay gió + đồng cỏ ============
+    this.add.image(1590, 300, 'windmill').setOrigin(.5, 1).setDepth(300);
+    this.block(1556, 268, 68, 32);
+    const bl = this.add.image(1590, 196, 'blades').setDepth(301); this.tweens.add({ targets: bl, angle: 360, duration: 9000, repeat: -1 });
+    this.mm.r.push([1536, 156, 108, 144, '#e8d7b0']);
+    this.pete = this.npc('pete', 1500, 350, 'Miller Pete');
+    { const g = this.add.graphics().setDepth(.5);
+      for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) { g.fillStyle((i + j) % 2 ? 0xffffff : 0xd33a2c); g.fillRect(1430 + i * 15, 450 + j * 15, 15, 15); } }
+    this.add.text(1475, 445, '🧺', { fontSize:'22px' }).setOrigin(.5).setDepth(520);
+
+    // ---- đèn đường: tối đến thì sáng ----
+    this.lamps = [];
+    [[150, 318], [540, 318], [780, 318], [1010, 318], [1150, 322], [1322, 322], [1660, 322], [236, 900], [344, 900], [545, 850]].forEach(p => {
+      this.add.image(p[0], p[1], 'lamp').setOrigin(.5, 1).setDepth(p[1]);
+      const glow = this.add.circle(p[0], p[1] - 42, 46, 0xffc860, 0).setDepth(2001).setBlendMode(Phaser.BlendModes.ADD);
+      this.lamps.push({ glow });
+    });
+
+    // ---- cây: hàng viền + rải ngẫu nhiên ở vùng ngoại ô ----
+    for (let x = 30; x < W; x += 66) {
+      if (!(x > 80 && x < 360) && !inRiver(x)) place('tree', x, 40);
+      if (x > 620 && !inRiver(x)) place('tree', x + 20, H - 36);
+    }
+    for (let y = 120; y < H - 40; y += 70) { if (!(y > 250 && y < 430)) place('tree', 24, y); place('tree', W - 24, y); }
+    const rt = this.rng(9), nearR = (x, y) => cells.has(Math.floor(x / 64) + ',' + Math.floor(y / 64));
+    for (let i = 0, n = 0; n < 45 && i < 500; i++) {
+      const x = 60 + rt() * (W - 120), y = 80 + rt() * (H - 160);
+      if (nearR(x, y) || nearR(x - 30, y) || nearR(x + 30, y) || inRiver(x) || (x < 1150 && y < 650) || (x < 620 && y > 660) || (x > 670 && x < 1150 && y > 650 && y < 1020)
+        || (x > 1330 && x < 1740 && y > 500 && y < 1050) || (x > 1490 && x < 1700 && y < 420)) continue;
+      place('tree', x, y); n++;
+    }
     this.solids.refresh();
     this.physics.add.collider(this.player, this.solids);
 
     const near = (x, y) => cells.has(Math.floor(x / 64) + ',' + Math.floor(y / 64));
     const inside = (x, y, r) => x > r[0] && x < r[2] && y > r[1] && y < r[3];
-    const blocks = [[90, 10, 350, 330], [390, 90, 730, 290], [735, 80, 950, 285], [280, 360, 480, 565], [630, 380, 775, 520], [820, 410, 1085, 600]];
-    this.scatter(30, 33, (x, y) => !near(x, y) && !near(x + 24, y) && !near(x - 24, y) && !near(x, y - 20) && y < 590 && !blocks.some(r => inside(x, y, r)));
+    const blocks = [[90, 10, 350, 330], [390, 90, 730, 290], [735, 80, 950, 285], [280, 360, 480, 565], [630, 380, 775, 520], [820, 410, 1085, 600], [1480, 140, 1700, 420]];
+    this.scatter(70, 33, (x, y) => !near(x, y) && !near(x + 24, y) && !near(x - 24, y) && !near(x, y - 20) && !inRiver(x) && y < 1070
+      && !(x < 600 && y > 660) && !(x > 660 && x < 1150 && y > 640 && y < 1020) && !blocks.some(r => inside(x, y, r)));
 
-    // biển tên + nhân vật
+    // ---- biển tên + nhân vật ----
     const sign = (x, y, t) => this.add.text(x, y, t, { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
     sign(560, 292, '🏠 Town Homes'); sign(380, 562, '🍞 Food Stall'); sign(840, 285, '🛋️ Decor Shop'); sign(220, 322, '🌱 Seed Shop'); sign(950, 596, '🏛️ Đình làng'); sign(60, 292, '← Nông trại');
+    sign(1236, 296, '🌉 Cầu Sunny'); sign(800, 660, '⛰️ Đồi Cao ↓'); sign(320, 680, '🌼 Khu vườn Hoa'); sign(1500, 322, '🌬️ Cối xay gió'); sign(1540, 530, '🐄 Đồng cỏ Bờ Đông');
     this.lily = this.npc('lily', 322, 328, 'Lily');
     this.chef = this.npc('chef', 500, 530, 'Chef Bo');
     this.mia = this.npc('mia', 962, 296, 'Mia');
@@ -1143,51 +1619,98 @@ class Town extends Base {
     const arrow = this.add.text(18, 332, '➜', { fontSize:'26px', color:'#fff', stroke:'#2a1d10', strokeThickness:4 }).setOrigin(.5).setFlipX(true).setDepth(1500);
     this.tweens.add({ targets: arrow, x: 30, yoyo: true, repeat: -1, duration: 500 });
 
+    // ---- vật nuôi ----
+    this.addAnimal('cat', 160, 430, [100, 360, 170, 140]);
+    this.addAnimal('cow', 1450, 700, [1340, 520, 380, 500]); this.addAnimal('cow', 1620, 860, [1340, 520, 380, 500]);
+    this.addAnimal('sheep', 1400, 900, [1340, 520, 380, 500]); this.addAnimal('sheep', 1560, 640, [1340, 520, 380, 500]); this.addAnimal('sheep', 1660, 760, [1340, 520, 380, 500]);
+
     // vùng bấm E: từ lưng chừng công trình xuống ~60px phía trước cửa
     const zn = im => { const r = im.getBounds(); return new Phaser.Geom.Rectangle(r.x - 24, r.bottom - 90, r.width + 48, 150); };
     this.zones = { shop: zn(this.shopB), homes: zn(this.homesB), decor: zn(this.decorB), food: zn(this.foodB), well: zn(this.wellB), dinh: zn(this.dinhB) };
     hud();
-    this.time.delayedCall(450, () => toast('Welcome to Sunny Town! 🏘️'));
+    this.time.delayedCall(450, () => toast('Welcome to Sunny Town! 🏘️ — đi sang phải để qua cầu, đi xuống để tới khu vườn và đồi cao'));
+  }
+
+  update(time, delta) {
+    this.water.tilePositionY += delta * .012;
+    const h = clk / 60, dim = dark(h) > .12 || wxNow() === 'rain';
+    this.lamps.forEach((l, i) => l.glow.setAlpha(dim ? .3 + Math.sin(time / 300 + i) * .04 : 0));
+    const fly = h >= 7 && h < 18 && wxNow() !== 'rain'; this.bfly.forEach(b => b.setVisible(fly));
+    super.update(time, delta);
   }
 
   edge() { if (this.player.x < 22) this.go('Farm'); }
 
   look() {
-    const px = this.player.x, py = this.player.y;
-    if (this.zones.shop.contains(px, py) || Phaser.Math.Distance.Between(px, py, this.lily.x, this.lily.y) < 70) return { t:'shop' };
+    const px = this.player.x, py = this.player.y, D = Phaser.Math.Distance.Between;
+    if (D(px, py, this.daisy.x, this.daisy.y) < 75) return { t:'daisy' };
+    if (D(px, py, this.pete.x, this.pete.y) < 75) return { t:'pete' };
+    if (D(px, py, this.scope.x, this.scope.y - 10) < 80) return { t:'scope' };
+    if (this.zones.shop.contains(px, py) || D(px, py, this.lily.x, this.lily.y) < 70) return { t:'shop' };
     if (this.zones.dinh.contains(px, py)) return { t:'dinh' };
     if (this.zones.homes.contains(px, py)) return { t:'homes' };
-    if (this.zones.decor.contains(px, py) || Phaser.Math.Distance.Between(px, py, this.mia.x, this.mia.y) < 70) return { t:'decor' };
-    if (this.zones.food.contains(px, py) || Phaser.Math.Distance.Between(px, py, this.chef.x, this.chef.y) < 70) return { t:'food' };
+    if (this.zones.decor.contains(px, py) || D(px, py, this.mia.x, this.mia.y) < 70) return { t:'decor' };
+    if (this.zones.food.contains(px, py) || D(px, py, this.chef.x, this.chef.y) < 70) return { t:'food' };
+    if (!(py > 300 && py < 400) && this.riverZone.some(r => px > r[0] && px < r[1])) return { t:'river' };
     return null;
   }
 
   label(c) {
-    if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: hành động · đi sang trái: về nông trại';
+    if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: hành động · trái: nông trại · phải: qua cầu · xuống: vườn hoa & đồi cao';
     if (c.t === 'shop') return 'E: vào Seed Shop — mua hạt giống 🌱';
     if (c.t === 'dinh') return 'E: thắp hương ở Đình làng 🏛️ (mỗi ngày nhận 1 lời chúc, +EXP)';
     if (c.t === 'homes') return 'E: gõ cửa nhà dân 🏠 (mỗi ngày nghe 1 câu mới, +EXP)';
     if (c.t === 'decor') return 'E: vào Decor Shop — mua đồ trang trí nhà 🛋️';
+    if (c.t === 'daisy') return 'E: nói chuyện với Daisy 🌼 (mỗi ngày học tên 1 loài hoa)';
+    if (c.t === 'pete') return 'E: nói chuyện với bác Pete ở cối xay gió 🌬️ (mỗi ngày 1 câu mới)';
+    if (c.t === 'scope') return 'E: nhìn kính viễn vọng 🔭 — xem dự báo thời tiết ngày mai';
+    if (c.t === 'river') return S.rod ? `E: thả câu ở sông 🎣 (⚡${COST_FISH})` : 'Cần có cần câu — hãy hỏi thuyền trưởng Hải ở Hồ Trăng ⚓';
     return 'E: mua đồ ăn 🍞 để hồi ⚡ stamina';
   }
 
-  doAct(c) { if (c.t === 'dinh') { if (!turnIn('Town:dinh')) this.dinh(); } else if (c.t === 'shop') { if (!turnIn('Town:shop')) this.shop(); } else if (c.t === 'homes') this.homes(); else if (c.t === 'decor') this.decorShop(); else this.food(); }
+  doAct(c) {
+    if (c.t === 'dinh') { if (!turnIn('Town:dinh')) this.dinh(); }
+    else if (c.t === 'shop') { if (!turnIn('Town:shop')) this.shop(); }
+    else if (c.t === 'homes') this.homes(); else if (c.t === 'decor') this.decorShop();
+    else if (c.t === 'daisy') this.daisyTalk(); else if (c.t === 'pete') this.peteTalk(); else if (c.t === 'scope') this.scopeLook();
+    else if (c.t === 'river') fishing(); else this.food();
+  }
+
+  daisyTalk() {
+    snd('chat');
+    const FL = [['Rose', 'hoa hồng', 'A red rose smells sweet.', 'Một đóa hồng đỏ thơm ngát.'], ['Lily', 'hoa loa kèn', 'The white lily is tall and graceful.', 'Hoa loa kèn trắng cao và thanh nhã.'],
+      ['Tulip', 'hoa tulip', 'Tulips bloom in spring.', 'Hoa tulip nở vào mùa xuân.'], ['Daisy', 'hoa cúc', 'A daisy has white petals and a yellow centre.', 'Hoa cúc có cánh trắng và nhụy vàng.'],
+      ['Sunflower', 'hoa hướng dương', 'Sunflowers always face the sun.', 'Hoa hướng dương luôn hướng về mặt trời.'], ['Orchid', 'hoa lan', 'This orchid is very rare.', 'Đóa lan này rất hiếm.'],
+      ['Lotus', 'hoa sen', 'The lotus grows in a quiet pond.', 'Hoa sen mọc trong ao yên tĩnh.'], ['Jasmine', 'hoa nhài', 'Jasmine tea has a lovely smell.', 'Trà hoa nhài có mùi rất dễ chịu.']];
+    const f = FL[(S.day - 1) % FL.length];
+    if (S.daisyDay === S.day) return modal('Daisy 🌼', '<b>“The flowers are happy today!”</b><br>(Hôm nay hoa vui lắm!) Mai ghé lại, mình sẽ dạy bạn tên một loài hoa mới.', [{ label:'Đóng', fn:closeModal }]);
+    S.daisyDay = S.day; save();
+    const seed = Math.random() < .5 ? rewardSeed() : null;
+    modal('Daisy 🌼', `<b>“${f[0]}”</b> = ${f[1]}<div class="sent">${f[2]}</div>${f[3]}<br>🎓 +5 EXP${seed ? ' · 🌱 +1 ' + sico(seed, 20) + ' ' + crop(seed).en : ''}`, [{ label:'Thank you! 🌸', fn:closeModal }]);
+    gainExp(5);
+  }
+
+  peteTalk() {
+    snd('chat');
+    if (S.peteDay === S.day) return modal('Miller Pete 🌬️', '<b>“The wind is calm today.”</b><br>(Hôm nay gió lặng.) Mai bác sẽ kể cháu nghe một câu mới.', [{ label:'Đóng', fn:closeModal }]);
+    const p = PHRASES[(S.day * 5) % PHRASES.length]; S.peteDay = S.day; save();
+    modal('Miller Pete 🌬️', `<b>“${p.en}”</b><br>${p.vi}<br><small>💡 ${p.tip}</small><br>🎓 +5 EXP`, [{ label:'Thank you! 👍', fn:closeModal }]);
+    gainExp(5);
+  }
+
+  scopeLook() {
+    snd('select');
+    const n = S.nextWx || { k:'sun' };
+    const T = { sun:['It will be sunny tomorrow.', 'Ngày mai trời sẽ nắng.'], cloud:['It will be cloudy tomorrow.', 'Ngày mai trời nhiều mây.'], rain:['It will rain tomorrow. Take an umbrella!', 'Ngày mai trời sẽ mưa. Nhớ mang ô!'] }[n.k];
+    const first = S.scopeDay !== S.day; S.scopeDay = S.day; save();
+    modal('Kính viễn vọng 🔭', `<div class="big">${n.k === 'rain' ? '🌧️' : n.k === 'cloud' ? '☁️' : '☀️'}</div><b>“${T[0]}”</b><br>${T[1]}<br><small>${WX_NAME[n.k]}${n.k === 'rain' ? ` · mưa khoảng ${n.a}h–${n.b}h (cây sẽ được tưới tự nhiên)` : ''}</small><br>${first ? '🎓 +3 EXP' : '<small>Hôm nay bạn đã xem rồi.</small>'}`, [{ label:'OK 👍', fn:closeModal }]);
+    if (first) gainExp(3);
+  }
 
   shop(tab = 'buy', keep = false) {
     this.qty = this.qty || 1;
-    const nav = [
-      { label:'🛒 Mua hạt giống', off: tab === 'buy', fn:() => this.shop('buy') },
-      { label:'💰 Bán nông sản', off: tab === 'sell', fn:() => this.shop('sell') }
-    ];
+    const nav = [];
     const close = { label:'Đóng', fn:closeModal };
-    if (tab === 'sell') {
-      const got = CROPS.filter(c => (S.inv.crops[c.id] || 0) > 0);
-      const total = got.reduce((t, c) => t + c.price * S.inv.crops[c.id], 0);
-      const sell = list => { let g = 0; list.forEach(c => { g += c.price * S.inv.crops[c.id]; delete S.inv.crops[c.id]; }); S.coins += g; snd('coin'); hud(); save(); toast(`Đã bán được +${g} 🪙`); this.shop('sell', true); };
-      const items = got.map(c => ({ html: `${ico(c.id, 26)} Bán ${c.en} <small>(${c.vi})</small> ×${S.inv.crops[c.id]} — ${c.price * S.inv.crops[c.id]} 🪙`, fn:() => sell([c]) }));
-      if (got.length > 1) items.push({ label:`💰 Bán tất cả — ${total} 🪙`, fn:() => sell(got) });
-      return modal('Lily · Seed Shop', '<b>“I will buy your vegetables!”</b><br>(Mình sẽ mua rau củ của bạn!)<br><small>🪙 ' + S.coins + (got.length ? '' : ' · Túi chưa có nông sản để bán.') + '</small>', nav.concat(items, close), keep);
-    }
     const qty = { label:`Số lượng mỗi lần mua: ×${this.qty} (bấm để đổi)`, fn:() => { this.qty = this.qty === 1 ? 5 : this.qty === 5 ? 10 : 1; this.shop('buy', true); } };
     const items = CROPS.map(c => {
       const lock = S.lvl < REQ_LVL(c), pr = SEED_PRICE(c) * this.qty;
@@ -1195,12 +1718,12 @@ class Town extends Base {
         html: lock ? `🔒 ${c.en} — mở ở Lv ${REQ_LVL(c)}` : `${sico(c.id, 26)} ${c.en} <small>(${c.vi})</small> — ${pr} 🪙 <small>· đang có ${seedCount(c.id)}</small>`,
         fn:() => { S.coins -= pr; addSeed(c.id, this.qty); S.sel = c.id; snd('buy'); hud(); save(); toast(`Đã mua ${this.qty} hạt ${c.en} 🌱`); this.shop('buy', true); } };
     });
-    modal('Lily · Seed Shop', '<b>“Hello! Welcome to my shop.”</b><br>(Xin chào! Chào mừng đến cửa hàng của mình.)<br><small>🪙 ' + S.coins + ' · ⭐ Lv ' + S.lvl + ' — lên cấp bằng cách học bài với cô Emma để mở thêm hạt giống.</small>', nav.concat(qty, items, close), keep);
+    modal('Lily · Seed Shop', '<b>“Hello! Welcome to my shop.”</b><br>(Xin chào! Chào mừng đến cửa hàng của mình.)<br><small>🪙 ' + S.coins + ' · ⭐ Lv ' + S.lvl + ' — lên cấp bằng cách học bài với cô Emma để mở thêm hạt giống.</small><br><small>📦 Muốn bán nông sản? Bỏ vào thùng ở nông trại — qua đêm Lily sẽ trả tiền vào ví bạn!</small>', nav.concat(qty, items, close), keep);
   }
 
   food() {
     const btns = FOOD.map(f => ({
-      html: `${fico(f)} ${f.en} (${f.vi}) — ${f.cost} 🪙 · +${f.st} ⚡`, label: `${f.e} ${f.en}`,
+      label: `${f.e} ${f.en} (${f.vi}) — ${f.cost} 🪙 · +${f.st} ⚡`,
       off: S.coins < f.cost || S.stamina >= maxSt(),
       fn: () => { S.coins -= f.cost; S.stamina = Math.min(maxSt(), S.stamina + f.st); snd('eat'); hud(); save(); toast(`Yummy! ${f.e} +${f.st} ⚡`); this.food(); }
     }));
@@ -1276,7 +1799,7 @@ class Forest extends Base {
     for (let i = 0, n = 0; n < 95 && i < 600; i++) {
       const x = 30 + rnd() * (W - 60), y = 50 + rnd() * (H - 80);
       if (near(x, y) || FSPOTS.some(p => Math.hypot(p[0] - x, p[1] - y) < 56)) continue;
-      const t = plantTree(this, x, y); n++;
+      const t = this.solids.create(x, y, 'tree'); t.setDepth(y + 28); n++;
     }
     this.solids.refresh();
     this.physics.add.collider(this.player, this.solids);
@@ -1287,6 +1810,7 @@ class Forest extends Base {
       return { x: p[0], y: p[1], id, img };
     });
     this.moss = this.npc('moss', 330, 205, 'Elder Moss 🧙');
+    for (let i = 0; i < 3; i++) this.addAnimal('rabbit', 300 + i * 220, 400 + i * 40, [80, 250, 1100, 450]);
     this.add.text(640, 770, '↓ Nông trại', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
     this.add.text(330, 150, '🌲 Rừng Sương', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
     this.mm.exits.push([520, H - 8, 240, 8]);
@@ -1351,12 +1875,13 @@ class Lake extends Base {
     for (let i = 0, n = 0; n < 40 && i < 400; i++) {
       const x = 30 + rnd() * (W - 60), y = 40 + rnd() * (H - 60);
       if ((x > 120 && x < 1160 && y > 240 && y < 780) || (x > 520 && x < 760 && y < 280) || y < 30) continue;
-      const t = plantTree(this, x, y); n++;
+      const t = this.solids.create(x, y, 'tree'); t.setDepth(y + 28); n++;
     }
     this.solids.refresh();
     this.physics.add.collider(this.player, this.solids);
     this.scatter(26, 41, (x, y) => !(x > 140 && x < 1140 && y > 280 && y < 760) && !(x > 540 && x < 740 && y < 300));
     this.hai = this.npc('hai', 740, 285, 'Captain Hai ⚓');
+    for (let i = 0; i < 3; i++) this.addAnimal('duck', 260 + i * 120, 400 + i * 50, [200, 330, 860, 370], [[590, 260, 100, 300]]);
     this.fishZone = new Phaser.Geom.Rectangle(150, 285, 980, 470);
     const sg = (x, y, t) => this.add.text(x, y, t, { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
     sg(640, 28, '↑ Nông trại'); sg(640, 255, '🎣 Hồ Trăng');
@@ -1463,32 +1988,20 @@ class Home extends Base {
   }
 
   sleep() {
-    const n = Object.keys(S.placed).length, cozy = Math.min(3, Math.floor(n / 3)) * 2;
+    const n = Object.keys(S.placed).length, cozy = Math.min(3, Math.floor(n / 3)) * 2, nb = binCount();
     modal('Đi ngủ 🛏️', '<b>“Good night!”</b> (Chúc ngủ ngon!)<br>Cây đã tưới sẽ lớn thêm một ngày, và bạn được hồi đầy ⚡ stamina.' +
+      (nb ? `<br>📦 Thùng bán hàng có ${nb} món (~${binValue()} 🪙) — sáng mai tiền sẽ vào ví.` : '<br><small>📦 Thùng bán hàng đang trống.</small>') +
       (cozy ? `<br>🛋️ Nhà ấm cúng: +${cozy} EXP` : '<br><small>Bày từ 3 món đồ trang trí để nhận thêm EXP khi ngủ.</small>'), [
       { label:'Ngủ 🌙', fn:() => {
         closeModal(); this.leaving = true; snd('sleep');
         const cam = this.cameras.main; cam.fadeOut(500);
-        cam.once('camerafadeoutcomplete', () => {
-          newDay(); hud(); save();
-          cam.fadeIn(500); this.leaving = false;
-          snd('wake'); toast('Good morning! Ngày ' + S.day + ' · ⚡ đã đầy');
-          if (cozy) gainExp(cozy);
-        });
+        cam.once('camerafadeoutcomplete', () => sleepSummary(this, { cozy }));
       } },
       { label:'Hủy', fn:closeModal }
     ]);
   }
 }
 
-const PLUS = []; // [tên texture, dữ liệu ảnh]
-{ const A = window.ASSETS, add = (k, v) => v && PLUS.push([k, v]);
-  Object.keys(A.trees || {}).forEach(k => add('tr_' + k, A.trees[k]));
-  Object.keys(A.fence || {}).forEach(k => add('fn_' + k, A.fence[k]));
-  Object.keys(A.props || {}).forEach(k => add('pr_' + k, A.props[k]));
-  add('p_sign', A.sign); add('p_mail', A.mailbox); add('rose', A.npc_grandma);
-  if (A.bin) { add('bin_closed', A.bin.closed); add('bin_open', A.bin.open); }
-  if (A.lamp) { add('lamp_off', A.lamp.off); add('lamp_on', A.lamp.on); } }
 let game;
 const startGame = () => { game = new Phaser.Game({
   type: Phaser.AUTO, parent: 'game-container', pixelArt: true, backgroundColor: '#1d2b19',
@@ -1499,9 +2012,7 @@ const startGame = () => { game = new Phaser.Game({
 }); };
 const loadImg = (key, src) => new Promise(r => { const i = new Image(); i.onload = () => { IMG[key] = i; r(); }; i.onerror = r; i.src = src; });
 Promise.all(['tiles', 'crops', 'hero', 'shop', 'bushG', 'bushF'].map(k => loadImg(k, window.ASSETS[k]))
-  .concat(Object.keys(window.ASSETS.bld || {}).map(k => loadImg('b_' + k, window.ASSETS.bld[k])))
-  .concat(PLUS.map(([k, v]) => loadImg('x_' + k, v)))).then(startGame);
-{ const A = window.ASSETS.ui, root = document.getElementById('farm-app'); if (A && A.panel) { root.style.setProperty('--panel', 'url(' + A.panel + ')'); root.classList.add('framed'); } }
+  .concat(Object.keys(window.ASSETS.bld || {}).map(k => loadImg('b_' + k, window.ASSETS.bld[k])))).then(startGame);
 
 $('#bookBtn').onclick = () => { if (!open) { snd('click'); wordBook(); } };
 $('#bagBtn').onclick = () => { if (!open) bag(); };
@@ -1517,7 +2028,7 @@ window.addEventListener('pointerdown', unlockAudio, { once:true });
 window.addEventListener('keydown', unlockAudio, { once:true });
 $('#actBtn').onclick = () => { const s = activeScene(); if (s && s.act) s.act(); };
 window.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && open) closeModal();
+  if (e.key === 'Escape' && open && !CINE.on) closeModal();
   const n = parseInt(e.key, 10), o = owned();
   if (!open && n >= 1 && n <= o.length) { S.sel = o[n - 1]; snd('select'); hud(); save(); }
   if (!open && (e.key === '[' || e.key === ']') && o.length) { const k = o.length; S.sel = o[(Math.max(0, o.indexOf(S.sel)) + (e.key === ']' ? 1 : k - 1)) % k]; snd('select'); hud(); save(); }
@@ -1526,4 +2037,5 @@ window.addEventListener('keydown', e => {
   if (!open && (e.key === 'b' || e.key === 'B' || e.key === 'i' || e.key === 'I')) bag();
 });
 hud();
+requestAnimationFrame(fxLoop);
 })();
