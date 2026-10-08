@@ -12,13 +12,21 @@
 <!-- Toàn bộ game nằm trong #farm-app: có thể copy khối này vào bất kỳ trang nào -->
 <div id="farm-app">
   <header id="hud">
-    <div id="stats"><span id="day"></span><span id="coins"></span></div>
+    <div id="stats"><span id="day"></span><span id="coins"></span><span id="lvl"></span></div>
+    <div id="meters">
+      <div class="meter" title="Stamina (thể lực)">
+        <span>⚡</span><div class="track"><i id="stFill"></i></div><b id="stTxt"></b>
+      </div>
+      <div class="meter xp" title="Kinh nghiệm (EXP)">
+        <span>🎓</span><div class="track"><i id="xpFill"></i></div><b id="xpTxt"></b>
+      </div>
+    </div>
     <div id="seeds" aria-label="Chọn hạt giống"></div>
     <button id="bookBtn" type="button">📖 Sổ từ</button>
   </header>
   <div id="game-container"></div>
   <footer id="bar">
-    <span id="hint">WASD / phím mũi tên: đi · E hoặc Space: hành động · 1-6: chọn hạt</span>
+    <span id="hint">WASD / phím mũi tên: đi · E hoặc Space: hành động · 1-9: chọn hạt</span>
     <button id="actBtn" type="button">Hành động</button>
   </footer>
   <div id="modal" hidden>
