@@ -79,6 +79,7 @@ const PHRASES = [
 ];
 
 // ====== ĐỒ ĂN Ở TIỆM: hồi stamina ======
+const fico = f => { const I = window.ASSETS.icons || {}, k = { Bread:'bread', Salad:'salad', Soup:'pho' }[f.en]; return I[k] ? `<img class="ico" src="${I[k]}" width="26" height="26" alt="">` : f.e; };
 const FOOD = [
   { e:'🍞', en:'Bread', vi:'bánh mì',  cost:6,  st:20 },
   { e:'🥗', en:'Salad', vi:'sa-lát',   cost:12, st:40 },
@@ -267,7 +268,8 @@ function newDay() {
 function dayText() { $('#day').textContent = (clk >= 1080 ? '🌙 Ngày ' : '🌤 Ngày ') + S.day + ' · ' + hhmm(clk); }
 function hud() {
   dayText(); storyCheck();
-  $('#coins').textContent = '🪙 ' + S.coins;
+  { const ic = window.ASSETS.icons && window.ASSETS.icons;
+    $('#coins').innerHTML = (ic && ic.coin ? `<img class="ico" src="${ic.coin}" width="22" height="22" alt="">` : '🪙') + ' ' + S.coins; }
   $('#lvl').textContent = '⭐ Lv ' + S.lvl;
   const mx = maxSt(), need = expNeed(S.lvl);
   $('#stFill').style.width = Math.max(0, S.stamina / mx * 100) + '%';
@@ -670,6 +672,32 @@ function makeTextures(sc) {
     g.fillStyle(0x9aa0a6); g.fillRect(29,12,6,26); g.fillStyle(0xcfe9ff); g.fillCircle(32,10,5); g.fillRect(24,18,2,6); g.fillRect(38,18,2,6); });
 }
 
+// ====== SPRITE BỔ SUNG: cây, đồ trang trí, đèn ======
+const LAMP_POST = {"off": 5, "on": 15}; // vị trí cột đèn trong ảnh tắt / sáng (để hai ảnh chồng khít nhau)
+const isNight = () => clk >= 1080 || clk < 360;
+function plantTree(sc, x, y, small) {
+  const ks = Object.keys(window.ASSETS.trees || {}).filter(k => k !== 'bush' && !(small && (k === 'banyan' || k === 'jackfruit')));
+  if (!ks.length || !sc.textures.exists('tr_' + ks[0])) { const s = sc.solids.create(x, y, 'tree'); s.setDepth(y + s.height / 2 - 4); return s; }
+  const k = ks[Math.floor((Math.abs(Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1) * ks.length)], foot = y + 28;
+  const img = sc.add.image(x, foot, 'tr_' + k).setOrigin(.5, 1).setDepth(foot);
+  const col = sc.solids.create(x, foot - 5, 'shadow'); col.setVisible(false); col.isTree = true; col.treeImg = img; // chỉ gốc cây chặn đường
+  return col;
+}
+// đặt vật trang trí theo chân (origin .5,1); solid = [rộng, cao] của vùng chặn ở chân
+function putProp(sc, key, x, foot, solid) {
+  if (!sc.textures.exists(key)) return null;
+  const s = sc.add.image(x, foot, key).setOrigin(.5, 1).setDepth(foot);
+  if (solid) { const z = sc.add.zone(x, foot - solid[1] / 2, solid[0], solid[1]); sc.physics.add.existing(z, true); sc.physics.add.collider(sc.player, z); }
+  return s;
+}
+// đèn lồng trên cột: ban ngày tắt, ban đêm sáng
+function putLamp(sc, x, foot) {
+  const off = putProp(sc, 'lamp_off', x, foot, [14, 8]); if (!off) return;
+  const dx = (LAMP_POST.off - off.width / 2) - (LAMP_POST.on - sc.textures.get('lamp_on').getSourceImage().width / 2);
+  const on = sc.add.image(x + dx, foot, 'lamp_on').setOrigin(.5, 1).setDepth(foot + .1).setVisible(false);
+  (sc.lamps = sc.lamps || []).push(on);
+}
+
 // ====== CẢNH CƠ SỞ: di chuyển, thời gian, tương tác dùng chung ======
 let late = false;
 const activeScene = () => game.scene.getScenes(true)[0];
@@ -704,9 +732,10 @@ class Base extends Phaser.Scene {
 
   // nhân vật đứng yên có va chạm + bóng + nhãn tên
   npc(key, x, y, name) {
-    const s = this.physics.add.sprite(x, y, key).setImmovable(true).setDepth(y);
-    this.add.image(x, y + 16, 'shadow').setDepth(.5);
-    if (name) this.add.text(x, y - 32, name, { fontSize:'14px', color:'#fff', backgroundColor:'#00000088', padding:{ x:4, y:1 } }).setOrigin(.5).setDepth(1500);
+    const s = this.physics.add.sprite(x, y, key).setImmovable(true).setDepth(y), tall = s.height > 40;
+    if (tall) { s.setOrigin(.5, .78); s.body.setSize(22, 14).setOffset(9, 40); }
+    this.add.image(x, y + (tall ? 10 : 16), 'shadow').setDepth(.5);
+    if (name) this.add.text(x, y - (tall ? 50 : 32), name, { fontSize:'14px', color:'#fff', backgroundColor:'#00000088', padding:{ x:4, y:1 } }).setOrigin(.5).setDepth(1500);
     this.physics.add.collider(this.player, s);
     this.mm.n.push(s);
     return s;
@@ -758,7 +787,7 @@ class Base extends Phaser.Scene {
     }
     if (this.face !== 'side') p.setFlipX(false);
     if (moving) p.anims.play('walk-' + this.face, true);
-    else { p.anims.stop(); p.setFrame({ down:0, up:4, side:8 }[this.face]); }
+    else { p.anims.stop(); p.setFrame({ down:0, up:6, side:12 }[this.face]); }
   }
 
   // nền: cỏ ngẫu nhiên + đường đất tự ghép góc / ngã ba / ngã tư theo các ô lân cận (ô 64px)
@@ -786,7 +815,7 @@ class Base extends Phaser.Scene {
       const x = 30 + rnd() * (this.W - 60), y = 50 + rnd() * (this.H - 70);
       if (!ok(x, y)) continue;
       // không đặt bụi đè lên cây / nhà (hết lỗi bụi hoa chồng lên tán cây)
-      if (this.solids.getChildren().some(o => Math.abs(o.x - x) < o.width / 2 + 24 && y > o.y - o.height / 2 - 4 && y - 40 < o.y + o.height / 2)) continue;
+      if (this.solids.getChildren().some(o => { const t = o.treeImg, cx = t ? t.x : o.x, hw = (t ? t.width : o.width) / 2, top = t ? t.y - t.height : o.y - o.height / 2, bot = t ? t.y : o.y + o.height / 2; return Math.abs(cx - x) < hw + 24 && y > top - 4 && y - 40 < bot; })) continue;
       this.add.image(x, y, k % 3 === 2 ? 'bushF' : 'bushG').setOrigin(.5, 1).setDepth(y); k++;
     }
   }
@@ -813,7 +842,7 @@ class Base extends Phaser.Scene {
     g.fillStyle = '#5c8f3e'; g.fillRect(X(0), Y(0), this.W * sc, this.H * sc);
     if (this.roadCells) { g.fillStyle = '#d8b87a'; this.roadCells.forEach(k => { const p = k.split(','); g.fillRect(X(p[0] * 64), Y(p[1] * 64), 64 * sc + .6, 64 * sc + .6); }); }
     this.mm.r.forEach(r => { g.fillStyle = r[4] || '#b5651d'; g.fillRect(X(r[0]), Y(r[1]), Math.max(2, r[2] * sc), Math.max(2, r[3] * sc)); });
-    if (!this._trees) this._trees = this.solids.getChildren().filter(o => o.texture && o.texture.key === 'tree');
+    if (!this._trees) this._trees = this.solids.getChildren().filter(o => o.isTree || (o.texture && o.texture.key === 'tree'));
     g.fillStyle = '#2e6b32'; this._trees.forEach(t => g.fillRect(X(t.x) - 1, Y(t.y) - 2, 3, 3));
     if (this.mm.spots) { g.fillStyle = '#ffd54a'; this.mm.spots.forEach((p, i) => { if (!S.foraged.includes(i)) g.fillRect(X(p.x) - 1.5, Y(p.y) - 1.5, 3, 3); }); }
     g.fillStyle = '#7fe3ff'; this.mm.exits.forEach(e => g.fillRect(X(e[0]), Y(e[1]), Math.max(3, e[2] * sc), Math.max(3, e[3] * sc)));
@@ -824,6 +853,7 @@ class Base extends Phaser.Scene {
   }
 
   update(time, delta) {
+    if (this.lamps) { const n = isNight(); this.lamps.forEach(l => { if (l.visible !== n) l.setVisible(n); }); }
     if (!this.move(time, delta)) return;
     this.edge();
     this.interact();
@@ -847,8 +877,9 @@ class Boot extends Phaser.Scene {
       const ct = T.addCanvas('grassS', cv); for (let i = 0; i < 6; i++) ct.add('g' + i, 0, i * 32, 0, 32, 32); }
     Object.keys(window.ASSETS.bld || {}).forEach(k => { if (IMG['b_' + k]) T.addImage('b_' + k, IMG['b_' + k]); }); // công trình pixel-art
     T.addImage('shopimg', IMG.shop); T.addImage('bushG', IMG.bushG); T.addImage('bushF', IMG.bushF);
-    [['down', 0], ['up', 4], ['side', 8]].forEach(([k, st]) => this.anims.create({
-      key:'walk-' + k, frames:this.anims.generateFrameNumbers('hero', { start:st, end:st + 3 }), frameRate:10, repeat:-1 }));
+    [['down', 0], ['up', 6], ['side', 12]].forEach(([k, st]) => this.anims.create({
+      key:'walk-' + k, frames:this.anims.generateFrameNumbers('hero', { start:st, end:st + 5 }), frameRate:9, repeat:-1 }));
+    PLUS.forEach(([k]) => { if (IMG['x_' + k]) T.addImage(k, IMG['x_' + k]); }); // sprite bổ sung (cây, hàng rào, bà, ...)
     this.scene.start('Farm');
   }
 }
@@ -869,7 +900,7 @@ class Farm extends Base {
       if ((x > 80 && x < 900 && y > 60 && y < 520) || (x > 880 && x < 1140 && y > 680 && y < 840)) continue; // chừa khu nông trại
       if (x > 150 && y > 530 && y < 690) continue; // chừa con đường nhà → thị trấn
       if (x > 500 && x < 780 && (y < 150 || y > H - 150)) continue; // chừa lối lên Rừng / xuống Hồ
-      this.solids.create(x, y, 'tree');
+      plantTree(this, x, y);
     }
     this.solids.refresh();
     this.solids.children.each(t => t.setDepth(t.y + t.height / 2 - 4)); // sắp lớp theo chân cây / nhà
@@ -895,6 +926,7 @@ class Farm extends Base {
     this.emma = this.npc('emma', 340, 250, 'Emma 🎓 English');
     this.physics.add.collider(this.player, this.solids);
     this.physics.add.collider(this.player, this.house.zone);
+    this.decorFarm();
 
     // 15 ô đất (5 x 3)
     this.pv = S.plots.map((p, i) => {
@@ -911,6 +943,37 @@ class Farm extends Base {
     const first = S.day === 1 && !Object.keys(S.learned).length && !Object.keys(S.words).length;
     if (!S.story.intro) talk(PROLOGUE, () => { S.story.intro = true; save(); hud(); if (first) showWelcome(); });
     else if (first) showWelcome();
+  }
+
+
+  // hàng rào quanh ruộng, hộp thư, thùng bán nông sản, đèn lồng, biển chỉ đường, đồ nông thôn
+  decorFarm() {
+    if (!this.textures.exists('fn_h')) return;
+    const fh = this.textures.get('fn_h').getSourceImage().width, X0 = 480, X1 = 816, TOP = 266, BOT = 474;
+    const n = Math.round((X1 - X0) / fh), w = (X1 - X0) / n;
+    for (let i = 0; i < n; i++) {
+      const x = X0 + w * (i + .5);
+      putProp(this, 'fn_h', x, TOP, [w * .95, 10]);
+      if (i !== Math.floor(n / 2)) putProp(this, 'fn_h', x, BOT, [w * .95, 10]); // chừa 1 lối vào ruộng ở giữa hàng dưới
+    }
+    [300, 336, 372, 408, 440].forEach(y => putProp(this, 'fn_post', X1, y, [10, 8]));
+    [440, 408].forEach(y => putProp(this, 'fn_post', X0, y, [10, 8])); putProp(this, 'fn_post', X0, 300, [10, 8]); // chừa lối đường đất bên trái
+    putProp(this, 'fn_post', X0 + w * Math.floor(n / 2), BOT, [10, 8]); putProp(this, 'fn_post', X0 + w * (Math.floor(n / 2) + 1), BOT, [10, 8]);
+    this.mail = putProp(this, 'p_mail', 150, 300, [18, 8]);
+    this.bin = putProp(this, 'bin_closed', 866, 392, [40, 12]);
+    putLamp(this, 180, 470); putLamp(this, 275, 470); putLamp(this, 1190, 535);
+    putProp(this, 'p_sign', 1238, 574, [14, 8]); putProp(this, 'p_sign', 520, 84, [14, 8]); putProp(this, 'p_sign', 520, 906, [14, 8]);
+    putProp(this, 'pr_hay', 66, 300, [34, 12]); putProp(this, 'pr_wood', 70, 345, [36, 12]); putProp(this, 'pr_jar', 112, 360, [24, 10]);
+    putProp(this, 'pr_tray1', 330, 292); putProp(this, 'pr_tray2', 420, 296);
+  }
+
+  sellBin() {
+    const got = CROPS.filter(c => (S.inv.crops[c.id] || 0) > 0);
+    if (!got.length) { snd('error'); return toast('Thùng trống — hãy thu hoạch nông sản rồi mang ra đây bán 🧺'); }
+    const total = got.reduce((t, c) => t + c.price * S.inv.crops[c.id], 0);
+    modal('🧺 Thùng bán nông sản', `<b>“Sell everything in the bin?”</b><br>(Bán toàn bộ nông sản trong túi?)<br><small>${got.map(c => `${ico(c.id, 22)} ${c.en} ×${S.inv.crops[c.id]}`).join(' · ')}</small>`, [
+      { label:`Bán hết — +${total} 🪙`, fn:() => { got.forEach(c => delete S.inv.crops[c.id]); S.coins += total; snd('coin'); hud(); save(); toast(`Đã bán được +${total} 🪙`); closeModal(); } },
+      { label:'Để lại', fn:closeModal }]);
   }
 
   // ảnh cây: 0 = cây con · 1 = đang lớn · 2 = chín (sẵn sàng thu hoạch)
@@ -953,6 +1016,10 @@ class Farm extends Base {
     this.pv.forEach((v, i) => { const dd = Phaser.Math.Distance.Between(px, py, v.x, v.y); if (dd < d) { d = dd; best = { t:'plot', i }; } });
     if (best) return best;
     if (Phaser.Math.Distance.Between(px, py, this.emma.x, this.emma.y) < 85) return { t:'emma' };
+    const nb = this.bin && Phaser.Math.Distance.Between(px, py, this.bin.x, this.bin.y - 14) < 80;
+    if (this.bin) { const k = nb ? 'bin_open' : 'bin_closed'; if (this.bin.texture.key !== k) this.bin.setTexture(k); }
+    if (nb) return { t:'bin' };
+    if (this.mail && Phaser.Math.Distance.Between(px, py, this.mail.x, this.mail.y - 14) < 60) return { t:'mail' };
     if (Phaser.Math.Distance.Between(px, py, this.house.x, this.house.y) < 120) return { t:'house' };
     return null;
   }
@@ -960,6 +1027,8 @@ class Farm extends Base {
   label(c) {
     if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: hành động · 1-9 hoặc [ ]: chọn hạt · B: túi đồ · đi sang phải: thị trấn';
     if (c.t === 'emma') return 'E: học tiếng Anh với cô Emma 🎓 (B1/B2)';
+    if (c.t === 'bin') return 'E: bán nông sản trong thùng 🧺';
+    if (c.t === 'mail') return 'E: đọc lại thư của ông ✉️';
     if (c.t === 'house') return 'E: vào nhà 🏠 (ngủ, trang trí)';
     const p = S.plots[c.i];
     if (p.s === 0) return `E: xới đất (⚡${COST.till})`;
@@ -970,7 +1039,7 @@ class Farm extends Base {
   }
 
   doAct(c) {
-    if (c.t === 'plot') this.plot(c.i); else if (c.t === 'emma') { if (!turnIn('Farm:emma')) emma(); } else this.go('Home');
+    if (c.t === 'plot') this.plot(c.i); else if (c.t === 'emma') { if (!turnIn('Farm:emma')) emma(); } else if (c.t === 'bin') this.sellBin(); else if (c.t === 'mail') talk(PROLOGUE); else this.go('Home');
   }
 
   plot(i) {
@@ -1026,7 +1095,7 @@ class Town extends Base {
     for (let x = 10; x <= 12; x++) for (let y = 5; y <= 8; y++) plaza.add(x + ',' + y);
     this.paintGround(cells, plaza);
 
-    const place = (key, x, y) => { const s = this.solids.create(x, y, key); s.setDepth(y + s.height / 2 - 4); return s; };
+    const place = (key, x, y) => { if (key === 'tree') return plantTree(this, x, y, true); const s = this.solids.create(x, y, key); s.setDepth(y + s.height / 2 - 4); return s; };
     // Công trình pixel-art: vẽ theo đáy (origin .5,1), vật cản chỉ ở phần chân → đi vòng ra sau được
     const bldg = (key, x, bottom, solidH = 56, solidW = .8) => {
       const s = this.add.image(x, bottom, 'b_' + key).setOrigin(.5, 1).setDepth(bottom);
@@ -1040,6 +1109,10 @@ class Town extends Base {
     this.decorB = bldg('decor', 840, 268, 50, .8);       // tiệm nội thất / trang trí
     this.wellB  = bldg('well', 700, 505, 40, .55);       // giếng nước (thay đài phun nước)
     this.dinhB  = bldg('dinh', 950, 572, 56, .85);       // đình làng
+    putLamp(this, 140, 318); putLamp(this, 470, 318); putLamp(this, 790, 318); putLamp(this, 640, 400);
+    putProp(this, 'p_sign', 72, 314, [14, 8]);
+    putProp(this, 'pr_mill', 262, 598, [36, 12]); putProp(this, 'pr_mortar', 300, 604, [26, 10]); putProp(this, 'pr_jar', 236, 580, [22, 10]);
+    putProp(this, 'pr_tray1', 520, 590); putProp(this, 'pr_hay', 610, 600, [30, 12]); putProp(this, 'pr_wood', 640, 596, [34, 12]);
     this.mm.exits.push([0, 0, 8, H]);
     if (S.story.ch >= 5) { // sau cốt truyện: đèn lồng sáng quanh Đình làng
       for (let i = 0; i < 8; i++) {
@@ -1127,7 +1200,7 @@ class Town extends Base {
 
   food() {
     const btns = FOOD.map(f => ({
-      label: `${f.e} ${f.en} (${f.vi}) — ${f.cost} 🪙 · +${f.st} ⚡`,
+      html: `${fico(f)} ${f.en} (${f.vi}) — ${f.cost} 🪙 · +${f.st} ⚡`, label: `${f.e} ${f.en}`,
       off: S.coins < f.cost || S.stamina >= maxSt(),
       fn: () => { S.coins -= f.cost; S.stamina = Math.min(maxSt(), S.stamina + f.st); snd('eat'); hud(); save(); toast(`Yummy! ${f.e} +${f.st} ⚡`); this.food(); }
     }));
@@ -1203,7 +1276,7 @@ class Forest extends Base {
     for (let i = 0, n = 0; n < 95 && i < 600; i++) {
       const x = 30 + rnd() * (W - 60), y = 50 + rnd() * (H - 80);
       if (near(x, y) || FSPOTS.some(p => Math.hypot(p[0] - x, p[1] - y) < 56)) continue;
-      const t = this.solids.create(x, y, 'tree'); t.setDepth(y + 28); n++;
+      const t = plantTree(this, x, y); n++;
     }
     this.solids.refresh();
     this.physics.add.collider(this.player, this.solids);
@@ -1278,7 +1351,7 @@ class Lake extends Base {
     for (let i = 0, n = 0; n < 40 && i < 400; i++) {
       const x = 30 + rnd() * (W - 60), y = 40 + rnd() * (H - 60);
       if ((x > 120 && x < 1160 && y > 240 && y < 780) || (x > 520 && x < 760 && y < 280) || y < 30) continue;
-      const t = this.solids.create(x, y, 'tree'); t.setDepth(y + 28); n++;
+      const t = plantTree(this, x, y); n++;
     }
     this.solids.refresh();
     this.physics.add.collider(this.player, this.solids);
@@ -1408,6 +1481,14 @@ class Home extends Base {
   }
 }
 
+const PLUS = []; // [tên texture, dữ liệu ảnh]
+{ const A = window.ASSETS, add = (k, v) => v && PLUS.push([k, v]);
+  Object.keys(A.trees || {}).forEach(k => add('tr_' + k, A.trees[k]));
+  Object.keys(A.fence || {}).forEach(k => add('fn_' + k, A.fence[k]));
+  Object.keys(A.props || {}).forEach(k => add('pr_' + k, A.props[k]));
+  add('p_sign', A.sign); add('p_mail', A.mailbox); add('rose', A.npc_grandma);
+  if (A.bin) { add('bin_closed', A.bin.closed); add('bin_open', A.bin.open); }
+  if (A.lamp) { add('lamp_off', A.lamp.off); add('lamp_on', A.lamp.on); } }
 let game;
 const startGame = () => { game = new Phaser.Game({
   type: Phaser.AUTO, parent: 'game-container', pixelArt: true, backgroundColor: '#1d2b19',
@@ -1418,7 +1499,9 @@ const startGame = () => { game = new Phaser.Game({
 }); };
 const loadImg = (key, src) => new Promise(r => { const i = new Image(); i.onload = () => { IMG[key] = i; r(); }; i.onerror = r; i.src = src; });
 Promise.all(['tiles', 'crops', 'hero', 'shop', 'bushG', 'bushF'].map(k => loadImg(k, window.ASSETS[k]))
-  .concat(Object.keys(window.ASSETS.bld || {}).map(k => loadImg('b_' + k, window.ASSETS.bld[k])))).then(startGame);
+  .concat(Object.keys(window.ASSETS.bld || {}).map(k => loadImg('b_' + k, window.ASSETS.bld[k])))
+  .concat(PLUS.map(([k, v]) => loadImg('x_' + k, v)))).then(startGame);
+{ const A = window.ASSETS.ui, root = document.getElementById('farm-app'); if (A && A.panel) { root.style.setProperty('--panel', 'url(' + A.panel + ')'); root.classList.add('framed'); } }
 
 $('#bookBtn').onclick = () => { if (!open) { snd('click'); wordBook(); } };
 $('#bagBtn').onclick = () => { if (!open) bag(); };
