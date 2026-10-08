@@ -1,6 +1,7 @@
 (() => {
 // ====== CẤU HÌNH ======
 const B2_LEVEL = 2;                 // cấp độ người chơi cần đạt để mở bài học B2
+const SPEED = 150;                 // tốc độ đi bộ
 const COST = { till:2, sow:3, water:2, harvest:2 }; // stamina hao khi làm nông
 const LESSON = {                    // stamina hao MỖI CÂU hỏi · exp đúng lần đầu / đúng sau khi thử lại · thưởng 5/5 · coin mỗi câu đúng lần đầu
   B1: { st:2, exp:4, retry:1, perfect:10, coin:2 },
@@ -46,6 +47,9 @@ const CROPS = [
   { id:'coconut',     en:'COCONUT',      vi:'dừa',           cost:580, days:5, price:156 },
   { id:'coffee',      en:'COFFEE',       vi:'cà phê',        cost:620, days:5, price:170 }
 ];
+// Giá hạt giống & cấp độ mở khóa: cây đắt cần Lv cao hơn → học bài với cô Emma để lên cấp
+const SEED_PRICE = c => Math.max(4, Math.round(c.price * .35));
+const REQ_LVL = c => 1 + Math.floor(c.cost / 100);
 // Hình ảnh: assets.js (icon quả = ICON) · bảng sprite 3 giai đoạn lớn (cây con → đang lớn → chín) theo thứ tự ASSET_META.crops
 const FRAME = id => window.ASSET_META.crops.indexOf(id) * 3;
 const ICON = id => window.ASSETS.icons[id];
@@ -107,17 +111,25 @@ const placedCount = id => Object.values(S.placed).filter(x => x === id).length;
 
 // ====== LƯU TRỮ ======
 const KEY = 'englishFarmSave2'; // giữ nguyên key để không mất dữ liệu cũ; trường mới tự thêm giá trị mặc định
-const fresh = () => ({ coins:20, day:1, sel:'carrot', unlocked:['carrot','tomato'], learned:{},
+const fresh = () => ({ coins:20, day:1, sel:'carrot', inv:{ seeds:{ carrot:6, tomato:6 }, crops:{} }, learned:{},
   exp:0, lvl:1, stamina:100, words:{}, phraseDay:0, own:{}, placed:{},
   plots: Array.from({ length:15 }, () => ({ s:0, c:null, g:0, w:false })) });
-let S;
-try { S = Object.assign(fresh(), JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { S = fresh(); }
+let S, old = null;
+try { old = JSON.parse(localStorage.getItem(KEY)); S = Object.assign(fresh(), old || {}); } catch (e) { S = fresh(); }
 S.stamina = Math.min(S.stamina, maxSt());
 // dữ liệu lưu cũ có thể còn cây không còn tồn tại (bí ngô, cà tím…) → dọn để không lỗi
 { const known = id => CROPS.some(c => c.id === id);
-  S.unlocked = S.unlocked.filter(known); if (!S.unlocked.length) S.unlocked = ['carrot', 'tomato'];
-  if (!known(S.sel)) S.sel = S.unlocked[0];
+  if (!S.inv || !S.inv.seeds) S.inv = { seeds:{ carrot:6, tomato:6 }, crops:{} };
+  if (!S.inv.crops) S.inv.crops = {};
+  // save cũ (chưa có túi đồ): tặng 3 hạt cho mỗi cây đã mở khóa
+  if (old && !old.inv && old.unlocked) old.unlocked.filter(known).forEach(id => { S.inv.seeds[id] = Math.max(S.inv.seeds[id] || 0, 3); });
+  [S.inv.seeds, S.inv.crops].forEach(o => Object.keys(o).forEach(id => { if (!known(id) || !(o[id] > 0)) delete o[id]; }));
+  if (!known(S.sel)) S.sel = 'carrot';
   S.plots.forEach(p => { if (p.c && !known(p.c)) { p.s = 1; p.c = null; p.g = 0; p.w = false; } }); }
+const seedCount = id => S.inv.seeds[id] || 0;
+const addSeed = (id, n = 1) => { S.inv.seeds[id] = seedCount(id) + n; };
+const owned = () => CROPS.filter(c => seedCount(c.id) > 0).map(c => c.id);
+const fixSel = () => { if (seedCount(S.sel) <= 0) { const o = owned(); if (o.length) S.sel = o[0]; } };
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
 
 // ====== TIỆN ÍCH ======
@@ -127,13 +139,80 @@ const shuffle = a => a.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).
 let open = false, clk = 360; // clk = phút trong ngày (360 = 06:00)
 const hhmm = m => { m = Math.floor(m); return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
 const dark = h => h < 6 ? .5 : h < 8 ? .5 * (8 - h) / 2 : h < 17 ? 0 : h < 20.5 ? .5 * (h - 17) / 3.5 : .5;
-const sfx = (f, d = .1, type = 'square') => { try {
-  const a = sfx.a || (sfx.a = new (window.AudioContext || window.webkitAudioContext)());
-  const o = a.createOscillator(), g = a.createGain(); o.type = type; o.frequency.value = f;
-  g.gain.value = .04; g.gain.exponentialRampToValueAtTime(.0001, a.currentTime + d);
-  o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + d); } catch (e) {} };
 
-function modal(title, html, btns) {
+// ====== ÂM THANH (tổng hợp bằng WebAudio, không cần file mp3) ======
+const AU = { c:null, m:null, nb:null, on:(() => { try { return localStorage.getItem('efSound') !== '0'; } catch (e) { return true; } })() };
+function au() {
+  if (!AU.on) return null;
+  try {
+    if (!AU.c) {
+      const C = window.AudioContext || window.webkitAudioContext; AU.c = new C();
+      AU.m = AU.c.createGain(); AU.m.gain.value = .9; AU.m.connect(AU.c.destination);
+      const n = AU.c.sampleRate, b = AU.c.createBuffer(1, n, AU.c.sampleRate), d = b.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; AU.nb = b;
+    }
+    if (AU.c.state === 'suspended') AU.c.resume();
+    return AU.c;
+  } catch (e) { return null; }
+}
+// nốt nhạc: tần số, độ dài, kiểu sóng, âm lượng, trễ, tần số cuối (trượt)
+function tone(f, d = .1, type = 'square', vol = .05, delay = 0, to = 0) {
+  const a = au(); if (!a) return;
+  const t = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t); if (to) o.frequency.exponentialRampToValueAtTime(to, t + d);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+  o.connect(g); g.connect(AU.m); o.start(t); o.stop(t + d + .03);
+}
+// tiếng ồn lọc (đất, nước, bước chân…): d <= .5
+function noise(d = .1, f = 800, kind = 'lowpass', vol = .08, delay = 0, to = 0) {
+  const a = au(); if (!a) return;
+  const t = a.currentTime + delay, s = a.createBufferSource(), fl = a.createBiquadFilter(), g = a.createGain();
+  s.buffer = AU.nb; fl.type = kind; fl.Q.value = kind === 'bandpass' ? 1.2 : .7;
+  fl.frequency.setValueAtTime(f, t); if (to) fl.frequency.exponentialRampToValueAtTime(to, t + d);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+  s.connect(fl); fl.connect(g); g.connect(AU.m); s.start(t, Math.random() * .5); s.stop(t + d + .03);
+}
+const sfx = (f, d = .1, type = 'square') => tone(f, d, type, .04);
+const SND = {
+  step:  () => noise(.07, 450 + Math.random() * 300, 'lowpass', .06),
+  wood:  () => { tone(150 + Math.random() * 30, .06, 'square', .03, 0, 90); noise(.05, 700, 'lowpass', .05); },
+  till:  () => { noise(.18, 380, 'lowpass', .18); tone(110, .15, 'sine', .09, 0, 55); noise(.08, 900, 'lowpass', .08, .12); },
+  sow:   () => { for (let i = 0; i < 5; i++) noise(.04, 3200 + Math.random() * 900, 'highpass', .05, i * .05); tone(320, .1, 'sine', .03, .08, 200); },
+  water: () => { noise(.45, 2000, 'bandpass', .1, 0, 600); [.1, .2, .3].forEach(d => tone(500 + Math.random() * 300, .09, 'sine', .035, d, 950)); },
+  harvest: () => { noise(.06, 1500, 'bandpass', .08); tone(520, .1, 'triangle', .07, 0, 900); tone(880, .12, 'triangle', .06, .09); tone(1320, .18, 'triangle', .05, .18); },
+  coin:  () => { tone(1320, .08, 'square', .03); tone(1760, .2, 'square', .03, .07); },
+  buy:   () => { tone(988, .06, 'square', .03); tone(1319, .2, 'square', .03, .06); noise(.05, 4000, 'highpass', .04, .1); },
+  error: () => tone(170, .22, 'sawtooth', .05, 0, 90),
+  ok:    () => { tone(660, .1, 'square', .04); tone(880, .16, 'square', .04, .09); },
+  wrong: () => tone(160, .24, 'sawtooth', .05, 0, 100),
+  click: () => tone(720, .04, 'square', .02),
+  select:() => tone(900, .06, 'triangle', .05, 0, 1200),
+  bag:   () => { noise(.14, 1300, 'bandpass', .08, 0, 500); noise(.1, 1600, 'bandpass', .06, .12, 600); },
+  door:  () => { noise(.25, 500, 'lowpass', .12, 0, 200); tone(180, .22, 'sine', .05, .02, 120); },
+  eat:   () => { for (let i = 0; i < 3; i++) noise(.05, 2200, 'bandpass', .1, i * .1); tone(500, .1, 'sine', .04, .35, 800); },
+  place: () => { tone(320, .09, 'triangle', .07, 0, 200); noise(.06, 900, 'lowpass', .06); },
+  chat:  () => { tone(600, .06, 'triangle', .04); tone(760, .08, 'triangle', .04, .08); },
+  levelup: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, .2, 'triangle', .06, i * .11)),
+  sleep: () => [523, 440, 392, 330].forEach((f, i) => tone(f, .5, 'sine', .05, i * .35)),
+  wake:  () => { [392, 523, 659].forEach((f, i) => tone(f, .25, 'triangle', .05, i * .13)); SND.bird(); },
+  bird:  () => { const b = 2400 + Math.random() * 1100; tone(b, .07, 'sine', .022, 0, b * 1.3); tone(b * 1.2, .08, 'sine', .022, .1, b); tone(b * 1.35, .06, 'sine', .018, .2, b * 1.1); },
+  cricket: () => [0, .1, .2].forEach(d => tone(4300, .05, 'sine', .01, d))
+};
+const snd = n => { try { if (SND[n]) SND[n](); } catch (e) {} };
+// nhạc nền nhẹ (thang âm ngũ cung), chỉ chạy sau khi người chơi bấm / nhấn phím lần đầu
+let musicT;
+const SCALE = [262, 294, 330, 392, 440, 523, 587, 659];
+function startMusic() {
+  if (musicT) return;
+  musicT = setInterval(() => {
+    if (!AU.on || document.hidden || !AU.c) return;
+    const n = SCALE[Math.floor(Math.random() * SCALE.length)];
+    tone(n, 1.8, 'sine', .016); if (Math.random() < .4) tone(n / 2, 2.2, 'triangle', .01, .05);
+  }, 1500);
+}
+
+function modal(title, html, btns, keep) {
+  const card = $('.card'), top = keep ? card.scrollTop : 0;
   open = true;
   $('#mTitle').textContent = title;
   $('#mText').innerHTML = html;
@@ -141,11 +220,13 @@ function modal(title, html, btns) {
   btns.forEach(b => {
     const el = document.createElement('button');
     el.type = 'button'; if (b.html) el.innerHTML = b.html; else el.textContent = b.label; el.disabled = !!b.off;
-    el.onclick = () => b.fn && b.fn(el);
+    if (b.on) el.classList.add('on');
+    el.onclick = () => { snd('click'); if (b.fn) b.fn(el); };
     box.appendChild(el);
   });
   $('#modal').hidden = false;
-  const first = box.querySelector('button:not(:disabled)'); if (first) first.focus();
+  card.scrollTop = top;
+  if (!keep) { const first = box.querySelector('button:not(:disabled)'); if (first) first.focus(); }
 }
 function closeModal() { open = false; $('#modal').hidden = true; }
 function toast(t) {
@@ -156,7 +237,7 @@ function toast(t) {
 // ====== STAMINA & EXP ======
 function can(n) {
   if (S.stamina >= n) return true;
-  toast('Hết sức rồi ⚡ — ăn gì đó ở thị trấn hoặc về nhà đi ngủ nhé!'); sfx(150, .2, 'sawtooth');
+  toast('Hết sức rồi ⚡ — ăn gì đó ở thị trấn hoặc về nhà đi ngủ nhé!'); snd('error');
   return false;
 }
 const use = n => { S.stamina = Math.max(0, S.stamina - n); hud(); };
@@ -167,7 +248,7 @@ function gainExp(n) {
   if (up) {
     S.stamina = maxSt(); // lên cấp được hồi đầy stamina
     toast('🎉 Lên cấp! Bạn đạt Lv ' + S.lvl + ' · stamina tối đa ' + maxSt());
-    [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => sfx(f, .18, 'triangle'), i * 110));
+    snd('levelup');
   }
   hud(); save();
   return up;
@@ -190,15 +271,18 @@ function hud() {
   $('#stTxt').textContent = S.stamina + '/' + mx;
   $('#xpFill').style.width = Math.min(100, S.exp / need * 100) + '%';
   $('#xpTxt').textContent = S.exp + '/' + need;
+  fixSel();
   const box = $('#seeds'); box.innerHTML = '';
-  S.unlocked.forEach((id, i) => {
+  const o = owned();
+  if (!o.length) box.innerHTML = '<small class="noseed">🌱 Hết hạt giống — mua ở Seed Shop hoặc học bài với cô Emma</small>';
+  o.forEach((id, i) => {
     const b = document.createElement('button');
     const c = crop(id);
-    b.type = 'button'; b.innerHTML = ico(id, 26) + (i < 9 ? ' ' + (i + 1) : '');
+    b.type = 'button'; b.innerHTML = ico(id, 26) + '<span class="cnt">' + seedCount(id) + '</span>' + (i < 9 ? '<sup>' + (i + 1) + '</sup>' : '');
     b.className = id === S.sel ? 'on' : '';
-    b.title = c.en + ' — ' + c.vi;
-    b.setAttribute('aria-label', 'Hạt giống ' + c.en);
-    b.onclick = () => { S.sel = id; hud(); save(); };
+    b.title = c.en + ' — ' + c.vi + ' (còn ' + seedCount(id) + ' hạt)';
+    b.setAttribute('aria-label', 'Hạt giống ' + c.en + ', còn ' + seedCount(id));
+    b.onclick = () => { S.sel = id; snd('select'); hud(); save(); };
     box.appendChild(b);
   });
   const on = box.querySelector('.on'); if (on) box.scrollLeft = on.offsetLeft - box.offsetWidth / 2 + on.offsetWidth / 2;
@@ -236,8 +320,23 @@ function wordBook() {
     [{ label:'Đóng', fn:closeModal }]);
 }
 
+// ====== TÚI ĐỒ: hạt giống (bấm để cầm) + nông sản ======
+function bag() {
+  snd('bag');
+  const got = CROPS.filter(c => (S.inv.crops[c.id] || 0) > 0);
+  const o = owned();
+  const crops = got.length
+    ? '<ul class="book">' + got.map(c => `<li>${ico(c.id, 22)} <b>${c.en}</b> — ${c.vi} <small>×${S.inv.crops[c.id]} · ${c.price}🪙/quả</small></li>`).join('') + '</ul>'
+    : '<p><small>Chưa có nông sản. Thu hoạch cây chín để bỏ vào túi, rồi bán ở Seed Shop.</small></p>';
+  const btns = o.map(id => { const c = crop(id); return { on: id === S.sel, html: `${id === S.sel ? '✋ ' : ''}${ico(id, 26)} ${c.en} <small>(${c.vi})</small> ×${seedCount(id)}`,
+    fn: () => { S.sel = id; snd('select'); hud(); save(); bag(); } }; });
+  btns.push({ label:'Đóng', fn:closeModal });
+  modal('🎒 Túi đồ', '<b>🧺 Nông sản</b>' + crops + '<b>🌱 Hạt giống</b> <small>— bấm để cầm trên tay rồi đi gieo' + (o.length ? '' : '. Chưa có hạt: mua ở Seed Shop hoặc học bài với cô Emma') + '</small>', btns);
+}
+
 // ====== CÔ EMMA: BÀI HỌC B1 / B2 ======
 function emma() {
+  snd('chat');
   const btn = lv => {
     const L = LESSON[lv], lock = lv === 'B2' && S.lvl < B2_LEVEL;
     return { label: lock ? `🔒 B2 — mở ở Lv ${B2_LEVEL}` : `${lv === 'B1' ? '📘' : '📙'} Bài ${lv} · ${N_Q} câu (⚡${L.st}/câu · +${L.exp} EXP)`,
@@ -245,15 +344,21 @@ function emma() {
   };
   modal('Teacher Emma 🎓',
     '<b>“Hello! Ready to practise your English?”</b><br>(Chào bạn! Sẵn sàng luyện tiếng Anh chưa?)<br>' +
-    `<small>⭐ Lv ${S.lvl} · EXP ${S.exp}/${expNeed(S.lvl)} · ⚡ ${S.stamina}/${maxSt()}. Học từ vựng tốn stamina.</small>`,
+    `<small>⭐ Lv ${S.lvl} · EXP ${S.exp}/${expNeed(S.lvl)} · ⚡ ${S.stamina}/${maxSt()}. Học từ vựng tốn stamina · trả lời đúng ngay lần đầu được 🌱 hạt giống.</small>`,
     [btn('B1'), btn('B2'), { label:'Đóng', fn:closeModal }]);
+}
+
+// Thưởng 1 hạt giống ngẫu nhiên (ưu tiên cây rẻ) cho mỗi câu đúng ngay lần đầu
+function rewardSeed() {
+  const a = CROPS.filter(c => REQ_LVL(c) <= S.lvl), c = a[Math.floor(Math.random() ** 2 * a.length)];
+  addSeed(c.id); return c.id;
 }
 
 function lesson(lv) {
   const L = LESSON[lv], pool = VOCAB[lv];
   // ưu tiên những từ bạn ít trả lời đúng nhất
   const picks = pool.map(w => [(S.words[w.en] || 0) + Math.random() * 2.5, w]).sort((a, b) => a[0] - b[0]).slice(0, N_Q).map(x => x[1]);
-  const R = { first:0, exp:0, up:false };
+  const R = { first:0, exp:0, up:false, seeds:{} };
   const tag = `<span class="tag ${lv === 'B2' ? 'b2' : ''}">${lv}</span> `;
 
   const tired = () => modal('Emma 🎓',
@@ -263,7 +368,8 @@ function lesson(lv) {
   const finish = () => {
     let bonus = 0;
     if (R.first === N_Q) bonus = L.perfect;
-    const coins = R.first * L.coin; S.coins += coins;
+    const coins = R.first * L.coin; S.coins += coins; if (coins) snd('coin');
+    const sd = Object.keys(R.seeds).map(id => ico(id, 20) + '×' + R.seeds[id]).join(' ');
     const lvBefore = S.lvl; if (bonus) gainExp(bonus); else { hud(); save(); }
     const total = R.exp + bonus;
     modal('Kết quả bài ' + lv + ' 🎓',
@@ -271,6 +377,7 @@ function lesson(lv) {
       `<li>✅ Đúng ngay lần đầu: <b>${R.first}/${N_Q}</b></li>` +
       `<li>🎓 EXP: <b>+${total}</b>${bonus ? ' (có thưởng 5/5 +' + bonus + ')' : ''}</li>` +
       `<li>🪙 Coin: <b>+${coins}</b></li>` +
+      (sd ? `<li>🌱 Hạt thưởng: ${sd}</li>` : '') +
       `<li>⭐ Lv ${S.lvl} · EXP ${S.exp}/${expNeed(S.lvl)}${S.lvl > lvBefore || R.up ? ' 🎉 vừa lên cấp!' : ''}</li>` +
       `<li>⚡ Stamina còn ${S.stamina}/${maxSt()}</li></ul>`,
       [{ label:'Học tiếp 📚', fn:() => (S.stamina >= L.st ? lesson(lv) : tired()) }, { label:'Xong', fn:closeModal }]);
@@ -290,14 +397,14 @@ function lesson(lv) {
     modal(`Câu ${i + 1}/${N_Q}`, tag + prompt, shuffle([ans, ...opts]).map(o => ({
       label: o,
       fn: el => {
-        if (o !== ans) { tried = true; sfx(150, .22, 'sawtooth'); el.disabled = true; $('#mText').innerHTML = tag + prompt + '<br><em>Chưa đúng, thử lại nhé!</em>'; return; }
-        sfx(660); setTimeout(() => sfx(880, .16), 90);
+        if (o !== ans) { tried = true; snd('wrong'); el.disabled = true; $('#mText').innerHTML = tag + prompt + '<br><em>Chưa đúng, thử lại nhé!</em>'; return; }
+        snd('ok');
         const g = tried ? L.retry : L.exp;
-        use(L.st); if (!tried) R.first++;
+        use(L.st); let sid = null; if (!tried) { R.first++; sid = rewardSeed(); R.seeds[sid] = (R.seeds[sid] || 0) + 1; }
         S.words[w.en] = (S.words[w.en] || 0) + 1;
         R.exp += g; if (gainExp(g)) R.up = true;
         modal(tried ? 'Gần đúng rồi!' : 'Chính xác! ✨',
-          `${tag}<span class="ok">${w.en}</span> = ${w.vi} <small>(${w.pos})</small><div class="sent">${w.ex.replace('{}', '<b>' + w.en + '</b>')}</div>🎓 +${g} EXP`,
+          `${tag}<span class="ok">${w.en}</span> = ${w.vi} <small>(${w.pos})</small><div class="sent">${w.ex.replace('{}', '<b>' + w.en + '</b>')}</div>🎓 +${g} EXP${sid ? ' · 🌱 +1 ' + ico(sid, 20) + ' ' + crop(sid).en : ''}`,
           [{ label: i + 1 < picks.length ? 'Câu tiếp ➜' : 'Xem kết quả', fn:() => ask(i + 1) }]);
       }
     })));
@@ -399,8 +506,14 @@ class Base extends Phaser.Scene {
     this.player.body.setSize(16, 12).setOffset(12, 40); // chỉ va chạm ở bàn chân
     this.face = 'down';
     this.shadow = this.add.image(0, 0, 'shadow').setDepth(.5);
-    this.night = this.add.rectangle(0, 0, 960, 540, 0x0a1445, 0).setOrigin(0).setScrollFactor(0).setDepth(2000);
-    this.cameras.main.startFollow(this.player, true, .09, .09).setBounds(0, 0, W, H).setZoom(1.25);
+    this.night = this.add.rectangle(-4000, -4000, 12000, 12000, 0x0a1445, 0).setOrigin(0).setScrollFactor(0).setDepth(2000);
+    const cam = this.cameras.main;
+    cam.setBackgroundColor('#1d2b19').startFollow(this.player, false, .12, .12).setBounds(0, 0, W, H);
+    // khung game co giãn theo cửa sổ (không còn viền xanh); zoom tự chỉnh theo kích thước
+    const fit = () => cam.setZoom(Math.max(1, Math.min(this.scale.height / 432, this.scale.width / 640)));
+    fit(); this.scale.on('resize', fit); this.events.once('shutdown', () => this.scale.off('resize', fit));
+    // tiếng chim ban ngày / dế ban đêm
+    this.time.addEvent({ delay:4200, loop:true, callback: () => { if (open || !AU.on || this.scene.key === 'Home' || Math.random() < .4) return; snd(clk >= 1080 || clk < 360 ? 'cricket' : 'bird'); } });
     this.cameras.main.fadeIn(350);
     const K = Phaser.Input.Keyboard.KeyCodes;
     this.keys = this.input.keyboard.addKeys({ up:K.W, down:K.S, left:K.A, right:K.D, u2:K.UP, d2:K.DOWN, l2:K.LEFT, r2:K.RIGHT, e:K.E, sp:K.SPACE });
@@ -419,7 +532,7 @@ class Base extends Phaser.Scene {
 
   go(key) {
     if (this.leaving) return;
-    this.leaving = true; this.target = null; this.player.setVelocity(0);
+    this.leaving = true; this.target = null; this.player.setVelocity(0); snd('door');
     const cam = this.cameras.main; cam.fadeOut(300);
     cam.once('camerafadeoutcomplete', () => this.scene.start(key, { from:this.scene.key }));
   }
@@ -435,14 +548,19 @@ class Base extends Phaser.Scene {
       const dx = this.target.x - this.player.x, dy = this.target.y - this.player.y;
       if (Math.hypot(dx, dy) > 8) { vx = dx; vy = dy; } else this.target = null;
     }
-    this.player.setVelocity(vx, vy);
-    if (vx || vy) this.player.body.velocity.normalize().scale(190);
+    // tăng / giảm tốc mượt thay vì đổi vận tốc tức thì
+    const len = Math.hypot(vx, vy), b = this.player.body, ease = Math.min(1, delta * .016);
+    const tx = len ? vx / len * SPEED : 0, ty = len ? vy / len * SPEED : 0;
+    const sm = (cur, to) => Math.abs(to - cur) < 4 ? to : cur + (to - cur) * ease;
+    b.setVelocity(sm(b.velocity.x, tx), sm(b.velocity.y, ty));
 
     clk = Math.min(clk + delta * .006, 1500);
     this.night.setAlpha(dark(clk / 60));
     const tick = Math.floor(clk / 10); if (tick !== this.tick) { this.tick = tick; dayText(); }
     if (clk >= 1380 && !late) { late = true; toast('Muộn rồi — về nhà đi ngủ thôi! 🌙'); }
     const moving = !!(vx || vy);
+    this.stepT = moving ? (this.stepT || 0) + delta : 220;
+    if (this.stepT > 300) { this.stepT = 0; snd(this.scene.key === 'Home' ? 'wood' : 'step'); }
     this.player.setDepth(this.player.y);
     this.animate(vx, vy, moving);
     this.shadow.setPosition(this.player.x, this.player.y + 10);
@@ -453,7 +571,7 @@ class Base extends Phaser.Scene {
   animate(vx, vy, moving) {
     const p = this.player;
     if (moving) {
-      if (Math.abs(vx) > Math.abs(vy)) { this.face = 'side'; p.setFlipX(vx < 0); }
+      if (Math.abs(vx) > Math.abs(vy)) { this.face = 'side'; p.setFlipX(vx > 0); }
       else this.face = vy > 0 ? 'down' : 'up';
     }
     if (this.face !== 'side') p.setFlipX(false);
@@ -464,15 +582,18 @@ class Base extends Phaser.Scene {
   // nền: cỏ ngẫu nhiên + đường đất tự ghép góc / ngã ba / ngã tư theo các ô lân cận (ô 64px)
   rng(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
   paintGround(cells, solid) {
-    const T = 64, rnd = this.rng(5), has = (x, y) => cells.has(x + ',' + y);
-    for (let cy = 0; cy < Math.ceil(this.H / T); cy++) for (let cx = 0; cx < Math.ceil(this.W / T); cx++) {
-      let f, path = has(cx, cy);
-      if (path) {
+    // Nền được "nướng" thành 1 ảnh duy nhất (hết vạch kẻ ô khi zoom). Cỏ vẽ ô 32px (nhỏ bằng nửa trước), đường đất giữ ô 64px.
+    const T = 64, S2 = 32, rnd = this.rng(5), has = (x, y) => cells.has(x + ',' + y);
+    const cw = Math.ceil(this.W / T), ch = Math.ceil(this.H / T);
+    const rt = this.add.renderTexture(0, 0, cw * T, ch * T).setOrigin(0).setDepth(-.5);
+    rt.fill(0x6a9f46);
+    for (let cy = 0; cy < ch; cy++) for (let cx = 0; cx < cw; cx++) {
+      if (has(cx, cy)) {
         const n = has(cx, cy - 1), e = has(cx + 1, cy), so = has(cx, cy + 1), w = has(cx - 1, cy);
         const full = n && e && so && w && has(cx - 1, cy - 1) && has(cx + 1, cy - 1) && has(cx - 1, cy + 1) && has(cx + 1, cy + 1);
-        f = full || (solid && solid.has(cx + ',' + cy)) ? 22 : 6 + ((n ? 1 : 0) | (e ? 2 : 0) | (so ? 4 : 0) | (w ? 8 : 0)); // 6..21: 16 kiểu đường, 22: đất đặc
-      } else f = Math.floor(rnd() * 6); // 0..5: cỏ
-      this.add.image(cx * T, cy * T, 'tiles', f).setOrigin(0).setDepth(path ? .05 : -.5);
+        const f = full || (solid && solid.has(cx + ',' + cy)) ? 22 : 6 + ((n ? 1 : 0) | (e ? 2 : 0) | (so ? 4 : 0) | (w ? 8 : 0)); // 6..21: 16 kiểu đường, 22: đất đặc
+        rt.drawFrame('tiles', f, cx * T, cy * T);
+      } else for (let sy = 0; sy < 2; sy++) for (let sx = 0; sx < 2; sx++) rt.drawFrame('grassS', 'g' + Math.floor(rnd() * 6), cx * T + sx * S2, cy * T + sy * S2);
     }
   }
   // rải bụi cỏ / bụi hoa trang trí (ok(x,y) = chỗ được phép đặt)
@@ -481,6 +602,8 @@ class Base extends Phaser.Scene {
     for (let k = 0, tries = 0; k < n && tries < n * 40; tries++) {
       const x = 30 + rnd() * (this.W - 60), y = 50 + rnd() * (this.H - 70);
       if (!ok(x, y)) continue;
+      // không đặt bụi đè lên cây / nhà (hết lỗi bụi hoa chồng lên tán cây)
+      if (this.solids.getChildren().some(o => Math.abs(o.x - x) < o.width / 2 + 24 && y > o.y - o.height / 2 - 4 && y - 40 < o.y + o.height / 2)) continue;
       this.add.image(x, y, k % 3 === 2 ? 'bushF' : 'bushG').setOrigin(.5, 1).setDepth(y); k++;
     }
   }
@@ -511,9 +634,14 @@ class Boot extends Phaser.Scene {
     T.addSpriteSheet('tiles', IMG.tiles, { frameWidth:M.tile, frameHeight:M.tile });          // 0-5 cỏ · 6-21 đường (theo bitmask N=1 E=2 S=4 W=8) · 22 đất đặc
     T.addSpriteSheet('crops', IMG.crops, { frameWidth:M.cropCell, frameHeight:M.cropCell });   // mỗi cây 3 khung: cây con / đang lớn / chín
     T.addSpriteSheet('hero',  IMG.hero,  { frameWidth:M.hero[0], frameHeight:M.hero[1] });     // hàng 1 đi xuống · hàng 2 đi lên · hàng 3 đi ngang
+    // cỏ thu nhỏ còn 32px (6 kiểu) để cỏ không còn "quá bự"
+    { const cv = document.createElement('canvas'); cv.width = 32 * 6; cv.height = 32;
+      const cx = cv.getContext('2d'); cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+      for (let i = 0; i < 6; i++) cx.drawImage(IMG.tiles, i * 64, 0, 64, 64, i * 32, 0, 32, 32);
+      const ct = T.addCanvas('grassS', cv); for (let i = 0; i < 6; i++) ct.add('g' + i, 0, i * 32, 0, 32, 32); }
     T.addImage('shopimg', IMG.shop); T.addImage('bushG', IMG.bushG); T.addImage('bushF', IMG.bushF);
     [['down', 0], ['up', 4], ['side', 8]].forEach(([k, st]) => this.anims.create({
-      key:'walk-' + k, frames:this.anims.generateFrameNumbers('hero', { start:st, end:st + 3 }), frameRate:8, repeat:-1 }));
+      key:'walk-' + k, frames:this.anims.generateFrameNumbers('hero', { start:st, end:st + 3 }), frameRate:10, repeat:-1 }));
     this.scene.start('Farm');
   }
 }
@@ -535,7 +663,7 @@ class Farm extends Base {
       this.solids.create(x, y, 'tree');
     }
     this.solids.refresh();
-    this.solids.children.each(t => t.setDepth(t.y));
+    this.solids.children.each(t => t.setDepth(t.y + t.height / 2 - 4)); // sắp lớp theo chân cây / nhà
     // đường đất (ô 64px): nhà → xuống dưới → sang thị trấn (phải) + nhánh rẽ ra ruộng
     const cells = new Set(), road = (x0, y0, x1, y1) => { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) cells.add(x + ',' + y); };
     road(3, 3, 3, 9); road(3, 9, 19, 9); road(4, 5, 6, 5);
@@ -564,7 +692,7 @@ class Farm extends Base {
 
     hud();
     if (S.day === 1 && !Object.keys(S.learned).length && !Object.keys(S.words).length) modal('English Farm 🌱',
-      '<b>“Welcome to the farm!”</b><br>Chào mừng bạn! Xới đất → gieo hạt → tưới nước → vào nhà đi ngủ → thu hoạch. Làm nông tốn ⚡ stamina.<br>🎓 Nói chuyện với <b>cô Emma</b> để học từ vựng B1/B2 lấy EXP và lên cấp. Đi sang phải để vào 🏘️ thị trấn: mua hạt giống, ăn đồ hồi stamina.',
+      '<b>“Welcome to the farm!”</b><br>Chào mừng bạn! Mở <b>🎒 Túi đồ</b> (phím B) → chọn hạt giống → xới đất → gieo hạt → tưới nước → vào nhà đi ngủ → thu hoạch. Làm nông tốn ⚡ stamina.<br>🎓 Nói chuyện với <b>cô Emma</b> để học từ vựng B1/B2: lấy EXP, lên cấp và nhận 🌱 hạt giống thưởng. Đi sang phải để vào 🏘️ thị trấn: mua hạt giống, bán nông sản, ăn đồ hồi stamina.',
       [{ label:'Bắt đầu chơi 🌾', fn:closeModal }]);
   }
 
@@ -608,12 +736,12 @@ class Farm extends Base {
   }
 
   label(c) {
-    if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: hành động · 1-9 hoặc [ ]: chọn hạt · đi sang phải: thị trấn';
+    if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: hành động · 1-9 hoặc [ ]: chọn hạt · B: túi đồ · đi sang phải: thị trấn';
     if (c.t === 'emma') return 'E: học tiếng Anh với cô Emma 🎓 (B1/B2)';
     if (c.t === 'house') return 'E: vào nhà 🏠 (ngủ, trang trí)';
     const p = S.plots[c.i];
     if (p.s === 0) return `E: xới đất (⚡${COST.till})`;
-    if (p.s === 1) return `E: gieo hạt ${crop(S.sel).en} (${crop(S.sel).vi}) (⚡${COST.sow})`;
+    if (p.s === 1) return seedCount(S.sel) > 0 ? `E: gieo ${crop(S.sel).en} (${crop(S.sel).vi}) — còn ${seedCount(S.sel)} hạt (⚡${COST.sow})` : 'Hết hạt giống! Mua ở Seed Shop 🌱 hoặc học bài với cô Emma để nhận thêm.';
     if (this.ready(p)) return `E: thu hoạch ${crop(p.c).en} (${crop(p.c).vi}) (⚡${COST.harvest})`;
     const cc = crop(p.c), nm = `${cc.en} (${cc.vi})`;
     return p.w ? `${nm} — đã tưới, hãy đi ngủ để cây lớn (${p.g}/${cc.days} ngày)` : `E: tưới nước 💧 cho ${nm} (⚡${COST.water})`;
@@ -628,36 +756,33 @@ class Farm extends Base {
     const after = () => { this.paint(i); hud(); save(); };
     if (p.s === 0) {
       if (!can(COST.till)) return;
-      use(COST.till); p.s = 1; toast('Đã xới đất'); this.fx(i, 0xb98a5a); sfx(220, .08); return after();
+      use(COST.till); p.s = 1; toast('Đã xới đất'); this.fx(i, 0xb98a5a); snd('till'); return after();
     }
     if (p.s === 1) {
-      if (!can(COST.sow)) return;
       const c = crop(S.sel);
-      return quiz('Gieo hạt', `Cây này tiếng Anh là gì?<div class="big">${ico(c.id, 72)}</div>`, c.en, first => {
-        use(COST.sow);
-        p.s = 2; p.c = c.id; p.g = 0; p.w = false; this.fx(i, 0x9be564, '🌱');
-        S.learned[c.id] = (S.learned[c.id] || 0) + 1;
-        if (first) { S.coins += 3; toast(`${c.en} = ${c.vi}. Đúng ngay lần đầu +3 🪙 +2 EXP`); } else toast(`${c.en} = ${c.vi}`);
-        after();
-        if (first) gainExp(2);
-      });
+      if (seedCount(c.id) <= 0) { snd('error'); return toast('Hết hạt giống rồi 🌱 — mua ở Seed Shop hoặc học bài với cô Emma.'); }
+      if (!can(COST.sow)) return;
+      use(COST.sow); S.inv.seeds[c.id]--;
+      p.s = 2; p.c = c.id; p.g = 0; p.w = false;
+      S.learned[c.id] = (S.learned[c.id] || 0) + 1;
+      snd('sow'); this.fx(i, 0x9be564, '🌱');
+      toast(`Đã gieo ${c.en} = ${c.vi} · còn ${seedCount(c.id)} hạt`);
+      fixSel(); return after();
     }
     if (this.ready(p)) {
       if (!can(COST.harvest)) return;
-      const c = crop(p.c);
-      return quiz('Thu hoạch', `Từ nào có nghĩa là <b>“${c.vi}”</b>?`, c.en, first => {
-        use(COST.harvest);
-        const gain = c.price + (first ? 5 : 0);
-        S.coins += gain; p.s = 1; p.c = null; p.g = 0; p.w = false;
-        S.learned[c.id] = (S.learned[c.id] || 0) + 1;
-        toast(`Thu hoạch ${c.en}! +${gain} 🪙${first ? ' +2 EXP' : ''}`); this.fx(i, 0xffd54a, '+' + gain + ' 🪙');
-        after();
-        if (first) gainExp(2);
-      });
+      const c = crop(p.c); use(COST.harvest);
+      S.inv.crops[c.id] = (S.inv.crops[c.id] || 0) + 1;
+      const seed = Math.random() < .4; if (seed) addSeed(c.id);
+      p.s = 1; p.c = null; p.g = 0; p.w = false;
+      S.learned[c.id] = (S.learned[c.id] || 0) + 1;
+      snd('harvest'); this.fx(i, 0xffd54a, '+1 🧺');
+      toast(`Thu hoạch ${c.en} (${c.vi})! Đã bỏ vào 🎒${seed ? ' · +1 hạt giống' : ''} · +2 EXP`);
+      after(); return gainExp(2);
     }
     if (!p.w) {
       if (!can(COST.water)) return;
-      use(COST.water); p.w = true; toast('Đã tưới nước 💧'); this.fx(i, 0x6ec6ff, '💧'); sfx(520, .12, 'sine'); return after();
+      use(COST.water); p.w = true; toast('Đã tưới nước 💧'); this.fx(i, 0x6ec6ff, '💧'); snd('water'); return after();
     }
     toast('Cây cần thời gian — hãy đi ngủ để sang ngày mới.');
   }
@@ -679,7 +804,7 @@ class Town extends Base {
     for (let x = 10; x <= 12; x++) for (let y = 5; y <= 8; y++) plaza.add(x + ',' + y);
     this.paintGround(cells, plaza);
 
-    const place = (key, x, y) => { const s = this.solids.create(x, y, key); s.setDepth(y); return s; };
+    const place = (key, x, y) => { const s = this.solids.create(x, y, key); s.setDepth(y + s.height / 2 - 4); return s; };
     // Tiệm "Hạt Giống Chú Tư" (ảnh sprite): vật cản chỉ ở phần chân tiệm → đi vòng ra sau tiệm được
     const SH = window.ASSET_META.shop;
     this.shopB = this.add.image(220, 304, 'shopimg').setOrigin(.5, 1).setDepth(304);
@@ -741,22 +866,36 @@ class Town extends Base {
 
   doAct(c) { if (c.t === 'shop') this.shop(); else if (c.t === 'homes') this.homes(); else if (c.t === 'decor') this.decorShop(); else this.food(); }
 
-  shop() {
-    const locked = CROPS.filter(c => !S.unlocked.includes(c.id));
-    const btns = locked.map(c => ({
-      label: `${c.en} — ${c.cost} 🪙`, html: `${ico(c.id, 26)} ${c.en} <small>(${c.vi})</small> — ${c.cost} 🪙`, off: S.coins < c.cost,
-      fn: () => { S.coins -= c.cost; S.unlocked.push(c.id); S.sel = c.id; closeModal(); hud(); save(); toast(`Mở khóa: ${c.en} = ${c.vi}`); }
-    }));
-    btns.push({ label:'Đóng', fn:closeModal });
-    modal('Lily · Seed Shop', '<b>“Hello! Welcome to my shop.”</b><br>(Xin chào! Chào mừng đến cửa hàng của mình.)<br>' +
-      (locked.length ? 'Chọn hạt giống mới:' : 'Bạn đã mở khóa mọi loại hạt!'), btns);
+  shop(tab = 'buy', keep = false) {
+    this.qty = this.qty || 1;
+    const nav = [
+      { label:'🛒 Mua hạt giống', off: tab === 'buy', fn:() => this.shop('buy') },
+      { label:'💰 Bán nông sản', off: tab === 'sell', fn:() => this.shop('sell') }
+    ];
+    const close = { label:'Đóng', fn:closeModal };
+    if (tab === 'sell') {
+      const got = CROPS.filter(c => (S.inv.crops[c.id] || 0) > 0);
+      const total = got.reduce((t, c) => t + c.price * S.inv.crops[c.id], 0);
+      const sell = list => { let g = 0; list.forEach(c => { g += c.price * S.inv.crops[c.id]; delete S.inv.crops[c.id]; }); S.coins += g; snd('coin'); hud(); save(); toast(`Đã bán được +${g} 🪙`); this.shop('sell', true); };
+      const items = got.map(c => ({ html: `${ico(c.id, 26)} Bán ${c.en} <small>(${c.vi})</small> ×${S.inv.crops[c.id]} — ${c.price * S.inv.crops[c.id]} 🪙`, fn:() => sell([c]) }));
+      if (got.length > 1) items.push({ label:`💰 Bán tất cả — ${total} 🪙`, fn:() => sell(got) });
+      return modal('Lily · Seed Shop', '<b>“I will buy your vegetables!”</b><br>(Mình sẽ mua rau củ của bạn!)<br><small>🪙 ' + S.coins + (got.length ? '' : ' · Túi chưa có nông sản để bán.') + '</small>', nav.concat(items, close), keep);
+    }
+    const qty = { label:`Số lượng mỗi lần mua: ×${this.qty} (bấm để đổi)`, fn:() => { this.qty = this.qty === 1 ? 5 : this.qty === 5 ? 10 : 1; this.shop('buy', true); } };
+    const items = CROPS.map(c => {
+      const lock = S.lvl < REQ_LVL(c), pr = SEED_PRICE(c) * this.qty;
+      return { off: lock || S.coins < pr,
+        html: lock ? `🔒 ${c.en} — mở ở Lv ${REQ_LVL(c)}` : `${ico(c.id, 26)} ${c.en} <small>(${c.vi})</small> — ${pr} 🪙 <small>· đang có ${seedCount(c.id)}</small>`,
+        fn:() => { S.coins -= pr; addSeed(c.id, this.qty); S.sel = c.id; snd('buy'); hud(); save(); toast(`Đã mua ${this.qty} hạt ${c.en} 🌱`); this.shop('buy', true); } };
+    });
+    modal('Lily · Seed Shop', '<b>“Hello! Welcome to my shop.”</b><br>(Xin chào! Chào mừng đến cửa hàng của mình.)<br><small>🪙 ' + S.coins + ' · ⭐ Lv ' + S.lvl + ' — lên cấp bằng cách học bài với cô Emma để mở thêm hạt giống.</small>', nav.concat(qty, items, close), keep);
   }
 
   food() {
     const btns = FOOD.map(f => ({
       label: `${f.e} ${f.en} (${f.vi}) — ${f.cost} 🪙 · +${f.st} ⚡`,
       off: S.coins < f.cost || S.stamina >= maxSt(),
-      fn: () => { S.coins -= f.cost; S.stamina = Math.min(maxSt(), S.stamina + f.st); sfx(500, .08, 'sine'); hud(); save(); toast(`Yummy! ${f.e} +${f.st} ⚡`); this.food(); }
+      fn: () => { S.coins -= f.cost; S.stamina = Math.min(maxSt(), S.stamina + f.st); snd('eat'); hud(); save(); toast(`Yummy! ${f.e} +${f.st} ⚡`); this.food(); }
     }));
     btns.push({ label:'Đóng', fn:closeModal });
     modal('Chef Bo · Food Stall', '<b>“What would you like to eat?”</b><br>(Bạn muốn ăn gì nào?)<br>' +
@@ -773,7 +912,7 @@ class Town extends Base {
     }
     const btns = DECOR.filter(d => d.kind === tab).map(d => ({
       label: `${d.e} ${d.en} (${d.vi}) — ${d.cost} 🪙${S.own[d.id] ? ' · có ' + S.own[d.id] : ''}`, off: S.coins < d.cost,
-      fn: () => { S.coins -= d.cost; S.own[d.id] = (S.own[d.id] || 0) + 1; sfx(700, .1); hud(); save(); toast(`Đã mua ${d.en} ${d.e}`); this.decorShop(tab); }
+      fn: () => { S.coins -= d.cost; S.own[d.id] = (S.own[d.id] || 0) + 1; snd('buy'); hud(); save(); toast(`Đã mua ${d.en} ${d.e}`); this.decorShop(tab); }
     }));
     btns.push({ label:'⬅ Quay lại', fn:() => this.decorShop() });
     modal(tab === 'wall' ? 'Đồ treo tường' : 'Đồ đặt sàn', `<b>“What would you like?”</b> <small>🪙 ${S.coins}</small>`, btns);
@@ -784,7 +923,7 @@ class Town extends Base {
       return modal('Nhà dân 🏠', '<b>“See you tomorrow!”</b> (Hẹn mai gặp lại!)<br>Hôm nay bạn đã nghe câu mới rồi. Ngủ một giấc ở nhà để sang ngày mới nhé.', [{ label:'Đóng', fn:closeModal }]);
     }
     const i = (S.day - 1) % PHRASES.length, p = PHRASES[i], who = VILLAGERS[(S.day - 1) % VILLAGERS.length];
-    S.phraseDay = S.day; save();
+    S.phraseDay = S.day; save(); snd('chat');
     modal(who + ' 🏠', `<b>“${p.en}”</b><br>${p.vi}<br><small>💡 ${p.tip}</small><br>🎓 +5 EXP`, [{ label:'Thank you! 👍', fn:closeModal }]);
     gainExp(5);
   }
@@ -857,7 +996,7 @@ class Home extends Base {
     const sl = SLOTS[i], cur = DECOR.find(x => x.id === S.placed[i]);
     const avail = DECOR.filter(d => d.kind === sl.kind && (S.own[d.id] || 0) - placedCount(d.id) > 0);
     const btns = avail.map(d => ({ label: `${d.e} ${d.en}`, fn: () => {
-      S.placed[i] = d.id; save(); this.refreshSlots(); closeModal(); sfx(600, .1); toast(`${d.en} = ${d.vi}`);
+      S.placed[i] = d.id; save(); this.refreshSlots(); closeModal(); snd('place'); toast(`${d.en} = ${d.vi}`);
     } }));
     if (cur) btns.push({ label:'📦 Cất đồ này đi', fn: () => { delete S.placed[i]; save(); this.refreshSlots(); closeModal(); toast('Đã cất ' + cur.en); } });
     btns.push({ label:'Đóng', fn:closeModal });
@@ -871,12 +1010,12 @@ class Home extends Base {
     modal('Đi ngủ 🛏️', '<b>“Good night!”</b> (Chúc ngủ ngon!)<br>Cây đã tưới sẽ lớn thêm một ngày, và bạn được hồi đầy ⚡ stamina.' +
       (cozy ? `<br>🛋️ Nhà ấm cúng: +${cozy} EXP` : '<br><small>Bày từ 3 món đồ trang trí để nhận thêm EXP khi ngủ.</small>'), [
       { label:'Ngủ 🌙', fn:() => {
-        closeModal(); this.leaving = true;
+        closeModal(); this.leaving = true; snd('sleep');
         const cam = this.cameras.main; cam.fadeOut(500);
         cam.once('camerafadeoutcomplete', () => {
           newDay(); hud(); save();
           cam.fadeIn(500); this.leaving = false;
-          toast('Good morning! Ngày ' + S.day + ' · ⚡ đã đầy');
+          snd('wake'); toast('Good morning! Ngày ' + S.day + ' · ⚡ đã đầy');
           if (cozy) gainExp(cozy);
         });
       } },
@@ -887,23 +1026,32 @@ class Home extends Base {
 
 let game;
 const startGame = () => { game = new Phaser.Game({
-  type: Phaser.AUTO, width: 960, height: 540, parent: 'game-container', pixelArt: true,
-  backgroundColor: '#7cc062',
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
+  type: Phaser.AUTO, parent: 'game-container', pixelArt: true, backgroundColor: '#1d2b19',
+  render: { pixelArt: true, antialias: false, roundPixels: false },   // không làm tròn pixel → di chuyển mượt
+  scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' }, // lấp đầy khung, không còn viền
+  physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false, fps: 240 } }, // bước vật lý nhỏ → hết giật
   scene: [Boot, Farm, Town, Home]
 }); };
 Promise.all(['tiles', 'crops', 'hero', 'shop', 'bushG', 'bushF'].map(k => new Promise(r => {
   const i = new Image(); i.onload = () => { IMG[k] = i; r(); }; i.onerror = r; i.src = window.ASSETS[k];
 }))).then(startGame);
 
-$('#bookBtn').onclick = () => { if (!open) wordBook(); };
+$('#bookBtn').onclick = () => { if (!open) { snd('click'); wordBook(); } };
+$('#bagBtn').onclick = () => { if (!open) bag(); };
+const sndLabel = () => { $('#sndBtn').textContent = AU.on ? '🔊' : '🔇'; };
+$('#sndBtn').onclick = () => { AU.on = !AU.on; try { localStorage.setItem('efSound', AU.on ? '1' : '0'); } catch (e) {} sndLabel(); if (AU.on) { snd('select'); startMusic(); } };
+sndLabel();
+// trình duyệt chỉ cho phát âm thanh sau lần tương tác đầu tiên
+const unlockAudio = () => { au(); startMusic(); };
+window.addEventListener('pointerdown', unlockAudio, { once:true });
+window.addEventListener('keydown', unlockAudio, { once:true });
 $('#actBtn').onclick = () => { const s = activeScene(); if (s && s.act) s.act(); };
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape' && open) closeModal();
-  const n = parseInt(e.key, 10);
-  if (!open && n >= 1 && n <= S.unlocked.length) { S.sel = S.unlocked[n - 1]; hud(); save(); }
-  if (!open && (e.key === '[' || e.key === ']')) { const k = S.unlocked.length; S.sel = S.unlocked[(S.unlocked.indexOf(S.sel) + (e.key === ']' ? 1 : k - 1)) % k]; hud(); save(); }
+  const n = parseInt(e.key, 10), o = owned();
+  if (!open && n >= 1 && n <= o.length) { S.sel = o[n - 1]; snd('select'); hud(); save(); }
+  if (!open && (e.key === '[' || e.key === ']') && o.length) { const k = o.length; S.sel = o[(Math.max(0, o.indexOf(S.sel)) + (e.key === ']' ? 1 : k - 1)) % k]; snd('select'); hud(); save(); }
+  if (!open && (e.key === 'b' || e.key === 'B' || e.key === 'i' || e.key === 'I')) bag();
 });
 hud();
 })();
