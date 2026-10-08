@@ -12,14 +12,44 @@ const maxSt = () => 100 + (S.lvl - 1) * 10; // stamina tối đa tăng theo cấ
 
 // ====== DỮ LIỆU CÂY TRỒNG: thêm cây mới chỉ cần thêm 1 dòng ======
 // cost: giá mở khóa hạt · days: số ngày (đã tưới) để lớn · price: tiền khi thu hoạch
+// Thêm cây mới: thêm 1 dòng ở đây + 1 tên vào ASSET_META.crops (assets.js) nếu có sprite
 const CROPS = [
-  { id:'carrot',     en:'CARROT',     vi:'cà rốt',   e:'🥕', cost:0,   days:2, price:12 },
-  { id:'tomato',     en:'TOMATO',     vi:'cà chua',  e:'🍅', cost:0,   days:3, price:18 },
-  { id:'corn',       en:'CORN',       vi:'bắp ngô',  e:'🌽', cost:40,  days:3, price:25 },
-  { id:'strawberry', en:'STRAWBERRY', vi:'dâu tây',  e:'🍓', cost:60,  days:3, price:32 },
-  { id:'pumpkin',    en:'PUMPKIN',    vi:'bí ngô',   e:'🎃', cost:90,  days:4, price:48 },
-  { id:'eggplant',   en:'EGGPLANT',   vi:'cà tím',   e:'🍆', cost:120, days:4, price:60 }
+  // cây mở sẵn
+  { id:'carrot',      en:'CARROT',       vi:'cà rốt',        cost:0,   days:2, price:12 },
+  { id:'tomato',      en:'TOMATO',       vi:'cà chua',       cost:0,   days:3, price:18 },
+  // cây rau củ – ngũ cốc (3-4 ngày)
+  { id:'corn',        en:'CORN',         vi:'bắp ngô',       cost:40,  days:3, price:25 },
+  { id:'strawberry',  en:'STRAWBERRY',   vi:'dâu tây',       cost:60,  days:3, price:32 },
+  { id:'potato',      en:'POTATO',       vi:'khoai tây',     cost:80,  days:3, price:35 },
+  { id:'cabbage',     en:'CABBAGE',      vi:'bắp cải',       cost:100, days:3, price:38 },
+  { id:'chili',       en:'CHILI',        vi:'ớt',            cost:120, days:3, price:42 },
+  { id:'wheat',       en:'WHEAT',        vi:'lúa mì',        cost:140, days:4, price:50 },
+  { id:'rice',        en:'RICE',         vi:'lúa gạo',       cost:160, days:4, price:54 },
+  { id:'sweetpotato', en:'SWEET POTATO', vi:'khoai lang',    cost:180, days:4, price:58 },
+  { id:'garlic',      en:'GARLIC',       vi:'tỏi',           cost:200, days:3, price:50 },
+  { id:'sugarcane',   en:'SUGARCANE',    vi:'cây mía',       cost:220, days:4, price:64 },
+  { id:'mushroom',    en:'MUSHROOM',     vi:'nấm',           cost:240, days:3, price:60 },
+  { id:'soybean',     en:'SOYBEAN',      vi:'đậu nành',      cost:260, days:4, price:68 },
+  { id:'tea',         en:'TEA',          vi:'trà',           cost:280, days:4, price:72 },
+  { id:'cotton',      en:'COTTON',       vi:'bông vải',      cost:300, days:4, price:76 },
+  { id:'jasmine',     en:'JASMINE',      vi:'hoa nhài',      cost:320, days:4, price:80 },
+  { id:'rose',        en:'ROSE',         vi:'hoa hồng',      cost:340, days:4, price:86 },
+  { id:'melon',       en:'MELON',        vi:'dưa vàng',      cost:360, days:4, price:90 },
+  // cây ăn quả (5 ngày)
+  { id:'grape',       en:'GRAPE',        vi:'nho',           cost:380, days:5, price:104 },
+  { id:'blueberry',   en:'BLUEBERRY',    vi:'việt quất',     cost:400, days:5, price:110 },
+  { id:'peach',       en:'PEACH',        vi:'quả đào',       cost:430, days:5, price:118 },
+  { id:'lemon',       en:'LEMON',        vi:'chanh vàng',    cost:460, days:5, price:124 },
+  { id:'mangosteen',  en:'MANGOSTEEN',   vi:'măng cụt',      cost:490, days:5, price:132 },
+  { id:'pineapple',   en:'PINEAPPLE',    vi:'quả dứa',       cost:520, days:5, price:140 },
+  { id:'banana',      en:'BANANA',       vi:'chuối',         cost:550, days:5, price:148 },
+  { id:'coconut',     en:'COCONUT',      vi:'dừa',           cost:580, days:5, price:156 },
+  { id:'coffee',      en:'COFFEE',       vi:'cà phê',        cost:620, days:5, price:170 }
 ];
+// Hình ảnh: assets.js (icon quả = ICON) · bảng sprite 3 giai đoạn lớn (cây con → đang lớn → chín) theo thứ tự ASSET_META.crops
+const FRAME = id => window.ASSET_META.crops.indexOf(id) * 3;
+const ICON = id => window.ASSETS.icons[id];
+const ico = (id, px = 28) => `<img class="ico" src="${ICON(id)}" alt="" width="${px}" height="${px}">`;
 
 // ====== TỪ VỰNG B1 / B2 (cô Emma): nằm trong file vocab.js ======
 const VOCAB = window.VOCAB;
@@ -83,6 +113,11 @@ const fresh = () => ({ coins:20, day:1, sel:'carrot', unlocked:['carrot','tomato
 let S;
 try { S = Object.assign(fresh(), JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { S = fresh(); }
 S.stamina = Math.min(S.stamina, maxSt());
+// dữ liệu lưu cũ có thể còn cây không còn tồn tại (bí ngô, cà tím…) → dọn để không lỗi
+{ const known = id => CROPS.some(c => c.id === id);
+  S.unlocked = S.unlocked.filter(known); if (!S.unlocked.length) S.unlocked = ['carrot', 'tomato'];
+  if (!known(S.sel)) S.sel = S.unlocked[0];
+  S.plots.forEach(p => { if (p.c && !known(p.c)) { p.s = 1; p.c = null; p.g = 0; p.w = false; } }); }
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
 
 // ====== TIỆN ÍCH ======
@@ -105,7 +140,7 @@ function modal(title, html, btns) {
   const box = $('#mBtns'); box.innerHTML = '';
   btns.forEach(b => {
     const el = document.createElement('button');
-    el.type = 'button'; el.textContent = b.label; el.disabled = !!b.off;
+    el.type = 'button'; if (b.html) el.innerHTML = b.html; else el.textContent = b.label; el.disabled = !!b.off;
     el.onclick = () => b.fn && b.fn(el);
     box.appendChild(el);
   });
@@ -158,12 +193,15 @@ function hud() {
   const box = $('#seeds'); box.innerHTML = '';
   S.unlocked.forEach((id, i) => {
     const b = document.createElement('button');
-    b.type = 'button'; b.textContent = crop(id).e + ' ' + (i + 1);
+    const c = crop(id);
+    b.type = 'button'; b.innerHTML = ico(id, 26) + (i < 9 ? ' ' + (i + 1) : '');
     b.className = id === S.sel ? 'on' : '';
-    b.setAttribute('aria-label', 'Hạt giống ' + (i + 1));
+    b.title = c.en + ' — ' + c.vi;
+    b.setAttribute('aria-label', 'Hạt giống ' + c.en);
     b.onclick = () => { S.sel = id; hud(); save(); };
     box.appendChild(b);
   });
+  const on = box.querySelector('.on'); if (on) box.scrollLeft = on.offsetLeft - box.offsetWidth / 2 + on.offsetWidth / 2;
 }
 
 // Câu hỏi về cây trồng (từ vựng cơ bản); wrong → thử lại không bị phạt, nhưng mất thưởng "đúng ngay lần đầu"
@@ -183,7 +221,7 @@ function quiz(title, prompt, answer, done) {
 function wordBook() {
   const rows = CROPS.map(c => {
     const n = S.learned[c.id] || 0;
-    return n ? `<li>${c.e} <b>${c.en}</b> — ${c.vi} <small>×${n}</small></li>` : '<li class="lock">❔ ???</li>';
+    return n ? `<li>${ico(c.id, 22)} <b>${c.en}</b> — ${c.vi} <small>×${n}</small></li>` : '<li class="lock">❔ ???</li>';
   }).join('');
   const all = [].concat(VOCAB.B1.map(w => [w, 'B1']), VOCAB.B2.map(w => [w, 'B2']));
   const got = all.filter(x => S.words[x[0].en]);
@@ -357,7 +395,9 @@ class Base extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, W, H);
     this.add.tileSprite(0, 0, W, H, 'grass').setOrigin(0).setDepth(-1);
     this.solids = this.physics.add.staticGroup();
-    this.player = this.physics.add.sprite(px, py, 'momo').setCollideWorldBounds(true);
+    this.player = this.physics.add.sprite(px, py, 'hero', 0).setOrigin(.5, .78).setCollideWorldBounds(true);
+    this.player.body.setSize(16, 12).setOffset(12, 40); // chỉ va chạm ở bàn chân
+    this.face = 'down';
     this.shadow = this.add.image(0, 0, 'shadow').setDepth(.5);
     this.night = this.add.rectangle(0, 0, 960, 540, 0x0a1445, 0).setOrigin(0).setScrollFactor(0).setDepth(2000);
     this.cameras.main.startFollow(this.player, true, .09, .09).setBounds(0, 0, W, H).setZoom(1.25);
@@ -403,10 +443,46 @@ class Base extends Phaser.Scene {
     const tick = Math.floor(clk / 10); if (tick !== this.tick) { this.tick = tick; dayText(); }
     if (clk >= 1380 && !late) { late = true; toast('Muộn rồi — về nhà đi ngủ thôi! 🌙'); }
     const moving = !!(vx || vy);
-    this.player.setDepth(this.player.y).setAngle(moving ? Math.sin(time / 60) * 7 : 0);
-    if (vx) this.player.setFlipX(vx < 0);
-    this.shadow.setPosition(this.player.x, this.player.y + 14);
+    this.player.setDepth(this.player.y);
+    this.animate(vx, vy, moving);
+    this.shadow.setPosition(this.player.x, this.player.y + 10);
     return true;
+  }
+
+  // hoạt ảnh đi bộ: xuống / lên / ngang (đi trái = lật ảnh đi phải)
+  animate(vx, vy, moving) {
+    const p = this.player;
+    if (moving) {
+      if (Math.abs(vx) > Math.abs(vy)) { this.face = 'side'; p.setFlipX(vx < 0); }
+      else this.face = vy > 0 ? 'down' : 'up';
+    }
+    if (this.face !== 'side') p.setFlipX(false);
+    if (moving) p.anims.play('walk-' + this.face, true);
+    else { p.anims.stop(); p.setFrame({ down:0, up:4, side:8 }[this.face]); }
+  }
+
+  // nền: cỏ ngẫu nhiên + đường đất tự ghép góc / ngã ba / ngã tư theo các ô lân cận (ô 64px)
+  rng(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
+  paintGround(cells, solid) {
+    const T = 64, rnd = this.rng(5), has = (x, y) => cells.has(x + ',' + y);
+    for (let cy = 0; cy < Math.ceil(this.H / T); cy++) for (let cx = 0; cx < Math.ceil(this.W / T); cx++) {
+      let f, path = has(cx, cy);
+      if (path) {
+        const n = has(cx, cy - 1), e = has(cx + 1, cy), so = has(cx, cy + 1), w = has(cx - 1, cy);
+        const full = n && e && so && w && has(cx - 1, cy - 1) && has(cx + 1, cy - 1) && has(cx - 1, cy + 1) && has(cx + 1, cy + 1);
+        f = full || (solid && solid.has(cx + ',' + cy)) ? 22 : 6 + ((n ? 1 : 0) | (e ? 2 : 0) | (so ? 4 : 0) | (w ? 8 : 0)); // 6..21: 16 kiểu đường, 22: đất đặc
+      } else f = Math.floor(rnd() * 6); // 0..5: cỏ
+      this.add.image(cx * T, cy * T, 'tiles', f).setOrigin(0).setDepth(path ? .05 : -.5);
+    }
+  }
+  // rải bụi cỏ / bụi hoa trang trí (ok(x,y) = chỗ được phép đặt)
+  scatter(n, seed, ok) {
+    const rnd = this.rng(seed);
+    for (let k = 0, tries = 0; k < n && tries < n * 40; tries++) {
+      const x = 30 + rnd() * (this.W - 60), y = 50 + rnd() * (this.H - 70);
+      if (!ok(x, y)) continue;
+      this.add.image(x, y, k % 3 === 2 ? 'bushF' : 'bushG').setOrigin(.5, 1).setDepth(y); k++;
+    }
   }
 
   interact() {
@@ -426,6 +502,22 @@ class Base extends Phaser.Scene {
   }
 }
 
+// ====== CẢNH 0: NẠP SPRITE (từ assets.js) ======
+const IMG = {};
+class Boot extends Phaser.Scene {
+  constructor() { super('Boot'); }
+  create() {
+    const T = this.textures, M = window.ASSET_META;
+    T.addSpriteSheet('tiles', IMG.tiles, { frameWidth:M.tile, frameHeight:M.tile });          // 0-5 cỏ · 6-21 đường (theo bitmask N=1 E=2 S=4 W=8) · 22 đất đặc
+    T.addSpriteSheet('crops', IMG.crops, { frameWidth:M.cropCell, frameHeight:M.cropCell });   // mỗi cây 3 khung: cây con / đang lớn / chín
+    T.addSpriteSheet('hero',  IMG.hero,  { frameWidth:M.hero[0], frameHeight:M.hero[1] });     // hàng 1 đi xuống · hàng 2 đi lên · hàng 3 đi ngang
+    T.addImage('shopimg', IMG.shop); T.addImage('bushG', IMG.bushG); T.addImage('bushF', IMG.bushF);
+    [['down', 0], ['up', 4], ['side', 8]].forEach(([k, st]) => this.anims.create({
+      key:'walk-' + k, frames:this.anims.generateFrameNumbers('hero', { start:st, end:st + 3 }), frameRate:8, repeat:-1 }));
+    this.scene.start('Farm');
+  }
+}
+
 // ====== CẢNH 1: NÔNG TRẠI ======
 class Farm extends Base {
   constructor() { super('Farm'); }
@@ -439,16 +531,18 @@ class Farm extends Base {
     for (let i = 0; i < 45; i++) {
       const x = 40 + rnd() * (W - 80), y = 40 + rnd() * (H - 80);
       if ((x > 80 && x < 900 && y > 60 && y < 520) || (x > 880 && x < 1140 && y > 680 && y < 840)) continue; // chừa khu nông trại
-      if (x > 380 && y > 540 && y < 670) continue; // chừa con đường sang thị trấn
+      if (x > 150 && y > 530 && y < 690) continue; // chừa con đường nhà → thị trấn
       this.solids.create(x, y, 'tree');
     }
     this.solids.refresh();
     this.solids.children.each(t => t.setDepth(t.y));
-    for (let i = 0; i < 16; i++) this.add.image(214 + i * 18, 224 + i * 6.4, 'path').setDepth(.1);
-    // đường sang thị trấn (bên phải)
-    this.add.tileSprite(492, 456, 32, 160, 'path').setOrigin(0).setDepth(.1);
-    this.add.tileSprite(492, 584, W - 492, 32, 'path').setOrigin(0).setDepth(.1);
-    for (let i = 0; i < 80; i++) { const x = rnd() * W, y = rnd() * H; if (x > 430 && x < 870 && y > 250 && y < 490) continue; this.add.image(x, y, 'flower').setTint([0xffffff, 0xffd54a, 0xff8fb3, 0xb28dff][i % 4]).setDepth(.2); }
+    // đường đất (ô 64px): nhà → xuống dưới → sang thị trấn (phải) + nhánh rẽ ra ruộng
+    const cells = new Set(), road = (x0, y0, x1, y1) => { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) cells.add(x + ',' + y); };
+    road(3, 3, 3, 9); road(3, 9, 19, 9); road(4, 5, 6, 5);
+    this.paintGround(cells);
+    const near = (x, y) => cells.has(Math.floor(x / 64) + ',' + Math.floor(y / 64));
+    this.scatter(34, 21, (x, y) => !near(x, y) && !near(x + 24, y) && !near(x - 24, y) && !near(x, y - 20)
+      && !(x > 440 && x < 880 && y > 250 && y < 520) && !(x < 320 && y < 270) && !(x > 900 && y > 690 && y < 830));
     const pond = this.add.image(1010, 760, 'pond').setDepth(.3);
     this.tweens.add({ targets: pond, alpha: .82, yoyo: true, repeat: -1, duration: 1700, ease: 'Sine.InOut' });
 
@@ -463,7 +557,7 @@ class Farm extends Base {
     // 15 ô đất (5 x 3)
     this.pv = S.plots.map((p, i) => {
       const x = 520 + (i % 5) * 64, y = 300 + Math.floor(i / 5) * 64;
-      return { x, y, bg:this.add.image(x, y, 'soil').setDepth(1), em:this.add.text(x, y - 2, '', { fontSize:'30px' }).setOrigin(.5).setDepth(2) };
+      return { x, y, f:-2, bg:this.add.image(x, y, 'soil').setDepth(1), img:this.add.image(x, y - 2, 'crops', 0).setDepth(2).setVisible(false) };
     });
     this.pv.forEach((_, i) => this.paint(i));
     this.mark = this.add.rectangle(0, 0, 60, 60).setStrokeStyle(3, 0xffffff).setVisible(false).setDepth(3);
@@ -474,12 +568,18 @@ class Farm extends Base {
       [{ label:'Bắt đầu chơi 🌾', fn:closeModal }]);
   }
 
+  // ảnh cây: 0 = cây con · 1 = đang lớn · 2 = chín (sẵn sàng thu hoạch)
+  stage(p) { const c = crop(p.c); return p.g >= c.days ? 2 : (p.g >= Math.ceil(c.days / 2) ? 1 : 0); }
+
   paint(i) {
     const p = S.plots[i], v = this.pv[i];
     v.bg.setAlpha(p.s ? 1 : .3).setTint(p.w ? 0x6b4a2b : 0xffffff);
-    let t = '';
-    if (p.s === 2) { const c = crop(p.c); t = p.g >= c.days ? c.e : (p.g >= c.days - 1 ? '🌿' : '🌱'); }
-    if (v.em.text !== t) { v.em.setText(t); if (t) this.tweens.add({ targets: v.em, scale: { from: .2, to: 1 }, duration: 280, ease: 'Back.Out' }); }
+    const f = p.s === 2 ? FRAME(p.c) + this.stage(p) : -1;
+    if (v.f === f) return;
+    v.f = f;
+    if (f < 0) return v.img.setVisible(false);
+    v.img.setFrame(f).setVisible(true);
+    this.tweens.add({ targets: v.img, scale: { from: .2, to: 1 }, duration: 280, ease: 'Back.Out' });
   }
 
   fx(i, color, text) {
@@ -508,14 +608,15 @@ class Farm extends Base {
   }
 
   label(c) {
-    if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: hành động · 1-9: chọn hạt · đi sang phải: thị trấn';
+    if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: hành động · 1-9 hoặc [ ]: chọn hạt · đi sang phải: thị trấn';
     if (c.t === 'emma') return 'E: học tiếng Anh với cô Emma 🎓 (B1/B2)';
     if (c.t === 'house') return 'E: vào nhà 🏠 (ngủ, trang trí)';
     const p = S.plots[c.i];
     if (p.s === 0) return `E: xới đất (⚡${COST.till})`;
-    if (p.s === 1) return `E: gieo hạt ${crop(S.sel).e} (⚡${COST.sow})`;
-    if (this.ready(p)) return `E: thu hoạch ${crop(p.c).e} (⚡${COST.harvest})`;
-    return p.w ? 'Đã tưới — hãy đi ngủ để cây lớn' : `E: tưới nước 💧 (⚡${COST.water})`;
+    if (p.s === 1) return `E: gieo hạt ${crop(S.sel).en} (${crop(S.sel).vi}) (⚡${COST.sow})`;
+    if (this.ready(p)) return `E: thu hoạch ${crop(p.c).en} (${crop(p.c).vi}) (⚡${COST.harvest})`;
+    const cc = crop(p.c), nm = `${cc.en} (${cc.vi})`;
+    return p.w ? `${nm} — đã tưới, hãy đi ngủ để cây lớn (${p.g}/${cc.days} ngày)` : `E: tưới nước 💧 cho ${nm} (⚡${COST.water})`;
   }
 
   doAct(c) {
@@ -532,7 +633,7 @@ class Farm extends Base {
     if (p.s === 1) {
       if (!can(COST.sow)) return;
       const c = crop(S.sel);
-      return quiz('Gieo hạt', `Cây này tiếng Anh là gì?<div class="big">${c.e}</div>`, c.en, first => {
+      return quiz('Gieo hạt', `Cây này tiếng Anh là gì?<div class="big">${ico(c.id, 72)}</div>`, c.en, first => {
         use(COST.sow);
         p.s = 2; p.c = c.id; p.g = 0; p.w = false; this.fx(i, 0x9be564, '🌱');
         S.learned[c.id] = (S.learned[c.id] || 0) + 1;
@@ -570,31 +671,39 @@ class Town extends Base {
     const W = 1120, H = 640;
     this.boot(W, H, 70, 332);
     // đường chính + lối vào từng cửa
-    this.add.tileSprite(0, 300, W, 64, 'path').setOrigin(0).setDepth(.1);
-    [[220, 268, 34], [560, 268, 34], [850, 268, 34]].forEach(p => this.add.tileSprite(p[0] - 16, p[1], 32, p[2], 'path').setOrigin(0).setDepth(.1));
-    this.add.tileSprite(400 - 16, 364, 32, 68, 'path').setOrigin(0).setDepth(.1);
-    this.add.tileSprite(730, 410, 100, 120, 'path').setOrigin(0).setDepth(.1); // sân đài phun nước
+    const cells = new Set(), road = (x0, y0, x1, y1) => { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) cells.add(x + ',' + y); };
+    road(0, 5, 17, 5);                                   // đường chính
+    road(3, 4, 3, 4); road(8, 4, 8, 4); road(13, 4, 13, 4); // lối vào tiệm hạt giống / nhà dân / decor
+    road(6, 6, 6, 6);                                    // lối xuống quầy ăn
+    const plaza = new Set(); road(10, 6, 12, 8);          // sân đài phun nước (lát đất đặc)
+    for (let x = 10; x <= 12; x++) for (let y = 5; y <= 8; y++) plaza.add(x + ',' + y);
+    this.paintGround(cells, plaza);
 
     const place = (key, x, y) => { const s = this.solids.create(x, y, key); s.setDepth(y); return s; };
-    this.shopB = place('shop', 220, 215);
+    // Tiệm "Hạt Giống Chú Tư" (ảnh sprite): vật cản chỉ ở phần chân tiệm → đi vòng ra sau tiệm được
+    const SH = window.ASSET_META.shop;
+    this.shopB = this.add.image(220, 304, 'shopimg').setOrigin(.5, 1).setDepth(304);
+    const sz = this.add.zone(220, 268, SH[0] * .8, 72); this.physics.add.existing(sz, true); this.physics.add.collider(this.player, sz);
     this.homesB = place('homes', 560, 205);
     this.foodB = place('stall', 400, 480);
     this.decorB = place('decor', 850, 215);
     place('fountain', 780, 470);
     // hàng cây viền thị trấn
-    for (let x = 30; x < W; x += 66) { place('tree', x, 40); place('tree', x + 20, 610); }
+    for (let x = 30; x < W; x += 66) { if (!(x > 80 && x < 360)) place('tree', x, 40); place('tree', x + 20, 610); }
     for (let y = 120; y < 280; y += 70) place('tree', W - 24, y);
     for (let y = 400; y < 590; y += 70) place('tree', W - 24, y);
     this.solids.refresh();
     this.physics.add.collider(this.player, this.solids);
 
-    let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < 70; i++) { const x = 30 + rnd() * (W - 60), y = 60 + rnd() * (H - 120); if (y > 290 && y < 372) continue; this.add.image(x, y, 'flower').setTint([0xffffff, 0xffd54a, 0xff8fb3, 0xb28dff][i % 4]).setDepth(.2); }
+    const near = (x, y) => cells.has(Math.floor(x / 64) + ',' + Math.floor(y / 64));
+    const inside = (x, y, r) => x > r[0] && x < r[2] && y > r[1] && y < r[3];
+    const blocks = [[90, 10, 350, 330], [450, 140, 670, 275], [780, 150, 920, 285], [330, 420, 470, 545], [730, 410, 830, 520]];
+    this.scatter(30, 33, (x, y) => !near(x, y) && !near(x + 24, y) && !near(x - 24, y) && !near(x, y - 20) && y < 590 && !blocks.some(r => inside(x, y, r)));
 
     // biển tên + nhân vật
     const sign = (x, y, t) => this.add.text(x, y, t, { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
-    sign(220, 148, '🌱 Seed Shop'); sign(560, 138, '🏠 Town Homes'); sign(400, 420, '🍞 Food Stall'); sign(850, 148, '🛋️ Decor Shop'); sign(60, 292, '← Nông trại');
-    this.lily = this.npc('lily', 284, 276, 'Lily');
+    sign(560, 138, '🏠 Town Homes'); sign(400, 420, '🍞 Food Stall'); sign(850, 148, '🛋️ Decor Shop'); sign(60, 292, '← Nông trại');
+    this.lily = this.npc('lily', 322, 328, 'Lily');
     this.chef = this.npc('chef', 484, 500, 'Chef Bo');
     this.mia = this.npc('mia', 914, 276, 'Mia');
     this.npc('ben', 470, 286); this.npc('rose', 660, 288);
@@ -602,7 +711,7 @@ class Town extends Base {
     this.tweens.add({ targets: arrow, x: 30, yoyo: true, repeat: -1, duration: 500 });
 
     this.zones = {
-      shop:  Phaser.Geom.Rectangle.Inflate(this.shopB.getBounds(), 44, 44),
+      shop:  new Phaser.Geom.Rectangle(150, 270, 140, 84),
       homes: Phaser.Geom.Rectangle.Inflate(this.homesB.getBounds(), 44, 44),
       decor: Phaser.Geom.Rectangle.Inflate(this.decorB.getBounds(), 44, 44),
       food:  Phaser.Geom.Rectangle.Inflate(this.foodB.getBounds(), 44, 44)
@@ -635,7 +744,7 @@ class Town extends Base {
   shop() {
     const locked = CROPS.filter(c => !S.unlocked.includes(c.id));
     const btns = locked.map(c => ({
-      label: `${c.e} ${c.en} — ${c.cost} 🪙`, off: S.coins < c.cost,
+      label: `${c.en} — ${c.cost} 🪙`, html: `${ico(c.id, 26)} ${c.en} <small>(${c.vi})</small> — ${c.cost} 🪙`, off: S.coins < c.cost,
       fn: () => { S.coins -= c.cost; S.unlocked.push(c.id); S.sel = c.id; closeModal(); hud(); save(); toast(`Mở khóa: ${c.en} = ${c.vi}`); }
     }));
     btns.push({ label:'Đóng', fn:closeModal });
@@ -776,13 +885,17 @@ class Home extends Base {
   }
 }
 
-const game = new Phaser.Game({
+let game;
+const startGame = () => { game = new Phaser.Game({
   type: Phaser.AUTO, width: 960, height: 540, parent: 'game-container', pixelArt: true,
   backgroundColor: '#7cc062',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
-  scene: [Farm, Town, Home]
-});
+  scene: [Boot, Farm, Town, Home]
+}); };
+Promise.all(['tiles', 'crops', 'hero', 'shop', 'bushG', 'bushF'].map(k => new Promise(r => {
+  const i = new Image(); i.onload = () => { IMG[k] = i; r(); }; i.onerror = r; i.src = window.ASSETS[k];
+}))).then(startGame);
 
 $('#bookBtn').onclick = () => { if (!open) wordBook(); };
 $('#actBtn').onclick = () => { const s = activeScene(); if (s && s.act) s.act(); };
@@ -790,6 +903,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape' && open) closeModal();
   const n = parseInt(e.key, 10);
   if (!open && n >= 1 && n <= S.unlocked.length) { S.sel = S.unlocked[n - 1]; hud(); save(); }
+  if (!open && (e.key === '[' || e.key === ']')) { const k = S.unlocked.length; S.sel = S.unlocked[(S.unlocked.indexOf(S.sel) + (e.key === ']' ? 1 : k - 1)) % k]; hud(); save(); }
 });
 hud();
 })();
