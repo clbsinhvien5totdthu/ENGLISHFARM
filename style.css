@@ -118,7 +118,64 @@ body{margin:0}
 #fHold{display:block;width:100%;font-size:18px;padding:12px;margin-bottom:6px;touch-action:none;user-select:none}
 @media (max-width:560px){#farm-app #minimap{max-width:38%}}
 
-/* ===== Khung giấy cuộn (ui.jpg) cho hộp thoại ===== */
-#farm-app.framed .card{border:26px solid transparent;border-image:var(--panel) 30 fill/26px stretch;border-radius:0;
-  box-shadow:none;background:none;padding:2px 6px;filter:drop-shadow(0 6px 0 rgba(0,0,0,.35))}
-#farm-app #coins .ico{margin-right:2px}
+
+/* ===== Ô thời tiết / buổi trong ngày (pixel) ===== */
+#skybox{display:flex;gap:6px;align-items:center}
+.pxbox{display:inline-block;width:38px;height:38px;border:3px solid var(--wood2);border-radius:8px;overflow:hidden;background:#000;box-shadow:0 2px 0 rgba(0,0,0,.45)}
+.pxbox canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+#farm-app #stats span.late{background:#ffb4a2;color:#7a1208;animation:blink .6s infinite alternate}
+#farm-app #fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+@media (max-width:560px){.pxbox{width:30px;height:30px}}
+
+/* ===== Cut scene + màn tổng kết ban đêm → buổi sáng ===== */
+#cine{position:absolute;inset:0;z-index:8;overflow:hidden}
+#cine[hidden]{display:none}
+.cn-sky,.cs-sky{position:absolute;inset:0}
+.cn-sky.dawn{background:linear-gradient(#7ec8f8,#ffd6a0 62%,#ffb27a)}
+.cn-sky.night{background:linear-gradient(#060c2e,#16246b 70%,#2a3b86);transition:opacity 2.4s ease}
+.cn-stars,.cs-stars{position:absolute;inset:0;transition:opacity 2s}
+.cn-stars i,.cs-stars i{position:absolute;width:3px;height:3px;background:#fff}
+#cine.dawned .cn-sky.night,#cine.dawned .cn-stars{opacity:0}
+.cn-sun{position:absolute;left:50%;bottom:-130px;width:96px;height:96px;margin-left:-48px;image-rendering:pixelated;transition:bottom 2.8s ease-out}
+#cine.dawned .cn-sun{bottom:36%}
+.cn-hill{position:absolute;bottom:-70px;border-radius:50%;background:#3d7a3a;filter:brightness(.3);transition:filter 2.4s}
+.cn-hill.h1{left:-12%;width:70%;height:230px}
+.cn-hill.h2{right:-18%;width:82%;height:200px;background:#4b8f44}
+#cine.dawned .cn-hill{filter:none}
+.cn-card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(480px,92%);max-height:92%;overflow:auto;background:var(--paper);color:var(--ink);
+  border:5px solid var(--wood2);border-radius:14px;padding:12px 18px;box-shadow:0 6px 0 var(--wood);animation:pop .3s cubic-bezier(.2,1.4,.4,1)}
+.cn-card h2{margin:0 0 4px;font-size:22px}
+.cn-sub{font-size:15px;margin-bottom:6px;opacity:.85}
+.cn-rows{list-style:none;margin:6px 0;padding:0;max-height:34vh;overflow:auto}
+.cn-rows li{display:flex;gap:6px;align-items:center;padding:3px 0;border-bottom:1px dashed rgba(107,74,43,.35);animation:rowin .35s ease-out}
+.cn-rows li b{margin-left:auto;color:#2c7a3f}
+@keyframes rowin{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
+.cn-tot{font-size:22px;margin-top:6px;text-align:center}
+.cn-tot b{color:#2c7a3f}
+.cn-wal{text-align:center;font-size:18px;margin:4px 0}
+.cn-extra{font-size:15px}
+.cn-btns{display:flex;gap:8px;margin-top:10px}
+.cn-btns button{flex:1}
+.cn-coin{position:absolute;font-size:24px;pointer-events:none;z-index:9;animation:coinup 1s ease-out forwards}
+@keyframes coinup{from{opacity:1;transform:translateY(0) scale(.8)}to{opacity:0;transform:translateY(-110px) scale(1.3)}}
+
+.cs-sky{background:linear-gradient(#050a26,#0e1a55 65%,#1b2a70)}
+.cs-moon{position:absolute;right:12%;top:14%;width:72px;height:72px;image-rendering:pixelated}
+.cs-ground{position:absolute;left:0;right:0;bottom:0;height:34%;background:repeating-linear-gradient(90deg,#2a4a2a 0 24px,#264426 24px 48px);border-top:6px solid #1b331b}
+.cs-stage{position:absolute;left:0;right:0;bottom:30%;height:150px}
+.cs-stage .sp{position:absolute;bottom:0}
+.cs-stage .sp canvas{display:block;image-rendering:pixelated}
+.cs-bar{position:absolute;left:0;right:0;height:0;background:#000;z-index:3;transition:height .8s}
+#cine.in .cs-bar{height:11%}
+.cs-bar.top{top:0}.cs-bar.bot{bottom:0}
+.cs-cap{position:absolute;left:50%;bottom:12%;transform:translateX(-50%);width:min(580px,92%);text-align:center;color:#fff;font-size:18px;font-weight:700;text-shadow:0 2px 0 #000;z-index:4;min-height:3.4em}
+.cs-cap small{display:block;font-weight:500;color:#ffe9a8}
+.cs-btns{position:absolute;right:12px;top:12px;display:flex;gap:6px;z-index:5}
+.cs-stage .bub,.cs-stage .bag{position:absolute;font-size:26px;line-height:1}
+.cs-stage .bag{font-size:24px;animation:bagbob 1s ease-in-out infinite alternate}
+.cs-stage .lan{text-shadow:0 0 12px #ffb347,0 0 24px #ffb347}
+.cs-stage .zz{animation:zzz 2s ease-in-out infinite}
+@keyframes nod{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(5deg)}}
+@keyframes zzz{from{opacity:0;transform:translateY(8px)}50%{opacity:1}to{opacity:0;transform:translateY(-18px)}}
+@keyframes bagbob{from{transform:translateY(0)}to{transform:translateY(-4px)}}
+@media (prefers-reduced-motion:reduce){.cn-card,.cn-rows li,.cs-stage .zz,.cs-stage .bag{animation:none}.cn-sky.night,.cn-sun,.cn-hill{transition:none}}
