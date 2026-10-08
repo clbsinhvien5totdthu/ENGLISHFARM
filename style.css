@@ -24,7 +24,7 @@ body{margin:0}
 #seeds{display:flex;gap:6px;flex:1;flex-wrap:wrap}
 #seeds button{background:var(--wood2);color:var(--paper);border-color:var(--ink);font-size:18px}
 #seeds button.on{background:var(--gold);color:var(--ink);transform:translateY(-2px)}
-#game-container{flex:1;min-height:0;background:#7cc062}
+#game-container{flex:1;min-height:0;background:#1d2b19;overflow:hidden}
 #game-container canvas{display:block}
 
 #modal{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
@@ -95,3 +95,12 @@ body{margin:0}
 .big .ico{width:72px;height:72px}
 #mBtns button .ico{margin-right:4px}
 .book .ico{margin-right:2px}
+
+/* ===== Túi đồ / thanh hạt giống / âm thanh ===== */
+#seeds button .cnt{font-size:15px;margin-left:3px}
+#seeds button sup{font-size:10px;opacity:.7;margin-left:1px}
+#seeds .noseed{align-self:center;opacity:.85;font-size:13px;white-space:nowrap}
+#mBtns button.on{background:var(--leaf);color:#fff}
+#mBtns button[disabled]{filter:grayscale(.4)}
+#bagBtn,#sndBtn{white-space:nowrap}
+#sndBtn{padding:4px 9px}
