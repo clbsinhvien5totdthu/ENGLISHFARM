@@ -23,12 +23,14 @@
     </div>
     <div id="seeds" aria-label="Chọn hạt giống"></div>
     <button id="bagBtn" type="button" title="Túi đồ (phím B)">🎒 Túi</button>
+    <button id="questBtn" type="button" title="Nhiệm vụ (phím Q)">📜 Nhiệm vụ</button>
+    <button id="mapBtn" type="button" title="Bản đồ thế giới">🗺️ Bản đồ</button>
     <button id="bookBtn" type="button">📖 Sổ từ</button>
     <button id="sndBtn" type="button" title="Bật / tắt âm thanh" aria-label="Bật tắt âm thanh">🔊</button>
   </header>
-  <div id="game-container"></div>
+  <div id="game-container"><canvas id="minimap" width="176" height="138" title="Bản đồ nhỏ — bấm hoặc phím M để phóng to"></canvas></div>
   <footer id="bar">
-    <span id="hint">WASD / phím mũi tên: đi · E hoặc Space: hành động · 1-9 hoặc [ ]: chọn hạt · B: túi đồ</span>
+    <span id="hint">WASD / phím mũi tên: đi · E hoặc Space: hành động · 1-9 hoặc [ ]: chọn hạt · B: túi đồ · Q: nhiệm vụ · M: bản đồ</span>
     <button id="actBtn" type="button">Hành động</button>
   </footer>
   <div id="modal" hidden>
