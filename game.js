@@ -21,73 +21,8 @@ const CROPS = [
   { id:'eggplant',   en:'EGGPLANT',   vi:'cà tím',   e:'🍆', cost:120, days:4, price:60 }
 ];
 
-// ====== TỪ VỰNG B1 / B2 (cô Emma): thêm từ mới chỉ cần thêm 1 dòng ======
-// ex: câu ví dụ, {} là chỗ trống (dùng cho dạng điền từ)
-const VOCAB = {
-  B1: [
-    { en:'achieve',     vi:'đạt được',            pos:'verb', ex:'She worked hard to {} her goal of passing the exam.' },
-    { en:'afford',      vi:'đủ khả năng chi trả', pos:'verb', ex:"We can't {} a new car this year." },
-    { en:'argue',       vi:'tranh cãi',           pos:'verb', ex:'My brother and I often {} about what to watch on TV.' },
-    { en:'borrow',      vi:'mượn',                pos:'verb', ex:'Can I {} your pen for a minute?' },
-    { en:'depend',      vi:'phụ thuộc',           pos:'verb', ex:'It will {} on the weather.' },
-    { en:'improve',     vi:'cải thiện',           pos:'verb', ex:'I want to {} my English by reading every day.' },
-    { en:'injure',      vi:'làm bị thương',       pos:'verb', ex:'Be careful, or you will {} yourself.' },
-    { en:'invite',      vi:'mời',                 pos:'verb', ex:'We decided to {} all our neighbours to the party.' },
-    { en:'manage',      vi:'xoay xở được',        pos:'verb', ex:'Did you {} to finish the report on time?' },
-    { en:'realise',     vi:'nhận ra',             pos:'verb', ex:"I didn't {} it was so late." },
-    { en:'recommend',   vi:'giới thiệu, khuyên',  pos:'verb', ex:'Can you {} a good restaurant near here?' },
-    { en:'reduce',      vi:'giảm',                pos:'verb', ex:'We should {} the amount of plastic we use.' },
-    { en:'refuse',      vi:'từ chối',             pos:'verb', ex:'He decided to {} the job offer.' },
-    { en:'rent',        vi:'thuê',                pos:'verb', ex:'They {} a small flat near the university.' },
-    { en:'suggest',     vi:'gợi ý, đề nghị',      pos:'verb', ex:'I {} that we leave early.' },
-    { en:'candidate',   vi:'ứng viên',            pos:'noun', ex:'Every {} for the job must send a CV.' },
-    { en:'damage',      vi:'thiệt hại',           pos:'noun', ex:'The storm caused serious {} to the village.' },
-    { en:'delay',       vi:'sự chậm trễ',         pos:'noun', ex:'There was a long {} because of the snow.' },
-    { en:'journey',     vi:'chuyến đi dài',       pos:'noun', ex:'The {} from Hanoi to Hue takes about twelve hours by train.' },
-    { en:'neighbour',   vi:'hàng xóm',            pos:'noun', ex:'Our {} plays loud music every night.' },
-    { en:'receipt',     vi:'biên lai, hóa đơn',   pos:'noun', ex:'Keep the {} in case you want to return it.' },
-    { en:'comfortable', vi:'thoải mái',           pos:'adj',  ex:'This sofa is really {}.' },
-    { en:'crowded',     vi:'đông đúc',            pos:'adj',  ex:'The bus was so {} that I had to stand.' },
-    { en:'embarrassed', vi:'xấu hổ, ngượng',      pos:'adj',  ex:'I felt so {} when I forgot her name.' },
-    { en:'enormous',    vi:'khổng lồ',            pos:'adj',  ex:'The elephant was {}.' },
-    { en:'exhausted',   vi:'kiệt sức',            pos:'adj',  ex:'After the long run, he was completely {}.' },
-    { en:'familiar',    vi:'quen thuộc',          pos:'adj',  ex:'Her face looks {}. Have we met before?' },
-    { en:'generous',    vi:'hào phóng',           pos:'adj',  ex:'He is very {} and always shares his money.' },
-    { en:'nervous',     vi:'lo lắng, hồi hộp',    pos:'adj',  ex:'She was {} before the job interview.' },
-    { en:'valuable',    vi:'có giá trị',          pos:'adj',  ex:'This old painting is very {}.' }
-  ],
-  B2: [
-    { en:'acknowledge', vi:'thừa nhận',           pos:'verb', ex:'He refused to {} that he had made a mistake.' },
-    { en:'anticipate',  vi:'dự đoán, lường trước',pos:'verb', ex:'We {} that sales will rise next quarter.' },
-    { en:'assume',      vi:'cho rằng, giả định',  pos:'verb', ex:"Don't just {} he knows. Ask him." },
-    { en:'deteriorate', vi:'xấu đi',              pos:'verb', ex:'If you do nothing, the situation will {} rapidly.' },
-    { en:'diminish',    vi:'giảm bớt',            pos:'verb', ex:'Her enthusiasm began to {} after the third failure.' },
-    { en:'elaborate',   vi:'giải thích chi tiết', pos:'verb', ex:'Could you {} on your idea a little more?' },
-    { en:'enhance',     vi:'nâng cao, tăng cường',pos:'verb', ex:'Good lighting can {} the atmosphere of a room.' },
-    { en:'negotiate',   vi:'đàm phán',            pos:'verb', ex:'The unions will {} with the company about pay.' },
-    { en:'persuade',    vi:'thuyết phục',         pos:'verb', ex:'I tried to {} him to change his mind.' },
-    { en:'predict',     vi:'dự báo',              pos:'verb', ex:'No one can {} exactly what will happen.' },
-    { en:'sustain',     vi:'duy trì',             pos:'verb', ex:'It is hard to {} such a fast pace for a whole year.' },
-    { en:'tolerate',    vi:'chịu đựng, khoan dung',pos:'verb',ex:"I can't {} people who are rude to waiters." },
-    { en:'withdraw',    vi:'rút lại, rút lui',    pos:'verb', ex:'She decided to {} her application.' },
-    { en:'benefit',     vi:'lợi ích',             pos:'noun', ex:'One major {} of working from home is saving time.' },
-    { en:'conflict',    vi:'xung đột',            pos:'noun', ex:'There was a serious {} between the two departments.' },
-    { en:'consequence', vi:'hậu quả',             pos:'noun', ex:'You must accept the {} of your decisions.' },
-    { en:'insight',     vi:'sự thấu hiểu sâu sắc',pos:'noun', ex:'The book gives readers valuable {} into Japanese culture.' },
-    { en:'obstacle',    vi:'trở ngại',            pos:'noun', ex:'Lack of money was the biggest {} to her plan.' },
-    { en:'witness',     vi:'nhân chứng',          pos:'noun', ex:'The police are asking every {} to the accident to come forward.' },
-    { en:'adequate',    vi:'đủ, thỏa đáng',       pos:'adj',  ex:'The food supply was not {} for such a large group.' },
-    { en:'ambiguous',   vi:'mơ hồ, nhập nhằng',   pos:'adj',  ex:'The instructions were {}, so everyone understood them differently.' },
-    { en:'controversial',vi:'gây tranh cãi',      pos:'adj',  ex:'The new law is highly {}, and many people protest against it.' },
-    { en:'inevitable',  vi:'không thể tránh khỏi',pos:'adj',  ex:'With so much traffic, a delay was {}.' },
-    { en:'mandatory',   vi:'bắt buộc',            pos:'adj',  ex:'Wearing a helmet is {} for all cyclists here.' },
-    { en:'reliable',    vi:'đáng tin cậy',        pos:'adj',  ex:'My car is very {}. It never breaks down.' },
-    { en:'reluctant',   vi:'miễn cưỡng, ngần ngại',pos:'adj', ex:'She was {} to speak in front of the whole class.' },
-    { en:'scarce',      vi:'khan hiếm',           pos:'adj',  ex:'Fresh water is {} in the desert.' },
-    { en:'substantial', vi:'đáng kể, lớn',        pos:'adj',  ex:'The company made very {} profits last year.' },
-    { en:'vulnerable',  vi:'dễ bị tổn thương',    pos:'adj',  ex:'Young children are especially {} to infections.' }
-  ]
-};
+// ====== TỪ VỰNG B1 / B2 (cô Emma): nằm trong file vocab.js ======
+const VOCAB = window.VOCAB;
 
 // ====== CÂU GIAO TIẾP CỦA DÂN THỊ TRẤN (mỗi ngày nghe 1 câu mới) ======
 const VILLAGERS = ['Mrs. Green', 'Old Tom', 'Anna', 'Mr. Lee', 'Grandma Rose', 'Ben'];
@@ -115,10 +50,35 @@ const FOOD = [
   { e:'🍲', en:'Soup',  vi:'món súp',  cost:22, st:75 }
 ];
 
+// ====== ĐỒ TRANG TRÍ NHÀ (tiệm Decor Shop) ======
+// kind: 'wall' = treo tường · 'floor' = đặt sàn. Thêm món mới chỉ cần thêm 1 dòng.
+const DECOR = [
+  { id:'painting', e:'🖼️', en:'Painting', vi:'bức tranh',    cost:40,  kind:'wall' },
+  { id:'clock',    e:'🕰️', en:'Clock',    vi:'đồng hồ',      cost:55,  kind:'wall' },
+  { id:'lantern',  e:'🏮', en:'Lantern',  vi:'đèn lồng',     cost:45,  kind:'wall' },
+  { id:'calendar', e:'📅', en:'Calendar', vi:'tờ lịch',      cost:25,  kind:'wall' },
+  { id:'guitar',   e:'🎸', en:'Guitar',   vi:'đàn ghi-ta',   cost:70,  kind:'wall' },
+  { id:'cactus',   e:'🌵', en:'Cactus',   vi:'xương rồng',   cost:30,  kind:'floor' },
+  { id:'sunflower',e:'🌻', en:'Sunflower',vi:'hoa hướng dương', cost:35, kind:'floor' },
+  { id:'chair',    e:'🪑', en:'Chair',    vi:'cái ghế',      cost:35,  kind:'floor' },
+  { id:'teddy',    e:'🧸', en:'Teddy bear',vi:'gấu bông',    cost:25,  kind:'floor' },
+  { id:'books',    e:'📚', en:'Bookshelf',vi:'giá sách',     cost:50,  kind:'floor' },
+  { id:'tv',       e:'📺', en:'Television',vi:'ti vi',       cost:90,  kind:'floor' },
+  { id:'fish',     e:'🐠', en:'Fish tank',vi:'bể cá',        cost:80,  kind:'floor' },
+  { id:'sofa',     e:'🛋️', en:'Sofa',     vi:'ghế sô-pha',   cost:120, kind:'floor' },
+  { id:'piano',    e:'🎹', en:'Piano',    vi:'đàn piano',    cost:150, kind:'floor' }
+];
+const SLOTS = [ // vị trí đặt đồ trong nhà
+  { x:250, y:75, kind:'wall' }, { x:400, y:75, kind:'wall' }, { x:550, y:75, kind:'wall' }, { x:700, y:75, kind:'wall' },
+  { x:300, y:200, kind:'floor' }, { x:480, y:200, kind:'floor' }, { x:660, y:200, kind:'floor' },
+  { x:270, y:390, kind:'floor' }, { x:530, y:390, kind:'floor' }, { x:690, y:380, kind:'floor' }
+];
+const placedCount = id => Object.values(S.placed).filter(x => x === id).length;
+
 // ====== LƯU TRỮ ======
 const KEY = 'englishFarmSave2'; // giữ nguyên key để không mất dữ liệu cũ; trường mới tự thêm giá trị mặc định
 const fresh = () => ({ coins:20, day:1, sel:'carrot', unlocked:['carrot','tomato'], learned:{},
-  exp:0, lvl:1, stamina:100, words:{}, phraseDay:0,
+  exp:0, lvl:1, stamina:100, words:{}, phraseDay:0, own:{}, placed:{},
   plots: Array.from({ length:15 }, () => ({ s:0, c:null, g:0, w:false })) });
 let S;
 try { S = Object.assign(fresh(), JSON.parse(localStorage.getItem(KEY)) || {}); } catch (e) { S = fresh(); }
@@ -178,6 +138,12 @@ function gainExp(n) {
   return up;
 }
 
+// Sang ngày mới: cây lớn, hồi đầy stamina
+function newDay() {
+  S.plots.forEach(p => { if (p.s === 2 && p.w) p.g++; p.w = false; });
+  S.day++; clk = 360; late = false; S.stamina = maxSt();
+}
+
 function dayText() { $('#day').textContent = (clk >= 1080 ? '🌙 Ngày ' : '🌤 Ngày ') + S.day + ' · ' + hhmm(clk); }
 function hud() {
   dayText();
@@ -226,6 +192,7 @@ function wordBook() {
     : '<p><small>Chưa có từ nào. Hãy đến học với cô Emma 🎓</small></p>';
   modal('📖 Sổ từ vựng',
     '<b>🌱 Cây trồng</b><ul class="book">' + rows + '</ul>' +
+    (DECOR.some(d => S.own[d.id]) ? '<b>🛋️ Đồ trang trí đã mua</b><ul class="book">' + DECOR.filter(d => S.own[d.id]).map(d => `<li>${d.e} <b>${d.en}</b> — ${d.vi} <small>×${S.own[d.id]}</small></li>`).join('') + '</ul>' : '') +
     `<b>🎓 Từ B1/B2 đã học (${got.length}/${all.length})</b>` + adv +
     '<p>Trả lời đúng nhiều lần để nhớ lâu hơn!</p>',
     [{ label:'Đóng', fn:closeModal }]);
@@ -362,6 +329,17 @@ function makeTextures(sc) {
     g.fillStyle(0x8a5a2b); g.fillRect(78,52,18,10); g.fillStyle(0xe8b04a); g.fillRect(80,50,14,4);
     for (let i = 0; i < 14; i++) { g.fillStyle(i % 2 ? 0xffffff : 0xd33a2c); g.fillRect(i * 8, 8, 8, 22); g.fillTriangle(i * 8, 30, i * 8 + 8, 30, i * 8 + 4, 37); }
   });
+  // --- trong nhà + tiệm trang trí ---
+  tex('decor', 112, 104, g => bld(g, 0, 112, 0xe8b4c8, 0x8a3f9a, 0xa75cb8));
+  tex('mia', 32, 32, g => person(g, 0x7a3d8a, 0xf2b632, h => { h.fillStyle(0xff6f91); h.fillRect(6,0,20,3); }));
+  tex('wood', 32, 32, g => { g.fillStyle(0xb9854f); g.fillRect(0,0,32,32); g.fillStyle(0xa8743f); g.fillRect(0,0,32,2); g.fillRect(0,16,32,2);
+    g.fillStyle(0xc4935c); [[4,5],[20,9],[10,22],[24,26]].forEach(p => g.fillRect(p[0],p[1],6,1)); g.fillStyle(0x8f6234); g.fillRect(16,2,1,14); g.fillRect(6,18,1,14); });
+  tex('wall', 32, 32, g => { g.fillStyle(0xe8d7b0); g.fillRect(0,0,32,32); g.fillStyle(0xdcc99b); g.fillRect(0,0,2,32); g.fillRect(16,0,2,32); g.fillStyle(0xefe2c3); g.fillRect(8,6,2,2); g.fillRect(24,20,2,2); });
+  tex('bed', 96, 72, g => { g.fillStyle(0x000000, .18); g.fillEllipse(48,68,92,8);
+    g.fillStyle(0x6e3b17); g.fillRect(2,4,92,62); g.fillStyle(0xffffff); g.fillRect(6,8,84,54);
+    g.fillStyle(0xfff3d6); g.fillRect(10,12,24,18); g.fillRect(10,40,24,18);
+    g.fillStyle(0x4a7fc4); g.fillRect(38,8,52,54); g.fillStyle(0x6a9fe0); g.fillRect(38,28,52,6); });
+  tex('rug', 200, 110, g => { g.fillStyle(0x8a2b2b); g.fillEllipse(100,55,196,106); g.fillStyle(0xb5382a); g.fillEllipse(100,55,176,86); g.fillStyle(0xf2d28b); g.fillEllipse(100,55,120,52); });
   tex('fountain', 64, 64, g => { g.fillStyle(0x000000, .2); g.fillEllipse(32,54,58,10);
     g.fillStyle(0x9aa0a6); g.fillCircle(32,38,26); g.fillStyle(0x4aa3d8); g.fillCircle(32,38,20); g.fillStyle(0x8fd3ff); g.fillCircle(32,38,9);
     g.fillStyle(0x9aa0a6); g.fillRect(29,12,6,26); g.fillStyle(0xcfe9ff); g.fillCircle(32,10,5); g.fillRect(24,18,2,6); g.fillRect(38,18,2,6); });
@@ -454,8 +432,8 @@ class Farm extends Base {
 
   create() {
     const W = 1280, H = 960;
-    const fromTown = this.from === 'Town';
-    this.boot(W, H, fromTown ? 1200 : 420, fromTown ? 600 : 340);
+    const sp = this.from === 'Town' ? [1200, 600] : this.from === 'Home' ? [200, 244] : [420, 340];
+    this.boot(W, H, sp[0], sp[1]);
     this.house = this.solids.create(200, 170, 'house');
     let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     for (let i = 0; i < 45; i++) {
@@ -492,7 +470,7 @@ class Farm extends Base {
 
     hud();
     if (S.day === 1 && !Object.keys(S.learned).length && !Object.keys(S.words).length) modal('English Farm 🌱',
-      '<b>“Welcome to the farm!”</b><br>Chào mừng bạn! Xới đất → gieo hạt → tưới nước → đi ngủ → thu hoạch. Làm nông tốn ⚡ stamina.<br>🎓 Nói chuyện với <b>cô Emma</b> để học từ vựng B1/B2 lấy EXP và lên cấp. Đi sang phải để vào 🏘️ thị trấn: mua hạt giống, ăn đồ hồi stamina.',
+      '<b>“Welcome to the farm!”</b><br>Chào mừng bạn! Xới đất → gieo hạt → tưới nước → vào nhà đi ngủ → thu hoạch. Làm nông tốn ⚡ stamina.<br>🎓 Nói chuyện với <b>cô Emma</b> để học từ vựng B1/B2 lấy EXP và lên cấp. Đi sang phải để vào 🏘️ thị trấn: mua hạt giống, ăn đồ hồi stamina.',
       [{ label:'Bắt đầu chơi 🌾', fn:closeModal }]);
   }
 
@@ -532,7 +510,7 @@ class Farm extends Base {
   label(c) {
     if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: hành động · 1-9: chọn hạt · đi sang phải: thị trấn';
     if (c.t === 'emma') return 'E: học tiếng Anh với cô Emma 🎓 (B1/B2)';
-    if (c.t === 'house') return 'E: đi ngủ — hồi đầy ⚡ và sang ngày mới';
+    if (c.t === 'house') return 'E: vào nhà 🏠 (ngủ, trang trí)';
     const p = S.plots[c.i];
     if (p.s === 0) return `E: xới đất (⚡${COST.till})`;
     if (p.s === 1) return `E: gieo hạt ${crop(S.sel).e} (⚡${COST.sow})`;
@@ -541,7 +519,7 @@ class Farm extends Base {
   }
 
   doAct(c) {
-    if (c.t === 'plot') this.plot(c.i); else if (c.t === 'emma') emma(); else this.sleep();
+    if (c.t === 'plot') this.plot(c.i); else if (c.t === 'emma') emma(); else this.go('Home');
   }
 
   plot(i) {
@@ -582,22 +560,6 @@ class Farm extends Base {
     }
     toast('Cây cần thời gian — hãy đi ngủ để sang ngày mới.');
   }
-
-  sleep() {
-    modal('Đi ngủ', `<b>“Good night!”</b> (Chúc ngủ ngon!)<br>Cây đã tưới sẽ lớn thêm một ngày, và bạn được hồi đầy ⚡ stamina.`, [
-      { label:'Ngủ 🌙', fn:() => {
-        closeModal();
-        const cam = this.cameras.main; cam.fadeOut(500);
-        cam.once('camerafadeoutcomplete', () => {
-          S.plots.forEach(p => { if (p.s === 2 && p.w) p.g++; p.w = false; });
-          S.day++; clk = 360; late = false; S.stamina = maxSt();
-          this.pv.forEach((_, i) => this.paint(i)); hud(); save();
-          cam.fadeIn(500); toast('Good morning! Ngày ' + S.day + ' · ⚡ đã đầy');
-        });
-      } },
-      { label:'Hủy', fn:closeModal }
-    ]);
-  }
 }
 
 // ====== CẢNH 2: THỊ TRẤN ======
@@ -609,7 +571,7 @@ class Town extends Base {
     this.boot(W, H, 70, 332);
     // đường chính + lối vào từng cửa
     this.add.tileSprite(0, 300, W, 64, 'path').setOrigin(0).setDepth(.1);
-    [[220, 268, 34], [560, 268, 34]].forEach(p => this.add.tileSprite(p[0] - 16, p[1], 32, p[2], 'path').setOrigin(0).setDepth(.1));
+    [[220, 268, 34], [560, 268, 34], [850, 268, 34]].forEach(p => this.add.tileSprite(p[0] - 16, p[1], 32, p[2], 'path').setOrigin(0).setDepth(.1));
     this.add.tileSprite(400 - 16, 364, 32, 68, 'path').setOrigin(0).setDepth(.1);
     this.add.tileSprite(730, 410, 100, 120, 'path').setOrigin(0).setDepth(.1); // sân đài phun nước
 
@@ -617,6 +579,7 @@ class Town extends Base {
     this.shopB = place('shop', 220, 215);
     this.homesB = place('homes', 560, 205);
     this.foodB = place('stall', 400, 480);
+    this.decorB = place('decor', 850, 215);
     place('fountain', 780, 470);
     // hàng cây viền thị trấn
     for (let x = 30; x < W; x += 66) { place('tree', x, 40); place('tree', x + 20, 610); }
@@ -630,9 +593,10 @@ class Town extends Base {
 
     // biển tên + nhân vật
     const sign = (x, y, t) => this.add.text(x, y, t, { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
-    sign(220, 148, '🌱 Seed Shop'); sign(560, 138, '🏠 Town Homes'); sign(400, 420, '🍞 Food Stall'); sign(60, 292, '← Nông trại');
+    sign(220, 148, '🌱 Seed Shop'); sign(560, 138, '🏠 Town Homes'); sign(400, 420, '🍞 Food Stall'); sign(850, 148, '🛋️ Decor Shop'); sign(60, 292, '← Nông trại');
     this.lily = this.npc('lily', 284, 276, 'Lily');
     this.chef = this.npc('chef', 484, 500, 'Chef Bo');
+    this.mia = this.npc('mia', 914, 276, 'Mia');
     this.npc('ben', 470, 286); this.npc('rose', 660, 288);
     const arrow = this.add.text(18, 332, '➜', { fontSize:'26px', color:'#fff', stroke:'#2a1d10', strokeThickness:4 }).setOrigin(.5).setFlipX(true).setDepth(1500);
     this.tweens.add({ targets: arrow, x: 30, yoyo: true, repeat: -1, duration: 500 });
@@ -640,6 +604,7 @@ class Town extends Base {
     this.zones = {
       shop:  Phaser.Geom.Rectangle.Inflate(this.shopB.getBounds(), 44, 44),
       homes: Phaser.Geom.Rectangle.Inflate(this.homesB.getBounds(), 44, 44),
+      decor: Phaser.Geom.Rectangle.Inflate(this.decorB.getBounds(), 44, 44),
       food:  Phaser.Geom.Rectangle.Inflate(this.foodB.getBounds(), 44, 44)
     };
     hud();
@@ -652,6 +617,7 @@ class Town extends Base {
     const px = this.player.x, py = this.player.y;
     if (this.zones.shop.contains(px, py) || Phaser.Math.Distance.Between(px, py, this.lily.x, this.lily.y) < 70) return { t:'shop' };
     if (this.zones.homes.contains(px, py)) return { t:'homes' };
+    if (this.zones.decor.contains(px, py) || Phaser.Math.Distance.Between(px, py, this.mia.x, this.mia.y) < 70) return { t:'decor' };
     if (this.zones.food.contains(px, py) || Phaser.Math.Distance.Between(px, py, this.chef.x, this.chef.y) < 70) return { t:'food' };
     return null;
   }
@@ -660,10 +626,11 @@ class Town extends Base {
     if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: hành động · đi sang trái: về nông trại';
     if (c.t === 'shop') return 'E: vào Seed Shop — mua hạt giống 🌱';
     if (c.t === 'homes') return 'E: gõ cửa nhà dân 🏠 (mỗi ngày nghe 1 câu mới, +EXP)';
+    if (c.t === 'decor') return 'E: vào Decor Shop — mua đồ trang trí nhà 🛋️';
     return 'E: mua đồ ăn 🍞 để hồi ⚡ stamina';
   }
 
-  doAct(c) { if (c.t === 'shop') this.shop(); else if (c.t === 'homes') this.homes(); else this.food(); }
+  doAct(c) { if (c.t === 'shop') this.shop(); else if (c.t === 'homes') this.homes(); else if (c.t === 'decor') this.decorShop(); else this.food(); }
 
   shop() {
     const locked = CROPS.filter(c => !S.unlocked.includes(c.id));
@@ -687,6 +654,22 @@ class Town extends Base {
       `<small>⚡ ${S.stamina}/${maxSt()} · 🪙 ${S.coins}${S.stamina >= maxSt() ? ' — bạn đang no, không cần ăn thêm.' : ''}</small>`, btns);
   }
 
+  decorShop(tab) {
+    if (!tab) {
+      const n = Object.keys(S.placed).length;
+      return modal('Mia · Decor Shop', `<b>“Hi! Let's make your home beautiful.”</b><br>(Chào bạn! Cùng làm ngôi nhà thật xinh nhé.)<br><small>🪙 ${S.coins} · Về nhà để bày đồ vào các ô trống. Nhà có từ 3 món trở lên sẽ thêm EXP mỗi lần ngủ (đang bày ${n} món).</small>`, [
+        { label:'🖼️ Treo tường (Wall)', fn:() => this.decorShop('wall') },
+        { label:'🪑 Đặt sàn (Floor)', fn:() => this.decorShop('floor') },
+        { label:'Đóng', fn:closeModal }]);
+    }
+    const btns = DECOR.filter(d => d.kind === tab).map(d => ({
+      label: `${d.e} ${d.en} (${d.vi}) — ${d.cost} 🪙${S.own[d.id] ? ' · có ' + S.own[d.id] : ''}`, off: S.coins < d.cost,
+      fn: () => { S.coins -= d.cost; S.own[d.id] = (S.own[d.id] || 0) + 1; sfx(700, .1); hud(); save(); toast(`Đã mua ${d.en} ${d.e}`); this.decorShop(tab); }
+    }));
+    btns.push({ label:'⬅ Quay lại', fn:() => this.decorShop() });
+    modal(tab === 'wall' ? 'Đồ treo tường' : 'Đồ đặt sàn', `<b>“What would you like?”</b> <small>🪙 ${S.coins}</small>`, btns);
+  }
+
   homes() {
     if (S.phraseDay === S.day) {
       return modal('Nhà dân 🏠', '<b>“See you tomorrow!”</b> (Hẹn mai gặp lại!)<br>Hôm nay bạn đã nghe câu mới rồi. Ngủ một giấc ở nhà để sang ngày mới nhé.', [{ label:'Đóng', fn:closeModal }]);
@@ -698,12 +681,107 @@ class Town extends Base {
   }
 }
 
+// ====== CẢNH 3: TRONG NHÀ ======
+class Home extends Base {
+  constructor() { super('Home'); }
+
+  create() {
+    const W = 800, H = 520;
+    this.boot(W, H, 400, H - 70);
+    this.physics.world.setBounds(0, 120, W, H - 120); // không đi lên tường được
+    this.add.tileSprite(0, 0, W, 130, 'wall').setOrigin(0).setDepth(.05);
+    this.add.rectangle(0, 126, W, 8, 0x6b4a2b).setOrigin(0).setDepth(.07);
+    this.add.tileSprite(0, 134, W, H - 134, 'wood').setOrigin(0).setDepth(.05);
+    // cửa sổ
+    this.add.rectangle(110, 68, 70, 56, 0x6e3b17).setDepth(.1);
+    this.add.rectangle(110, 68, 62, 48, 0x8fd3ff).setDepth(.11);
+    this.add.rectangle(110, 68, 3, 48, 0x6e3b17).setDepth(.12);
+    this.add.rectangle(110, 68, 62, 3, 0x6e3b17).setDepth(.12);
+    this.add.image(400, 330, 'rug').setDepth(.2);
+    // cửa ra ngoài
+    this.add.rectangle(W / 2, H - 6, 110, 14, 0x6b3a22).setDepth(.3);
+    this.add.text(W / 2, H - 44, '⬇ Ra ngoài', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
+    this.bed = this.solids.create(120, 196, 'bed'); this.bed.setDepth(196);
+    this.solids.refresh();
+    this.physics.add.collider(this.player, this.solids);
+    this.slotV = SLOTS.map(s => ({
+      box: this.add.rectangle(s.x, s.y, 44, 44).setStrokeStyle(2, 0xffffff, .55).setDepth(.4),
+      em: this.add.text(s.x, s.y, '', { fontSize: s.kind === 'wall' ? '36px' : '44px' }).setOrigin(.5).setDepth(s.kind === 'wall' ? 5 : s.y)
+    }));
+    this.refreshSlots();
+    hud();
+  }
+
+  refreshSlots() {
+    SLOTS.forEach((s, i) => {
+      const d = DECOR.find(x => x.id === S.placed[i]);
+      this.slotV[i].em.setText(d ? d.e : ''); this.slotV[i].box.setVisible(!d);
+    });
+  }
+
+  edge() {
+    this.night.setAlpha(this.night.alpha * .25); // trong nhà sáng hơn
+    if (this.player.y > this.H - 34 && this.player.x > 330 && this.player.x < 470) this.go('Farm');
+  }
+
+  look() {
+    const px = this.player.x, py = this.player.y;
+    if (Phaser.Math.Distance.Between(px, py, this.bed.x, this.bed.y) < 90) return { t:'bed' };
+    let best = null, d = 999;
+    SLOTS.forEach((s, i) => {
+      const dd = Phaser.Math.Distance.Between(px, py, s.x, s.y);
+      if (dd < (s.kind === 'wall' ? 85 : 62) && dd < d) { d = dd; best = { t:'slot', i }; }
+    });
+    return best;
+  }
+
+  label(c) {
+    if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: hành động · đi xuống cửa để ra ngoài';
+    if (c.t === 'bed') return 'E: ngủ trên giường 🛏️ — hồi đầy ⚡, sang ngày mới';
+    const d = DECOR.find(x => x.id === S.placed[c.i]);
+    return d ? `E: đổi hoặc cất ${d.e} ${d.en}` : (SLOTS[c.i].kind === 'wall' ? 'E: treo đồ lên tường 🖼️' : 'E: đặt đồ trang trí vào đây 🪑');
+  }
+
+  doAct(c) { if (c.t === 'bed') this.sleep(); else this.slot(c.i); }
+
+  slot(i) {
+    const sl = SLOTS[i], cur = DECOR.find(x => x.id === S.placed[i]);
+    const avail = DECOR.filter(d => d.kind === sl.kind && (S.own[d.id] || 0) - placedCount(d.id) > 0);
+    const btns = avail.map(d => ({ label: `${d.e} ${d.en}`, fn: () => {
+      S.placed[i] = d.id; save(); this.refreshSlots(); closeModal(); sfx(600, .1); toast(`${d.en} = ${d.vi}`);
+    } }));
+    if (cur) btns.push({ label:'📦 Cất đồ này đi', fn: () => { delete S.placed[i]; save(); this.refreshSlots(); closeModal(); toast('Đã cất ' + cur.en); } });
+    btns.push({ label:'Đóng', fn:closeModal });
+    modal(sl.kind === 'wall' ? 'Tường 🖼️' : 'Sàn nhà 🪑',
+      (cur ? `Đang bày: ${cur.e} <b>${cur.en}</b> (${cur.vi})<br>` : '') +
+      (avail.length ? 'Chọn món để bày:' : 'Chưa có món phù hợp. Hãy mua ở <b>Decor Shop</b> trong thị trấn nhé!'), btns);
+  }
+
+  sleep() {
+    const n = Object.keys(S.placed).length, cozy = Math.min(3, Math.floor(n / 3)) * 2;
+    modal('Đi ngủ 🛏️', '<b>“Good night!”</b> (Chúc ngủ ngon!)<br>Cây đã tưới sẽ lớn thêm một ngày, và bạn được hồi đầy ⚡ stamina.' +
+      (cozy ? `<br>🛋️ Nhà ấm cúng: +${cozy} EXP` : '<br><small>Bày từ 3 món đồ trang trí để nhận thêm EXP khi ngủ.</small>'), [
+      { label:'Ngủ 🌙', fn:() => {
+        closeModal(); this.leaving = true;
+        const cam = this.cameras.main; cam.fadeOut(500);
+        cam.once('camerafadeoutcomplete', () => {
+          newDay(); hud(); save();
+          cam.fadeIn(500); this.leaving = false;
+          toast('Good morning! Ngày ' + S.day + ' · ⚡ đã đầy');
+          if (cozy) gainExp(cozy);
+        });
+      } },
+      { label:'Hủy', fn:closeModal }
+    ]);
+  }
+}
+
 const game = new Phaser.Game({
   type: Phaser.AUTO, width: 960, height: 540, parent: 'game-container', pixelArt: true,
   backgroundColor: '#7cc062',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
-  scene: [Farm, Town]
+  scene: [Farm, Town, Home]
 });
 
 $('#bookBtn').onclick = () => { if (!open) wordBook(); };
