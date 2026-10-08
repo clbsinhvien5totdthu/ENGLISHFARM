@@ -86,3 +86,12 @@ body{margin:0}
 .ok{color:#2c7a3f;font-weight:700}
 .sum{margin:0 0 6px;padding:0;list-style:none}
 .sum li{padding:2px 0}
+
+/* ===== Sprite hạt giống / quả ===== */
+.ico{image-rendering:pixelated;vertical-align:middle;display:inline-block}
+#seeds{flex-wrap:nowrap;overflow-x:auto;position:relative;min-width:120px;padding:2px 2px 4px;scrollbar-width:thin}
+#seeds button{flex:0 0 auto;display:inline-flex;align-items:center;gap:2px;padding:2px 8px}
+.big{display:flex;justify-content:center;align-items:center}
+.big .ico{width:72px;height:72px}
+#mBtns button .ico{margin-right:4px}
+.book .ico{margin-right:2px}
