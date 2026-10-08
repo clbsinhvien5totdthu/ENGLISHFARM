@@ -112,8 +112,8 @@ const placedCount = id => Object.values(S.placed).filter(x => x === id).length;
 
 // ====== LƯU TRỮ ======
 const KEY = 'englishFarmSave2'; // giữ nguyên key để không mất dữ liệu cũ; trường mới tự thêm giá trị mặc định
-const fresh = () => ({ coins:20, day:1, sel:'carrot', inv:{ seeds:{ carrot:6, tomato:6 }, crops:{} }, learned:{},
-  exp:0, lvl:1, stamina:100, words:{}, phraseDay:0, dinhDay:0, own:{}, placed:{},
+const fresh = () => ({ coins:20, day:1, sel:'carrot', inv:{ seeds:{ carrot:6, tomato:6 }, crops:{}, fish:{} }, learned:{},
+  exp:0, lvl:1, stamina:100, words:{}, phraseDay:0, dinhDay:0, mossDay:0, story:{ ch:0, intro:false, nt:-1, cnt:{ harvest:0, fish:0, forage:0 } }, rod:false, fishDex:{}, foraged:[], forageDay:0, own:{}, placed:{},
   plots: Array.from({ length:15 }, () => ({ s:0, c:null, g:0, w:false })) });
 let S, old = null;
 try { old = JSON.parse(localStorage.getItem(KEY)); S = Object.assign(fresh(), old || {}); } catch (e) { S = fresh(); }
@@ -127,6 +127,9 @@ S.stamina = Math.min(S.stamina, maxSt());
   [S.inv.seeds, S.inv.crops].forEach(o => Object.keys(o).forEach(id => { if (!known(id) || !(o[id] > 0)) delete o[id]; }));
   if (!known(S.sel)) S.sel = 'carrot';
   S.plots.forEach(p => { if (p.c && !known(p.c)) { p.s = 1; p.c = null; p.g = 0; p.w = false; } }); }
+// dữ liệu lưu cũ: bổ sung các trường mới (cốt truyện, câu cá…)
+S.story = Object.assign({ ch:0, intro:false, nt:-1 }, S.story || {}); S.story.cnt = Object.assign({ harvest:0, fish:0, forage:0 }, S.story.cnt || {});
+if (!S.inv.fish) S.inv.fish = {}; if (!S.fishDex) S.fishDex = {}; if (!Array.isArray(S.foraged)) S.foraged = [];
 const seedCount = id => S.inv.seeds[id] || 0;
 const addSeed = (id, n = 1) => { S.inv.seeds[id] = seedCount(id) + n; };
 const owned = () => CROPS.filter(c => seedCount(c.id) > 0).map(c => c.id);
@@ -263,7 +266,7 @@ function newDay() {
 
 function dayText() { $('#day').textContent = (clk >= 1080 ? '🌙 Ngày ' : '🌤 Ngày ') + S.day + ' · ' + hhmm(clk); }
 function hud() {
-  dayText();
+  dayText(); storyCheck();
   $('#coins').textContent = '🪙 ' + S.coins;
   $('#lvl').textContent = '⭐ Lv ' + S.lvl;
   const mx = maxSt(), need = expNeed(S.lvl);
@@ -332,7 +335,7 @@ function bag() {
   const btns = o.map(id => { const c = crop(id); return { on: id === S.sel, html: `${id === S.sel ? '✋ ' : ''}${sico(id, 26)} ${c.en} <small>(${c.vi})</small> ×${seedCount(id)}`,
     fn: () => { S.sel = id; snd('select'); hud(); save(); bag(); } }; });
   btns.push({ label:'Đóng', fn:closeModal });
-  modal('🎒 Túi đồ', '<b>🧺 Nông sản</b>' + crops + '<b>🌱 Hạt giống</b> <small>— bấm để cầm trên tay rồi đi gieo' + (o.length ? '' : '. Chưa có hạt: mua ở Seed Shop hoặc học bài với cô Emma') + '</small>', btns);
+  modal('🎒 Túi đồ', '<b>🧺 Nông sản</b>' + crops + fishList() + '<b>🌱 Hạt giống</b> <small>— bấm để cầm trên tay rồi đi gieo' + (o.length ? '' : '. Chưa có hạt: mua ở Seed Shop hoặc học bài với cô Emma') + '</small>', btns);
 }
 
 // ====== CÔ EMMA: BÀI HỌC B1 / B2 ======
@@ -414,6 +417,178 @@ function lesson(lv) {
 }
 
 // ====== TEXTURE (vẽ bằng code, chỉ tạo 1 lần cho mọi cảnh) ======
+// ====== CỐT TRUYỆN · CÂU CÁ · BẢN ĐỒ NHỎ ======
+const SCENE_NAME = { Farm:'🌾 Nông trại', Town:'🏘️ Thị trấn Sunny', Forest:'🌲 Rừng Sương', Lake:'🎣 Hồ Trăng', Home:'🏠 Nhà' };
+const MM = { big:false };
+const COST_FISH = 3;
+
+// hội thoại nhiều trang: pages = [{who,en,vi}], fin chạy sau trang cuối
+function talk(pages, fin) {
+  let i = 0;
+  const show = () => {
+    const p = pages[i], last = i === pages.length - 1;
+    modal(p.who || '📜', `<b>“${p.en}”</b><br>${p.vi}`, [{ label: last ? 'OK 👍' : 'Next ▶', fn: () => { i++; if (i < pages.length) show(); else { closeModal(); if (fin) fin(); } } }]);
+  };
+  snd('chat'); show();
+}
+const PROLOGUE = [
+  { who:'📜 Thư của ông', en:'Dear grandchild, the old farm is yours now.', vi:'Cháu yêu, nông trại cũ giờ là của cháu.' },
+  { who:'📜 Thư của ông', en:'Long ago, our village held the Lantern Festival at the Village Hall.', vi:'Ngày xưa, làng ta tổ chức Lễ hội Đèn Lồng ở Đình làng.' },
+  { who:'📜 Thư của ông', en:'Learn English, make friends, and light the lanterns again.', vi:'Hãy học tiếng Anh, kết bạn và thắp sáng những chiếc đèn lồng lần nữa.' },
+  { who:'📜 Thư của ông', en:'Start with your first harvest. Teacher Emma will help you. Love, Grandpa.', vi:'Hãy bắt đầu bằng vụ thu hoạch đầu tiên. Cô Emma sẽ giúp cháu. Thương cháu, ông.' }
+];
+const STORY = [
+  { title:'Chương 1 · Welcome Home 🏡', who:'Cô Emma (nông trại)', at:'Farm:emma', where:'Nông trại',
+    goal:() => `Thu hoạch 3 cây (${Math.min(3, S.story.cnt.harvest)}/3), rồi gặp cô Emma`, need:() => S.story.cnt.harvest >= 3,
+    done:[ { who:'Teacher Emma 🎓', en:'Wonderful! Your grandfather would be so proud of you.', vi:'Tuyệt vời! Ông của bạn chắc sẽ rất tự hào.' },
+      { who:'Teacher Emma 🎓', en:'Nobody remembers the festival now. We must invite the whole village!', vi:'Giờ chẳng ai nhớ lễ hội nữa. Ta phải mời cả làng!' },
+      { who:'Teacher Emma 🎓', en:'Go to town and ask Lily at the Seed Shop. She knows every family.', vi:'Hãy vào thị trấn hỏi Lily ở Seed Shop. Cô ấy biết mọi gia đình.' } ],
+    reward:{ coins:40, exp:20 } },
+  { title:'Chương 2 · Words for Friends 💬', who:'Lily (Seed Shop)', at:'Town:shop', where:'Thị trấn (đi sang phải)',
+    goal:() => `Học 10 từ vựng với cô Emma (${Math.min(10, Object.keys(S.words).length)}/10), rồi gặp Lily`, need:() => Object.keys(S.words).length >= 10,
+    done:[ { who:'Lily 🌱', en:'Your English is so good now! Everyone will understand our invitation.', vi:'Tiếng Anh của bạn giỏi quá! Ai cũng sẽ hiểu lời mời của ta.' },
+      { who:'Lily 🌱', en:'Next, the fishermen must hear the news. Captain Hai lives at Moon Lake.', vi:'Tiếp theo, các ngư dân cần nghe tin. Thuyền trưởng Hải ở Hồ Trăng.' },
+      { who:'Lily 🌱', en:'Walk to the bottom of your farm. The lake is just south!', vi:'Đi xuống phía dưới nông trại của bạn. Hồ ở ngay phía nam!' } ],
+    reward:{ coins:60, exp:30, seeds:3 } },
+  { title:'Chương 3 · The Silver Fish 🎣', who:'Thuyền trưởng Hải (Hồ Trăng)', at:'Lake:captain', where:'Hồ Trăng (cuối nông trại, phía nam)',
+    goal:() => `Câu 3 con cá (${Math.min(3, S.story.cnt.fish)}/3), rồi gặp thuyền trưởng Hải`, need:() => S.story.cnt.fish >= 3,
+    done:[ { who:'Captain Hai ⚓', en:'Ha-ha! You caught them yourself. That is real fisherman’s luck!', vi:'Ha-ha! Bạn tự câu được rồi. Đúng là vận may của dân chài!' },
+      { who:'Captain Hai ⚓', en:'We need lantern paper for the festival. Elder Moss makes the best.', vi:'Lễ hội cần giấy đèn lồng. Cụ Moss làm giấy đẹp nhất.' },
+      { who:'Captain Hai ⚓', en:'Look for him in Mist Forest, north of your farm.', vi:'Hãy tìm cụ ở Rừng Sương, phía bắc nông trại của bạn.' } ],
+    reward:{ coins:80, exp:40 } },
+  { title:'Chương 4 · Whispers of the Forest 🌲', who:'Cụ Moss (Rừng Sương)', at:'Forest:moss', where:'Rừng Sương (phía bắc nông trại)',
+    goal:() => `Nhặt 5 món trong rừng (${Math.min(5, S.story.cnt.forage)}/5), rồi gặp cụ Moss`, need:() => S.story.cnt.forage >= 5,
+    done:[ { who:'Elder Moss 🧙', en:'Mushrooms, berries and herbs... the forest likes you.', vi:'Nấm, quả mọng và thảo dược... khu rừng quý mến bạn.' },
+      { who:'Elder Moss 🧙', en:'Here is the lantern paper, and my blessing.', vi:'Đây là giấy đèn lồng và lời chúc phúc của ta.' },
+      { who:'Elder Moss 🧙', en:'Grow strong. Reach level 4, then light the lanterns at the Village Hall!', vi:'Hãy trưởng thành. Đạt cấp 4 rồi thắp đèn lồng ở Đình làng!' } ],
+    reward:{ coins:100, exp:50 } },
+  { title:'Chương 5 · Lantern Festival 🏮', who:'Đình làng (thị trấn)', at:'Town:dinh', where:'Đình làng (thị trấn)',
+    goal:() => `Đạt Lv 4 (Lv ${Math.min(4, S.lvl)}/4), rồi thắp đèn ở Đình làng`, need:() => S.lvl >= 4,
+    done:[ { who:'🏮 Village Hall', en:'You place the lantern paper and light the first candle.', vi:'Bạn đặt giấy đèn lồng và thắp ngọn nến đầu tiên.' },
+      { who:'🏮 Village Hall', en:'One by one, the villagers come. Lily, Captain Hai, Elder Moss, Emma…', vi:'Từng người một, dân làng kéo đến. Lily, thuyền trưởng Hải, cụ Moss, cô Emma…' },
+      { who:'🏮 Village Hall', en:'“Thank you for bringing us together,” they say. “Welcome home!”', vi:'“Cảm ơn bạn đã gắn kết chúng tôi,” họ nói. “Chào mừng về nhà!”' },
+      { who:'📜 Grandpa', en:'I knew you could do it. The farm and the village are in good hands.', vi:'Ông biết cháu làm được. Nông trại và ngôi làng đã ở trong tay tốt.' },
+      { who:'🎉 THE END', en:'Thank you for playing English Farm!', vi:'Hết phần cốt truyện chính! Bạn vẫn tiếp tục chơi tự do được: đèn lồng sẽ sáng mãi ở Đình làng.' } ],
+    reward:{ coins:300, exp:100, seeds:5 } }
+];
+const curCh = () => STORY[S.story.ch];
+function storyCheck() {
+  const ch = curCh();
+  if (ch && ch.need() && S.story.nt !== S.story.ch) { S.story.nt = S.story.ch; save(); toast('📜 Xong nhiệm vụ! Hãy gặp: ' + ch.who); snd('levelup'); }
+  const b = $('#questBtn'); if (b) b.textContent = ch ? '📜 Nhiệm vụ' + (ch.need() ? ' ❗' : '') : '📜 ✔';
+}
+// bấm vào NPC / nơi nhận nhiệm vụ: nếu đủ điều kiện thì trả nhiệm vụ và trả về true
+function turnIn(key) {
+  const ch = curCh();
+  if (!ch || ch.at !== key || !ch.need()) return false;
+  talk(ch.done, () => {
+    const r = ch.reward; S.coins += r.coins || 0;
+    let seeds = ''; for (let i = 0; i < (r.seeds || 0); i++) seeds += sico(rewardSeed(), 20);
+    S.story.ch++; save(); hud(); snd('coin');
+    const nx = curCh();
+    modal('🎁 Hoàn thành!', `<b>${ch.title}</b><br>+${r.coins || 0} 🪙 · +${r.exp || 0} EXP ${seeds}` + (nx ? `<br><br>📜 <b>Nhiệm vụ mới</b><br>${nx.title}<br><small>${nx.goal()}</small>` : '<br><br>🏮 Bạn đã hoàn thành cốt truyện chính!'),
+      [{ label:'OK 👍', fn: () => { closeModal(); gainExp(r.exp || 0); } }]);
+  });
+  return true;
+}
+function questLog() {
+  snd('click');
+  const ch = curCh();
+  const done = STORY.slice(0, S.story.ch).map(c => `<li>✅ ${c.title}</li>`).join('');
+  modal('📜 Nhiệm vụ', (ch ? `<b>${ch.title}</b><br>🎯 ${ch.goal()}<br><small>📍 ${ch.where} · gặp: ${ch.who}</small>` : '<b>🏮 Bạn đã thắp sáng Lễ hội Đèn Lồng!</b><br>Cốt truyện chính đã hoàn thành.') +
+    (done ? `<ul class="sum" style="margin-top:8px">${done}</ul>` : ''), [{ label:'Đóng', fn:closeModal }]);
+}
+function worldMap() {
+  snd('click');
+  const here = activeScene() ? activeScene().scene.key : '', mk = k => (here === k ? '📍' : '') + SCENE_NAME[k];
+  modal('🗺️ Bản đồ', `<pre style="font:inherit;line-height:1.7;margin:0 0 8px;text-align:center">${mk('Forest')}\n↕\n${mk('Farm')} ↔ ${mk('Town')}\n↕\n${mk('Lake')}</pre><small>Rừng: đi lên phía trên nông trại · Hồ: đi xuống phía dưới · Thị trấn: đi sang phải. Phím M: phóng to / thu nhỏ bản đồ nhỏ.</small>`, [{ label:'Đóng', fn:closeModal }]);
+}
+
+// ====== CÂU CÁ ======
+const FISH = [
+  { id:'sardine',   en:'Sardine',      vi:'Cá mòi',        price:8,   diff:0, w:30, e:'🐟' },
+  { id:'tilapia',   en:'Tilapia',      vi:'Cá rô phi',     price:12,  diff:0, w:24, e:'🐟' },
+  { id:'carp',      en:'Carp',         vi:'Cá chép',       price:14,  diff:1, w:26, e:'🐟' },
+  { id:'shrimp',    en:'Shrimp',       vi:'Tôm',           price:18,  diff:1, w:12, e:'🦐' },
+  { id:'catfish',   en:'Catfish',      vi:'Cá trê',        price:20,  diff:2, w:16, e:'🐟' },
+  { id:'crab',      en:'Crab',         vi:'Cua',           price:24,  diff:2, w:8,  e:'🦀' },
+  { id:'snakehead', en:'Snakehead',    vi:'Cá lóc',        price:28,  diff:2, w:10, e:'🐟' },
+  { id:'eel',       en:'Eel',          vi:'Lươn',          price:36,  diff:3, w:6,  e:'🐍' },
+  { id:'koi',       en:'Golden Koi',   vi:'Cá chép vàng',  price:120, diff:4, w:2,  e:'🐠' },
+  { id:'boot',      en:'Old Boot',     vi:'Chiếc ủng cũ',  price:1,   diff:0, w:3,  e:'👢' }
+];
+const fishOf = id => FISH.find(f => f.id === id);
+function fishList() {
+  const got = FISH.filter(f => (S.inv.fish[f.id] || 0) > 0);
+  return '<b>🎣 Cá</b>' + (got.length ? '<ul class="book">' + got.map(f => `<li>${f.e} <b>${f.en}</b> — ${f.vi} <small>×${S.inv.fish[f.id]} · ${f.price}🪙</small></li>`).join('') + '</ul>' : '<p><small>Chưa có cá. Ra Hồ Trăng (phía nam nông trại) để câu.</small></p>');
+}
+function fishing() {
+  if (open) return;
+  if (!S.rod) return modal('Hồ Trăng 🎣', '<b>“You need a fishing rod!”</b><br>Bạn cần có cần câu. Hãy nói chuyện với thuyền trưởng Hải gần cầu tàu.', [{ label:'OK', fn:closeModal }]);
+  if (!can(COST_FISH)) return;
+  use(COST_FISH);
+  const tot = FISH.reduce((t, f) => t + f.w, 0); let r = Math.random() * tot, f = FISH[0];
+  for (const x of FISH) { if ((r -= x.w) < 0) { f = x; break; } }
+  const tok = fishing.tok = {};
+  modal('🎣 Đang chờ cá cắn…', '<div class="big">🎣</div><p>Thả câu xuống nước… chờ phao động nhé.</p>', [{ label:'Thu cần về', fn:closeModal }]);
+  setTimeout(() => { if (open && fishing.tok === tok && $('#mTitle').textContent.startsWith('🎣')) reel(f); }, 1200 + Math.random() * 2600);
+}
+function reel(f) {
+  snd('select');
+  modal('🐟 Cá cắn câu! Kéo lên!',
+    '<div class="fish-wrap"><div class="fish-field"><div id="fBar"></div><div id="fFish">' + f.e + '</div></div><div class="fish-prog"><i id="fProg"></i></div></div>' +
+    '<button id="fHold" type="button">⬆ Giữ để nâng vùng xanh</button><p><small>Giữ <b>Space</b> hoặc nút để nâng vùng xanh, thả ra để hạ. Giữ cá nằm trong vùng xanh để kéo cá lên!</small></p>',
+    [{ label:'Bỏ cuộc', fn: () => { end = true; closeModal(); toast('Cá thoát mất rồi 😅'); } }]);
+  if (document.activeElement) document.activeElement.blur();
+  const H = 200, bh = Math.max(38, 74 - f.diff * 10), bar = $('#fBar'), fish = $('#fFish'), prog = $('#fProg'), hold = $('#fHold');
+  bar.style.height = bh + 'px';
+  let by = H - bh, bv = 0, fy = 80, ft = 0, tgt = 80, pr = 30, held = false, end = false, last = performance.now();
+  const dn = () => { held = true; }, up = () => { held = false; };
+  hold.addEventListener('pointerdown', dn); window.addEventListener('pointerup', up);
+  const kd = e => { if (e.code === 'Space') { e.preventDefault(); held = true; } }, ku = e => { if (e.code === 'Space') held = false; };
+  window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
+  const stop = () => { end = true; window.removeEventListener('pointerup', up); window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
+  const loop = now => {
+    if (end || !open) return stop();
+    const dt = Math.min(.05, (now - last) / 1000); last = now;
+    bv += (held ? -950 : 750) * dt; bv = Math.max(-380, Math.min(380, bv)); by += bv * dt;
+    if (by < 0) { by = 0; bv = 0; } if (by > H - bh) { by = H - bh; bv = -bv * .25; }
+    ft -= dt; if (ft <= 0) { tgt = Math.random() * (H - 24); ft = .6 + Math.random() * 1.1; }
+    const sp = 70 + f.diff * 45, d = tgt - fy; fy += Math.sign(d) * Math.min(Math.abs(d), sp * dt);
+    const hit = fy + 12 >= by && fy + 12 <= by + bh;
+    pr += (hit ? 26 : -20) * dt; pr = Math.min(100, pr);
+    bar.style.top = by + 'px'; fish.style.top = fy + 'px'; prog.style.height = Math.max(0, pr) + '%';
+    if (pr >= 100) { stop(); return caught(f); }
+    if (pr <= 0) { stop(); closeModal(); toast('Cá thoát mất rồi 😅'); snd('error'); return; }
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
+function caught(f) {
+  S.inv.fish[f.id] = (S.inv.fish[f.id] || 0) + 1;
+  if (f.id !== 'boot') S.story.cnt.fish++;
+  const first = !S.fishDex[f.id]; S.fishDex[f.id] = (S.fishDex[f.id] || 0) + 1;
+  save(); snd('harvest');
+  modal(`${f.e} You caught a ${f.en}!`, `<div class="big">${f.e}</div><b>${f.en}</b> = ${f.vi}<br>💰 ${f.price} 🪙 ${first ? '<br>📖 Loài mới! +8 EXP' : '<br>🎓 +2 EXP'}`,
+    [{ label:'Câu tiếp 🎣', fn: () => { closeModal(); fishing(); } }, { label:'Đóng', fn:closeModal }]);
+  gainExp(first ? 8 : 2);
+}
+// thuyền trưởng Hải: tặng cần câu, mua cá, kể chuyện
+function captain() {
+  snd('chat');
+  if (!S.rod) {
+    return talk([{ who:'Captain Hai ⚓', en:'Welcome to Moon Lake! Every fisherman needs a rod. Take this one!', vi:'Chào mừng đến Hồ Trăng! Dân chài nào cũng cần một chiếc cần câu. Tặng bạn nhé!' },
+      { who:'Captain Hai ⚓', en:'Stand near the water and press E to fish. Hold Space to catch the fish.', vi:'Đứng gần mặt nước và bấm E để câu. Giữ Space để kéo cá.' }], () => { S.rod = true; save(); toast('🎣 Nhận được cần câu tre!'); snd('coin'); });
+  }
+  const got = FISH.filter(f => (S.inv.fish[f.id] || 0) > 0), total = got.reduce((t, f) => t + f.price * S.inv.fish[f.id], 0);
+  const sell = list => { let g = 0; list.forEach(f => { g += f.price * S.inv.fish[f.id]; delete S.inv.fish[f.id]; }); S.coins += g; snd('coin'); hud(); save(); toast(`Đã bán cá +${g} 🪙`); captain(); };
+  const btns = got.map(f => ({ html: `${f.e} Bán ${f.en} <small>(${f.vi})</small> ×${S.inv.fish[f.id]} — ${f.price * S.inv.fish[f.id]} 🪙`, fn: () => sell([f]) }));
+  if (got.length > 1) btns.push({ label:`💰 Bán tất cả — ${total} 🪙`, fn: () => sell(got) });
+  btns.push({ label:'Đóng', fn:closeModal });
+  const dex = Object.keys(S.fishDex).length;
+  modal('Captain Hai ⚓', `<b>“Fresh fish? I will buy them!”</b><br>(Cá tươi à? Tôi mua hết!)<br><small>📖 Đã câu được ${dex}/${FISH.length} loài · ⚡${COST_FISH} stamina mỗi lần thả câu</small>` + (got.length ? '' : '<br><small>Bạn chưa có cá để bán.</small>'), btns);
+}
+
 function makeTextures(sc) {
   const tex = (k, w, h, f) => { if (sc.textures.exists(k)) return; const g = sc.add.graphics(); f(g); g.generateTexture(k, w, h); g.destroy(); };
   const person = (g, hair, shirt, extra) => {
@@ -486,6 +661,10 @@ function makeTextures(sc) {
     g.fillStyle(0xfff3d6); g.fillRect(10,12,24,18); g.fillRect(10,40,24,18);
     g.fillStyle(0x4a7fc4); g.fillRect(38,8,52,54); g.fillStyle(0x6a9fe0); g.fillRect(38,28,52,6); });
   tex('rug', 200, 110, g => { g.fillStyle(0x8a2b2b); g.fillEllipse(100,55,196,106); g.fillStyle(0xb5382a); g.fillEllipse(100,55,176,86); g.fillStyle(0xf2d28b); g.fillEllipse(100,55,120,52); });
+  tex('hai', 32, 32, g => person(g, 0x2b2b2b, 0x1f6fa8, h => { h.fillStyle(0xf2f2f2); h.fillRect(5,0,22,5); h.fillStyle(0x1f6fa8); h.fillRect(8,5,16,2); }));
+  tex('moss', 32, 32, g => person(g, 0xeeeeee, 0x2e7d32, h => { h.fillStyle(0x5b2c83); h.fillRect(6,0,20,4); h.fillRect(11,-0,10,2); h.fillStyle(0xeeeeee); h.fillRect(10,16,12,8); }));
+  tex('water', 64, 64, g => { g.fillStyle(0x2f78a8); g.fillRect(0,0,64,64); g.fillStyle(0x3a8bc0); [[6,10],[38,6],[22,30],[50,40],[10,50]].forEach(p => g.fillRect(p[0],p[1],14,3));
+    g.fillStyle(0x7cc4ea); [[12,18],[44,26],[28,44],[4,34],[54,58]].forEach(p => g.fillRect(p[0],p[1],8,2)); });
   tex('fountain', 64, 64, g => { g.fillStyle(0x000000, .2); g.fillEllipse(32,54,58,10);
     g.fillStyle(0x9aa0a6); g.fillCircle(32,38,26); g.fillStyle(0x4aa3d8); g.fillCircle(32,38,20); g.fillStyle(0x8fd3ff); g.fillCircle(32,38,9);
     g.fillStyle(0x9aa0a6); g.fillRect(29,12,6,26); g.fillStyle(0xcfe9ff); g.fillCircle(32,10,5); g.fillRect(24,18,2,6); g.fillRect(38,18,2,6); });
@@ -520,6 +699,7 @@ class Base extends Phaser.Scene {
     this.keys = this.input.keyboard.addKeys({ up:K.W, down:K.S, left:K.A, right:K.D, u2:K.UP, d2:K.DOWN, l2:K.LEFT, r2:K.RIGHT, e:K.E, sp:K.SPACE });
     this.input.on('pointerdown', p => { if (!open && !this.leaving) this.target = { x:p.worldX, y:p.worldY }; });
     this.hintText = '';
+    this.mm = { r:[], n:[], exits:[] }; this.roadCells = null; this._trees = null;
   }
 
   // nhân vật đứng yên có va chạm + bóng + nhãn tên
@@ -528,6 +708,7 @@ class Base extends Phaser.Scene {
     this.add.image(x, y + 16, 'shadow').setDepth(.5);
     if (name) this.add.text(x, y - 32, name, { fontSize:'14px', color:'#fff', backgroundColor:'#00000088', padding:{ x:4, y:1 } }).setOrigin(.5).setDepth(1500);
     this.physics.add.collider(this.player, s);
+    this.mm.n.push(s);
     return s;
   }
 
@@ -586,6 +767,7 @@ class Base extends Phaser.Scene {
     // Nền được "nướng" thành 1 ảnh duy nhất (hết vạch kẻ ô khi zoom). Cỏ vẽ ô 32px (nhỏ bằng nửa trước), đường đất giữ ô 64px.
     const T = 64, S2 = 32, rnd = this.rng(5), has = (x, y) => cells.has(x + ',' + y);
     const cw = Math.ceil(this.W / T), ch = Math.ceil(this.H / T);
+    this.roadCells = cells;
     const rt = this.add.renderTexture(0, 0, cw * T, ch * T).setOrigin(0).setDepth(-.5);
     rt.fill(0x6a9f46);
     for (let cy = 0; cy < ch; cy++) for (let cx = 0; cx < cw; cx++) {
@@ -619,10 +801,33 @@ class Base extends Phaser.Scene {
 
   act() { if (!open && !this.leaving && this.cur) this.doAct(this.cur); }
 
+  // bản đồ nhỏ (góc phải trên): đường, công trình, cây, NPC, lối ra và vị trí người chơi
+  drawMini(time) {
+    const cv = $('#minimap'); if (!cv) return;
+    const hide = this.scene.key === 'Home'; if (cv.hidden !== hide) cv.hidden = hide; if (hide) return;
+    if (time - (this._mmT || 0) < 90) return; this._mmT = time;
+    const big = MM.big, w = big ? 300 : 176, h = big ? 232 : 138;
+    if (cv.width !== w) { cv.width = w; cv.height = h; }
+    const g = cv.getContext('2d'), sc = Math.min((w - 8) / this.W, (h - 26) / this.H), ox = (w - this.W * sc) / 2, oy = 4, X = v => ox + v * sc, Y = v => oy + v * sc;
+    g.clearRect(0, 0, w, h);
+    g.fillStyle = '#5c8f3e'; g.fillRect(X(0), Y(0), this.W * sc, this.H * sc);
+    if (this.roadCells) { g.fillStyle = '#d8b87a'; this.roadCells.forEach(k => { const p = k.split(','); g.fillRect(X(p[0] * 64), Y(p[1] * 64), 64 * sc + .6, 64 * sc + .6); }); }
+    this.mm.r.forEach(r => { g.fillStyle = r[4] || '#b5651d'; g.fillRect(X(r[0]), Y(r[1]), Math.max(2, r[2] * sc), Math.max(2, r[3] * sc)); });
+    if (!this._trees) this._trees = this.solids.getChildren().filter(o => o.texture && o.texture.key === 'tree');
+    g.fillStyle = '#2e6b32'; this._trees.forEach(t => g.fillRect(X(t.x) - 1, Y(t.y) - 2, 3, 3));
+    if (this.mm.spots) { g.fillStyle = '#ffd54a'; this.mm.spots.forEach((p, i) => { if (!S.foraged.includes(i)) g.fillRect(X(p.x) - 1.5, Y(p.y) - 1.5, 3, 3); }); }
+    g.fillStyle = '#7fe3ff'; this.mm.exits.forEach(e => g.fillRect(X(e[0]), Y(e[1]), Math.max(3, e[2] * sc), Math.max(3, e[3] * sc)));
+    g.fillStyle = '#ffe36b'; this.mm.n.forEach(n => { g.beginPath(); g.arc(X(n.x), Y(n.y), 2.2, 0, 7); g.fill(); });
+    g.fillStyle = Math.floor(time / 350) % 2 ? '#ff3b30' : '#fff'; g.beginPath(); g.arc(X(this.player.x), Y(this.player.y), 3.2, 0, 7); g.fill();
+    g.strokeStyle = '#2a1d10'; g.lineWidth = 1; g.strokeRect(X(0), Y(0), this.W * sc, this.H * sc);
+    g.fillStyle = '#f3e7c9'; g.font = '11px sans-serif'; g.fillText(SCENE_NAME[this.scene.key] + '  (M)', 6, h - 5);
+  }
+
   update(time, delta) {
     if (!this.move(time, delta)) return;
     this.edge();
     this.interact();
+    this.drawMini(time);
   }
 }
 
@@ -654,7 +859,7 @@ class Farm extends Base {
 
   create() {
     const W = 1280, H = 960;
-    const sp = this.from === 'Town' ? [1200, 600] : this.from === 'Home' ? [200, 292] : [420, 340];
+    const sp = this.from === 'Town' ? [1200, 600] : this.from === 'Forest' ? [610, 70] : this.from === 'Lake' ? [610, 890] : this.from === 'Home' ? [200, 292] : [420, 340];
     this.boot(W, H, sp[0], sp[1]);
     this.house = this.add.image(200, 236, 'b_home').setOrigin(.5, 1).setDepth(236); // nhà người chơi (sprite)
     { const z = this.add.zone(200, 211, 150, 50); this.physics.add.existing(z, true); this.house.zone = z; }
@@ -663,13 +868,14 @@ class Farm extends Base {
       const x = 40 + rnd() * (W - 80), y = 40 + rnd() * (H - 80);
       if ((x > 80 && x < 900 && y > 60 && y < 520) || (x > 880 && x < 1140 && y > 680 && y < 840)) continue; // chừa khu nông trại
       if (x > 150 && y > 530 && y < 690) continue; // chừa con đường nhà → thị trấn
+      if (x > 500 && x < 780 && (y < 150 || y > H - 150)) continue; // chừa lối lên Rừng / xuống Hồ
       this.solids.create(x, y, 'tree');
     }
     this.solids.refresh();
     this.solids.children.each(t => t.setDepth(t.y + t.height / 2 - 4)); // sắp lớp theo chân cây / nhà
     // đường đất (ô 64px): nhà → xuống dưới → sang thị trấn (phải) + nhánh rẽ ra ruộng
     const cells = new Set(), road = (x0, y0, x1, y1) => { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) cells.add(x + ',' + y); };
-    road(3, 3, 3, 9); road(3, 9, 19, 9); road(4, 5, 6, 5);
+    road(3, 3, 3, 9); road(3, 9, 19, 9); road(4, 5, 6, 5); road(9, 0, 9, 2); road(9, 12, 9, 14);
     this.paintGround(cells);
     const near = (x, y) => cells.has(Math.floor(x / 64) + ',' + Math.floor(y / 64));
     this.scatter(34, 21, (x, y) => !near(x, y) && !near(x + 24, y) && !near(x - 24, y) && !near(x, y - 20)
@@ -682,6 +888,10 @@ class Farm extends Base {
     const arrow = this.add.text(1262, 600, '➜', { fontSize:'26px', color:'#fff', stroke:'#2a1d10', strokeThickness:4 }).setOrigin(.5).setDepth(1500);
     this.tweens.add({ targets: arrow, x: 1250, yoyo: true, repeat: -1, duration: 500 });
 
+    const sgn = (x, y, t) => this.add.text(x, y, t, { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
+    sgn(640, 38, '🌲 Rừng Sương ↑'); sgn(640, 926, '🎣 Hồ Trăng ↓');
+    this.mm.r.push([105, 73, 190, 163], [488, 268, 320, 192, '#8a5e34'], [930, 710, 160, 100, '#4aa3d8']);
+    this.mm.exits.push([this.W - 8, 540, 8, 130], [500, 0, 280, 8], [500, this.H - 8, 280, 8]);
     this.emma = this.npc('emma', 340, 250, 'Emma 🎓 English');
     this.physics.add.collider(this.player, this.solids);
     this.physics.add.collider(this.player, this.house.zone);
@@ -695,9 +905,12 @@ class Farm extends Base {
     this.mark = this.add.rectangle(0, 0, 60, 60).setStrokeStyle(3, 0xffffff).setVisible(false).setDepth(3);
 
     hud();
-    if (S.day === 1 && !Object.keys(S.learned).length && !Object.keys(S.words).length) modal('English Farm 🌱',
+    const showWelcome = () => modal('English Farm 🌱',
       '<b>“Welcome to the farm!”</b><br>Chào mừng bạn! Mở <b>🎒 Túi đồ</b> (phím B) → chọn hạt giống → xới đất → gieo hạt → tưới nước → vào nhà đi ngủ → thu hoạch. Làm nông tốn ⚡ stamina.<br>🎓 Nói chuyện với <b>cô Emma</b> để học từ vựng B1/B2: lấy EXP, lên cấp và nhận 🌱 hạt giống thưởng. Đi sang phải để vào 🏘️ thị trấn: mua hạt giống, bán nông sản, ăn đồ hồi stamina.',
       [{ label:'Bắt đầu chơi 🌾', fn:closeModal }]);
+    const first = S.day === 1 && !Object.keys(S.learned).length && !Object.keys(S.words).length;
+    if (!S.story.intro) talk(PROLOGUE, () => { S.story.intro = true; save(); hud(); if (first) showWelcome(); });
+    else if (first) showWelcome();
   }
 
   // ảnh cây: 0 = cây con · 1 = đang lớn · 2 = chín (sẵn sàng thu hoạch)
@@ -726,7 +939,12 @@ class Farm extends Base {
 
   ready(p) { return p.s === 2 && p.g >= crop(p.c).days; }
 
-  edge() { if (this.player.x > this.W - 30 && this.player.y > 540 && this.player.y < 670) this.go('Town'); }
+  edge() {
+    const p = this.player;
+    if (p.x > this.W - 30 && p.y > 540 && p.y < 670) this.go('Town');
+    else if (p.y < 14 && p.x > 500 && p.x < 780) this.go('Forest');
+    else if (p.y > this.H - 14 && p.x > 500 && p.x < 780) this.go('Lake');
+  }
 
   // Tìm thứ gần người chơi nhất để tương tác
   look() {
@@ -752,7 +970,7 @@ class Farm extends Base {
   }
 
   doAct(c) {
-    if (c.t === 'plot') this.plot(c.i); else if (c.t === 'emma') emma(); else this.go('Home');
+    if (c.t === 'plot') this.plot(c.i); else if (c.t === 'emma') { if (!turnIn('Farm:emma')) emma(); } else this.go('Home');
   }
 
   plot(i) {
@@ -776,7 +994,7 @@ class Farm extends Base {
     if (this.ready(p)) {
       if (!can(COST.harvest)) return;
       const c = crop(p.c); use(COST.harvest);
-      S.inv.crops[c.id] = (S.inv.crops[c.id] || 0) + 1;
+      S.inv.crops[c.id] = (S.inv.crops[c.id] || 0) + 1; S.story.cnt.harvest++;
       const seed = Math.random() < .4; if (seed) addSeed(c.id);
       p.s = 1; p.c = null; p.g = 0; p.w = false;
       S.learned[c.id] = (S.learned[c.id] || 0) + 1;
@@ -813,6 +1031,7 @@ class Town extends Base {
     const bldg = (key, x, bottom, solidH = 56, solidW = .8) => {
       const s = this.add.image(x, bottom, 'b_' + key).setOrigin(.5, 1).setDepth(bottom);
       const z = this.add.zone(x, bottom - solidH / 2, s.width * solidW, solidH); this.physics.add.existing(z, true); this.physics.add.collider(this.player, z);
+      this.mm.r.push([x - s.width / 2, bottom - s.height, s.width, s.height]);
       return s;
     };
     this.shopB  = bldg('seedshop', 220, 304, 60, .75);   // Seed Shop
@@ -821,6 +1040,14 @@ class Town extends Base {
     this.decorB = bldg('decor', 840, 268, 50, .8);       // tiệm nội thất / trang trí
     this.wellB  = bldg('well', 700, 505, 40, .55);       // giếng nước (thay đài phun nước)
     this.dinhB  = bldg('dinh', 950, 572, 56, .85);       // đình làng
+    this.mm.exits.push([0, 0, 8, H]);
+    if (S.story.ch >= 5) { // sau cốt truyện: đèn lồng sáng quanh Đình làng
+      for (let i = 0; i < 8; i++) {
+        const x = 832 + i * 34, y = 414 + Math.sin(i * 1.3) * 7;
+        const glow = this.add.circle(x, y, 12, 0xffc94a, .28).setDepth(1600), lamp = this.add.circle(x, y, 5, 0xff5a36).setDepth(1601).setStrokeStyle(1, 0xffe08a);
+        this.tweens.add({ targets: [glow, lamp], alpha: { from: .55, to: 1 }, yoyo: true, repeat: -1, duration: 700 + i * 90 });
+      }
+    }
     // hàng cây viền thị trấn
     for (let x = 30; x < W; x += 66) { if (!(x > 80 && x < 360)) place('tree', x, 40); if (!(x + 20 > 800 && x + 20 < 1090)) place('tree', x + 20, 610); }
     for (let y = 120; y < 280; y += 70) place('tree', W - 24, y);
@@ -871,7 +1098,7 @@ class Town extends Base {
     return 'E: mua đồ ăn 🍞 để hồi ⚡ stamina';
   }
 
-  doAct(c) { if (c.t === 'dinh') this.dinh(); else if (c.t === 'shop') this.shop(); else if (c.t === 'homes') this.homes(); else if (c.t === 'decor') this.decorShop(); else this.food(); }
+  doAct(c) { if (c.t === 'dinh') { if (!turnIn('Town:dinh')) this.dinh(); } else if (c.t === 'shop') { if (!turnIn('Town:shop')) this.shop(); } else if (c.t === 'homes') this.homes(); else if (c.t === 'decor') this.decorShop(); else this.food(); }
 
   shop(tab = 'buy', keep = false) {
     this.qty = this.qty || 1;
@@ -954,6 +1181,136 @@ class Town extends Base {
     modal(who + ' 🏠', `<b>“${p.en}”</b><br>${p.vi}<br><small>💡 ${p.tip}</small><br>🎓 +5 EXP`, [{ label:'Thank you! 👍', fn:closeModal }]);
     gainExp(5);
   }
+}
+
+
+// ====== CẢNH 4: RỪNG SƯƠNG (phía bắc nông trại) ======
+const FORAGE = ['mushroom', 'blueberry', 'tea', 'garlic', 'strawberry'];
+const FSPOTS = [[150, 130], [470, 150], [830, 100], [1110, 210], [990, 430], [250, 530], [1150, 630], [820, 600]];
+class Forest extends Base {
+  constructor() { super('Forest'); }
+
+  create() {
+    const W = 1280, H = 800;
+    this.boot(W, H, 640, 735);
+    const cells = new Set(), road = (x0, y0, x1, y1) => { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) cells.add(x + ',' + y); };
+    road(9, 8, 10, 12); road(4, 8, 10, 8); road(4, 3, 5, 8); road(3, 2, 6, 3);
+    this.paintGround(cells);
+    this.add.rectangle(0, 0, W, H, 0x0b3d1a, .17).setOrigin(0).setDepth(1990);
+    if (S.forageDay !== S.day) { S.forageDay = S.day; S.foraged = []; save(); }
+    const near = (x, y, r = 40) => cells.has(Math.floor(x / 64) + ',' + Math.floor(y / 64)) || cells.has(Math.floor((x + r) / 64) + ',' + Math.floor(y / 64)) || cells.has(Math.floor((x - r) / 64) + ',' + Math.floor(y / 64));
+    const rnd = this.rng(11);
+    for (let i = 0, n = 0; n < 95 && i < 600; i++) {
+      const x = 30 + rnd() * (W - 60), y = 50 + rnd() * (H - 80);
+      if (near(x, y) || FSPOTS.some(p => Math.hypot(p[0] - x, p[1] - y) < 56)) continue;
+      const t = this.solids.create(x, y, 'tree'); t.setDepth(y + 28); n++;
+    }
+    this.solids.refresh();
+    this.physics.add.collider(this.player, this.solids);
+    this.spots = FSPOTS.map((p, i) => {
+      const id = FORAGE[(i + S.day) % FORAGE.length];
+      const img = this.add.image(p[0], p[1], 'crops', FRAME(id) + 2).setScale(.8).setDepth(p[1]).setVisible(!S.foraged.includes(i));
+      this.tweens.add({ targets: img, y: p[1] - 4, yoyo: true, repeat: -1, duration: 900 + i * 60 });
+      return { x: p[0], y: p[1], id, img };
+    });
+    this.moss = this.npc('moss', 330, 205, 'Elder Moss 🧙');
+    this.add.text(640, 770, '↓ Nông trại', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
+    this.add.text(330, 150, '🌲 Rừng Sương', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
+    this.mm.exits.push([520, H - 8, 240, 8]);
+    this.mm.spots = this.spots;
+    hud();
+    this.time.delayedCall(450, () => toast('Mist Forest 🌲 — nhặt nấm, quả mọng, thảo dược!'));
+  }
+
+  edge() { if (this.player.y > this.H - 14 && this.player.x > 520 && this.player.x < 760) this.go('Farm'); }
+
+  look() {
+    const px = this.player.x, py = this.player.y;
+    if (Phaser.Math.Distance.Between(px, py, this.moss.x, this.moss.y) < 80) return { t:'moss' };
+    let best = null, d = 54;
+    this.spots.forEach((s, i) => { if (S.foraged.includes(i)) return; const dd = Phaser.Math.Distance.Between(px, py, s.x, s.y); if (dd < d) { d = dd; best = { t:'forage', i }; } });
+    return best;
+  }
+
+  label(c) {
+    if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: nhặt đồ trong rừng · đi xuống: về nông trại';
+    if (c.t === 'moss') return 'E: nói chuyện với cụ Moss 🧙';
+    const cc = crop(this.spots[c.i].id);
+    return `E: nhặt ${cc.en} (${cc.vi}) 🍄 (⚡1)`;
+  }
+
+  doAct(c) {
+    if (c.t === 'moss') return this.talkMoss();
+    const s = this.spots[c.i];
+    if (!can(1)) return;
+    use(1); S.foraged.push(c.i); s.img.setVisible(false);
+    const cc = crop(s.id); S.inv.crops[cc.id] = (S.inv.crops[cc.id] || 0) + 1; S.story.cnt.forage++;
+    let extra = ''; if (Math.random() < .25) { const sid = rewardSeed(); extra = ' + hạt ' + crop(sid).en; }
+    snd('harvest'); toast(`+1 ${cc.en} (${cc.vi})${extra}`); gainExp(2); save();
+  }
+
+  talkMoss() {
+    if (turnIn('Forest:moss')) return;
+    snd('chat');
+    if (S.mossDay === S.day) return modal('Elder Moss 🧙', '<b>“The forest is quiet today.”</b><br>(Hôm nay rừng yên ắng.) Mai cụ sẽ kể bạn nghe một câu mới.', [{ label:'Đóng', fn:closeModal }]);
+    const p = PHRASES[(S.day * 3) % PHRASES.length]; S.mossDay = S.day; save();
+    modal('Elder Moss 🧙', `<b>“${p.en}”</b><br>${p.vi}<br><small>💡 ${p.tip}</small><br>🎓 +5 EXP`, [{ label:'Thank you! 🙏', fn:closeModal }]);
+    gainExp(5);
+  }
+}
+
+// ====== CẢNH 5: HỒ TRĂNG (phía nam nông trại) ======
+class Lake extends Base {
+  constructor() { super('Lake'); }
+
+  create() {
+    const W = 1280, H = 800;
+    this.boot(W, H, 640, 70);
+    const cells = new Set(), road = (x0, y0, x1, y1) => { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) cells.add(x + ',' + y); };
+    road(9, 0, 10, 3); road(8, 3, 12, 3);
+    this.paintGround(cells);
+    // mặt hồ + cầu tàu (vật cản chừa lối đi trên cầu)
+    this.water = this.add.tileSprite(160, 300, 960, 440, 'water').setOrigin(0).setDepth(.2);
+    this.add.tileSprite(608, 270, 64, 270, 'wood').setOrigin(0).setDepth(.4);
+    this.add.rectangle(160, 300, 960, 440).setOrigin(0).setStrokeStyle(4, 0x1e4f73).setDepth(.3);
+    [[160, 300, 448, 440], [672, 300, 448, 440], [608, 540, 64, 200]].forEach(r => { const z = this.add.zone(r[0] + r[2] / 2, r[1] + r[3] / 2, r[2], r[3]); this.physics.add.existing(z, true); this.physics.add.collider(this.player, z); });
+    const rnd = this.rng(23);
+    for (let i = 0, n = 0; n < 40 && i < 400; i++) {
+      const x = 30 + rnd() * (W - 60), y = 40 + rnd() * (H - 60);
+      if ((x > 120 && x < 1160 && y > 240 && y < 780) || (x > 520 && x < 760 && y < 280) || y < 30) continue;
+      const t = this.solids.create(x, y, 'tree'); t.setDepth(y + 28); n++;
+    }
+    this.solids.refresh();
+    this.physics.add.collider(this.player, this.solids);
+    this.scatter(26, 41, (x, y) => !(x > 140 && x < 1140 && y > 280 && y < 760) && !(x > 540 && x < 740 && y < 300));
+    this.hai = this.npc('hai', 740, 285, 'Captain Hai ⚓');
+    this.fishZone = new Phaser.Geom.Rectangle(150, 285, 980, 470);
+    const sg = (x, y, t) => this.add.text(x, y, t, { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
+    sg(640, 28, '↑ Nông trại'); sg(640, 255, '🎣 Hồ Trăng');
+    this.mm.r.push([160, 300, 960, 440, '#3a86bf'], [608, 270, 64, 270, '#b9854f']);
+    this.mm.exits.push([520, 0, 240, 8]);
+    hud();
+    this.time.delayedCall(450, () => toast('Moon Lake 🎣 — đứng gần mặt nước và bấm E để câu cá!'));
+  }
+
+  update(time, delta) { this.water.tilePositionX += delta * .01; this.water.tilePositionY += delta * .004; super.update(time, delta); }
+
+  edge() { if (this.player.y < 14 && this.player.x > 520 && this.player.x < 760) this.go('Farm'); }
+
+  look() {
+    const px = this.player.x, py = this.player.y;
+    if (Phaser.Math.Distance.Between(px, py, this.hai.x, this.hai.y) < 80) return { t:'captain' };
+    if (this.fishZone.contains(px, py)) return { t:'fish' };
+    return null;
+  }
+
+  label(c) {
+    if (!c) return 'WASD / phím mũi tên: đi · lại gần mặt nước để câu cá · đi lên: về nông trại';
+    if (c.t === 'captain') return 'E: nói chuyện với thuyền trưởng Hải ⚓ (bán cá)';
+    return S.rod ? `E: thả câu 🎣 (⚡${COST_FISH})` : 'Cần có cần câu — hãy hỏi thuyền trưởng Hải ⚓';
+  }
+
+  doAct(c) { if (c.t === 'captain') { if (!turnIn('Lake:captain')) captain(); } else fishing(); }
 }
 
 // ====== CẢNH 3: TRONG NHÀ ======
@@ -1057,7 +1414,7 @@ const startGame = () => { game = new Phaser.Game({
   render: { pixelArt: true, antialias: false, roundPixels: false },   // không làm tròn pixel → di chuyển mượt
   scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' }, // lấp đầy khung, không còn viền
   physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false, fps: 240 } }, // bước vật lý nhỏ → hết giật
-  scene: [Boot, Farm, Town, Home]
+  scene: [Boot, Farm, Town, Forest, Lake, Home]
 }); };
 const loadImg = (key, src) => new Promise(r => { const i = new Image(); i.onload = () => { IMG[key] = i; r(); }; i.onerror = r; i.src = src; });
 Promise.all(['tiles', 'crops', 'hero', 'shop', 'bushG', 'bushF'].map(k => loadImg(k, window.ASSETS[k]))
@@ -1065,6 +1422,9 @@ Promise.all(['tiles', 'crops', 'hero', 'shop', 'bushG', 'bushF'].map(k => loadIm
 
 $('#bookBtn').onclick = () => { if (!open) { snd('click'); wordBook(); } };
 $('#bagBtn').onclick = () => { if (!open) bag(); };
+$('#questBtn').onclick = () => { if (!open) questLog(); };
+$('#mapBtn').onclick = () => { if (!open) worldMap(); };
+$('#minimap').onclick = () => { MM.big = !MM.big; };
 const sndLabel = () => { $('#sndBtn').textContent = AU.on ? '🔊' : '🔇'; };
 $('#sndBtn').onclick = () => { AU.on = !AU.on; try { localStorage.setItem('efSound', AU.on ? '1' : '0'); } catch (e) {} sndLabel(); if (AU.on) { snd('select'); startMusic(); } };
 sndLabel();
@@ -1078,6 +1438,8 @@ window.addEventListener('keydown', e => {
   const n = parseInt(e.key, 10), o = owned();
   if (!open && n >= 1 && n <= o.length) { S.sel = o[n - 1]; snd('select'); hud(); save(); }
   if (!open && (e.key === '[' || e.key === ']') && o.length) { const k = o.length; S.sel = o[(Math.max(0, o.indexOf(S.sel)) + (e.key === ']' ? 1 : k - 1)) % k]; snd('select'); hud(); save(); }
+  if (!open && (e.key === 'm' || e.key === 'M')) MM.big = !MM.big;
+  if (!open && (e.key === 'q' || e.key === 'Q')) questLog();
   if (!open && (e.key === 'b' || e.key === 'B' || e.key === 'i' || e.key === 'I')) bag();
 });
 hud();
