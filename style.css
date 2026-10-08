@@ -20,7 +20,7 @@ body{margin:0}
   border-color:var(--wood2);border-style:solid;border-width:0 0 4px}
 #bar{border-width:4px 0 0;justify-content:space-between;font-size:14px}
 #hud{padding-top:max(6px,env(safe-area-inset-top,0px));flex-wrap:wrap}
-#stats{display:flex;gap:14px;font-weight:700;font-size:18px}
+#stats{display:flex;gap:10px;font-weight:700;font-size:18px;flex-wrap:wrap}
 #seeds{display:flex;gap:6px;flex:1;flex-wrap:wrap}
 #seeds button{background:var(--wood2);color:var(--paper);border-color:var(--ink);font-size:18px}
 #seeds button.on{background:var(--gold);color:var(--ink);transform:translateY(-2px)}
@@ -30,7 +30,7 @@ body{margin:0}
 #modal{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   background:rgba(20,14,8,.6);padding:16px;z-index:5}
 #modal[hidden]{display:none}
-.card{width:min(440px,100%);max-height:90%;overflow:auto;background:var(--paper);color:var(--ink);
+.card{width:min(460px,100%);max-height:90%;overflow:auto;background:var(--paper);color:var(--ink);
   border:5px solid var(--wood2);border-radius:14px;padding:16px 18px;box-shadow:0 6px 0 var(--wood)}
 .card h2{margin:0 0 6px;font-size:22px}
 .card p{margin:0 0 12px;font-size:17px;line-height:1.4}
@@ -38,63 +38,7 @@ body{margin:0}
 .big{font-size:56px;text-align:center;line-height:1.2}
 #mBtns{display:flex;flex-wrap:wrap;gap:8px}
 #mBtns button{flex:1 1 120px;font-size:18px;padding:8px 10px}
-.book{list-style:none;margin:0;padding:0;columns:2;column-gap:16px}
-.book li{padding:3px 0;font-size:16px}
-.book small{opacity:.6}
-.book .lock{opacity:.4}
-
-#toast{position:absolute;left:50%;top:84px;transform:translate(-50%,-8px);background:var(--wood);
-  color:var(--paper);border:3px solid var(--gold);border-radius:10px;padding:6px 14px;
-  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:6;text-align:center}
-#toast.on{opacity:1;transform:translate(-50%,0)}
-
-@media (max-width:560px){
-  #hint{display:none}
-  #bar{justify-content:center}
-  #actBtn{width:100%;font-size:20px;padding:10px}
-}
-@media (prefers-reduced-motion:reduce){#toast{transition:none}}
-/* Mọi style đều nằm trong #farm-app nên không ảnh hưởng website của bạn.
-   Đổi chiều cao khung game bằng: #farm-app{--farm-height:640px} */
-body{margin:0}
-#farm-app{
-  --wood:#4a3320;--wood2:#6b4a2b;--paper:#f3e7c9;--ink:#2a1d10;--leaf:#3f8f5a;--gold:#f2b632;
-  position:relative;display:flex;flex-direction:column;box-sizing:border-box;
-  width:100%;height:var(--farm-height,100vh);height:var(--farm-height,100dvh);
-  background:#1d2b19;color:var(--paper);overflow:hidden;
-  font-family:"Baloo 2","Trebuchet MS",Verdana,sans-serif;
-  padding-bottom:env(safe-area-inset-bottom,0px);
-}
-#farm-app *{box-sizing:border-box}
-#farm-app button{font:inherit;cursor:pointer;border:2px solid var(--ink);border-radius:8px;
-  background:var(--gold);color:var(--ink);padding:4px 12px;font-weight:700}
-#farm-app button:hover:not(:disabled){filter:brightness(1.08)}
-#farm-app button:disabled{opacity:.45;cursor:not-allowed}
-#farm-app button:focus-visible{outline:3px solid #fff;outline-offset:2px}
-
-#hud,#bar{display:flex;align-items:center;gap:12px;padding:6px 12px;background:var(--wood);
-  border-color:var(--wood2);border-style:solid;border-width:0 0 4px}
-#bar{border-width:4px 0 0;justify-content:space-between;font-size:14px}
-#hud{padding-top:max(6px,env(safe-area-inset-top,0px));flex-wrap:wrap}
-#stats{display:flex;gap:14px;font-weight:700;font-size:18px}
-#seeds{display:flex;gap:6px;flex:1;flex-wrap:wrap}
-#seeds button{background:var(--wood2);color:var(--paper);border-color:var(--ink);font-size:18px}
-#seeds button.on{background:var(--gold);color:var(--ink);transform:translateY(-2px)}
-#game-container{flex:1;min-height:0;background:#7cc062}
-#game-container canvas{display:block}
-
-#modal{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  background:rgba(20,14,8,.6);padding:16px;z-index:5}
-#modal[hidden]{display:none}
-.card{width:min(440px,100%);max-height:90%;overflow:auto;background:var(--paper);color:var(--ink);
-  border:5px solid var(--wood2);border-radius:14px;padding:16px 18px;box-shadow:0 6px 0 var(--wood)}
-.card h2{margin:0 0 6px;font-size:22px}
-.card p{margin:0 0 12px;font-size:17px;line-height:1.4}
-.card em{color:#a3341f}
-.big{font-size:56px;text-align:center;line-height:1.2}
-#mBtns{display:flex;flex-wrap:wrap;gap:8px}
-#mBtns button{flex:1 1 120px;font-size:18px;padding:8px 10px}
-.book{list-style:none;margin:0;padding:0;columns:2;column-gap:16px}
+.book{list-style:none;margin:0 0 10px;padding:0;columns:2;column-gap:16px}
 .book li{padding:3px 0;font-size:16px}
 .book small{opacity:.6}
 .book .lock{opacity:.4}
@@ -122,3 +66,23 @@ body{margin:0}
 #farm-app #game-container{position:relative}
 #farm-app #game-container::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 60%,rgba(10,20,5,.35))}
 @media (prefers-reduced-motion:reduce){#farm-app .card{animation:none}}
+
+/* ===== Thanh Stamina & EXP ===== */
+#meters{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.meter{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:var(--paper)}
+.meter .track{width:120px;height:14px;background:#2a1d10;border:2px solid var(--ink);border-radius:999px;overflow:hidden;box-shadow:inset 0 2px 0 rgba(0,0,0,.4)}
+.meter .track i{display:block;height:100%;width:100%;background:linear-gradient(#9cf07c,#3f8f5a);transition:width .3s}
+.meter .track i.low{background:linear-gradient(#ff9a7c,#c0392b);animation:blink .8s infinite alternate}
+.meter.xp .track i{background:linear-gradient(#8fdcff,#2f7fd0)}
+.meter b{min-width:62px;text-align:left}
+@keyframes blink{to{opacity:.55}}
+@media (max-width:560px){.meter .track{width:80px}.meter b{min-width:0;font-size:12px}}
+@media (prefers-reduced-motion:reduce){.meter .track i.low{animation:none}}
+
+/* ===== Bài học B1/B2 ===== */
+.sent{margin:8px 0 4px;padding:8px 10px;background:rgba(107,74,43,.12);border-left:4px solid var(--leaf);border-radius:6px;font-style:italic;font-size:18px}
+.tag{display:inline-block;padding:0 8px;border-radius:999px;background:var(--leaf);color:#fff;font-size:13px;font-weight:700;vertical-align:middle}
+.tag.b2{background:#d9822b}
+.ok{color:#2c7a3f;font-weight:700}
+.sum{margin:0 0 6px;padding:0;list-style:none}
+.sum li{padding:2px 0}
