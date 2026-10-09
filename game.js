@@ -138,6 +138,8 @@ const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch
 
 // ====== TIỆN ÍCH ======
 const $ = s => document.querySelector('#farm-app ' + s);
+const SPR = (window.ASSETS && window.ASSETS.spr) || {};   // sprite pixel-art từ assets.js
+const spImg = (k, px = 22) => SPR[k] ? `<img class="ico" src="${SPR[k]}" width="${px}" height="${px}" alt="">` : '';
 const crop = id => CROPS.find(c => c.id === id);
 const shuffle = a => a.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(x => x[1]);
 let open = false, clk = 360; // clk = phút trong ngày (360 = 06:00)
@@ -167,7 +169,7 @@ const TOD_NAME = { morning:'🌅 Buổi sáng', noon:'☀️ Buổi trưa', even
 if (!S.inv.goods) S.inv.goods = {};
 if (!S.bin) S.bin = {}; ['crops', 'fish', 'goods'].forEach(k => { if (!S.bin[k]) S.bin[k] = {}; });
 if (!S.petDone) S.petDone = {};
-S.petDay = S.petDay || 0; S.daisyDay = S.daisyDay || 0; S.peteDay = S.peteDay || 0; S.scopeDay = S.scopeDay || 0; S.rainDay = S.rainDay || 0;
+S.petDay = S.petDay || 0; S.mailDay = S.mailDay || 0; S.daisyDay = S.daisyDay || 0; S.peteDay = S.peteDay || 0; S.scopeDay = S.scopeDay || 0; S.rainDay = S.rainDay || 0;
 
 // sản phẩm từ vật nuôi (bỏ vào thùng để bán)
 const GOODS = {
@@ -238,7 +240,14 @@ const iconURL = (k, bare) => skyIcon(k, bare).toDataURL();
 let _sk = '';
 function skyIcons() {
   const w = wxNow(), t = todKey(), k = w + t; if (k === _sk) return; _sk = k;
-  const put = (id, kind, tip) => { const b = $(id); if (!b) return; const g = b.querySelector('canvas').getContext('2d'); g.clearRect(0, 0, 16, 16); g.drawImage(skyIcon(kind), 0, 0); b.title = tip; };
+  const put = (id, kind, tip) => { const b = $(id); if (!b) return; const cv = b.querySelector('canvas'), SP = { sun:'sun', rain:'rain', cloud:'wind', morning:'sunrise', noon:'noon', evening:'sunset', night:'moon', moon:'moon' }[kind], im = SP && IMG['s_ui_' + SP];
+    if (im) { // sprite pixel-art trên nền theo buổi
+      const BG = { sun:['#4fb3f0','#6cc4f7'], cloud:['#8fb4d8','#a9c6e2'], rain:['#5d6f86','#74879e'], morning:['#ffd9a0','#ffc08a'], noon:['#3fa9f5','#7cc9fa'], evening:['#5a4a9a','#c8648a','#f2a05a'], night:['#0b1445','#14205f'], moon:['#0b1445','#14205f'] }[kind] || ['#4fb3f0'];
+      cv.width = cv.height = 32; const g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
+      BG.forEach((c, n) => { g.fillStyle = c; g.fillRect(0, Math.round(n * 32 / BG.length), 32, 32); });
+      const px = kind === 'evening' ? 32 : 28, o = (32 - px) / 2; g.drawImage(im, o, o, px, px);
+    } else { const g = cv.getContext('2d'); g.clearRect(0, 0, 16, 16); g.drawImage(skyIcon(kind), 0, 0); }
+    b.title = tip; };
   put('#wxBox', w, 'Thời tiết: ' + WX_NAME[w]); put('#todBox', t, TOD_NAME[t]);
 }
 
@@ -585,7 +594,7 @@ const curCh = () => STORY[S.story.ch];
 function storyCheck() {
   const ch = curCh();
   if (ch && ch.need() && S.story.nt !== S.story.ch) { S.story.nt = S.story.ch; save(); toast('📜 Xong nhiệm vụ! Hãy gặp: ' + ch.who); snd('levelup'); }
-  const b = $('#questBtn'); if (b) b.textContent = ch ? '📜 Nhiệm vụ' + (ch.need() ? ' ❗' : '') : '📜 ✔';
+  const b = $('#questBtn'); if (b) b.innerHTML = (SPR.ui_scroll ? spImg('ui_scroll', 20) : '📜') + ' Nhiệm vụ' + (ch ? (ch.need() ? ' ❗' : '') : ' ✔');
 }
 // bấm vào NPC / nơi nhận nhiệm vụ: nếu đủ điều kiện thì trả nhiệm vụ và trả về true
 function turnIn(key) {
@@ -615,7 +624,7 @@ function worldMap() {
 }
 
 // ====== CÂU CÁ ======
-const FISH = [
+const FISH = [  // e = emoji dự phòng; sau khi nạp sprite, e thành thẻ <img>
   { id:'sardine',   en:'Sardine',      vi:'Cá mòi',        price:8,   diff:0, w:30, e:'🐟' },
   { id:'tilapia',   en:'Tilapia',      vi:'Cá rô phi',     price:12,  diff:0, w:24, e:'🐟' },
   { id:'carp',      en:'Carp',         vi:'Cá chép',       price:14,  diff:1, w:26, e:'🐟' },
@@ -627,6 +636,8 @@ const FISH = [
   { id:'koi',       en:'Golden Koi',   vi:'Cá chép vàng',  price:120, diff:4, w:2,  e:'🐠' },
   { id:'boot',      en:'Old Boot',     vi:'Chiếc ủng cũ',  price:1,   diff:0, w:3,  e:'👢' }
 ];
+FISH.forEach(f => { f.em = f.e; if (SPR['it_' + f.id]) f.e = spImg('it_' + f.id); });
+['egg', 'milk'].forEach(k => { if (SPR['it_' + k]) GOODS[k].e = spImg('it_' + k); });
 const fishOf = id => FISH.find(f => f.id === id);
 function fishList() {
   const got = FISH.filter(f => (S.inv.fish[f.id] || 0) > 0);
@@ -679,7 +690,7 @@ function caught(f) {
   if (f.id !== 'boot') S.story.cnt.fish++;
   const first = !S.fishDex[f.id]; S.fishDex[f.id] = (S.fishDex[f.id] || 0) + 1;
   save(); snd('harvest');
-  modal(`${f.e} You caught a ${f.en}!`, `<div class="big">${f.e}</div><b>${f.en}</b> = ${f.vi}<br>💰 ${f.price} 🪙 ${first ? '<br>📖 Loài mới! +8 EXP' : '<br>🎓 +2 EXP'}`,
+  modal(`${f.em} You caught a ${f.en}!`, `<div class="big">${f.e}</div><b>${f.en}</b> = ${f.vi}<br>💰 ${f.price} 🪙 ${first ? '<br>📖 Loài mới! +8 EXP' : '<br>🎓 +2 EXP'}`,
     [{ label:'Câu tiếp 🎣', fn: () => { closeModal(); fishing(); } }, { label:'Đóng', fn:closeModal }]);
   gainExp(first ? 8 : 2);
 }
@@ -1085,9 +1096,10 @@ class Base extends Phaser.Scene {
 
   // nhân vật đứng yên có va chạm + bóng + nhãn tên
   npc(key, x, y, name) {
-    const s = this.physics.add.sprite(x, y, key).setImmovable(true).setDepth(y);
-    this.add.image(x, y + 16, 'shadow').setDepth(.5);
-    if (name) this.add.text(x, y - 32, name, { fontSize:'14px', color:'#fff', backgroundColor:'#00000088', padding:{ x:4, y:1 } }).setOrigin(.5).setDepth(1500);
+    const s = this.physics.add.sprite(x, y, key).setImmovable(true).setDepth(y), hh = s.height;
+    if (hh > 40) s.body.setSize(22, 16).setOffset((s.width - 22) / 2, hh - 18); // chỉ va chạm ở chân
+    this.add.image(x, y + hh / 2 - (hh > 40 ? 5 : 0), 'shadow').setDepth(.5);
+    if (name) this.add.text(x, y - hh / 2 - 14, name, { fontSize:'14px', color:'#fff', backgroundColor:'#00000088', padding:{ x:4, y:1 } }).setOrigin(.5).setDepth(1500);
     this.physics.add.collider(this.player, s);
     this.mm.n.push(s);
     return s;
@@ -1228,7 +1240,9 @@ class Base extends Phaser.Scene {
       if (!ok(x, y)) continue;
       // không đặt bụi đè lên cây / nhà (hết lỗi bụi hoa chồng lên tán cây)
       if (this.solids.getChildren().some(o => Math.abs(o.x - x) < o.width / 2 + 24 && y > o.y - o.height / 2 - 4 && y - 40 < o.y + o.height / 2)) continue;
-      this.add.image(x, y, k % 3 === 2 ? 'bushF' : 'bushG').setOrigin(.5, 1).setDepth(y); k++;
+      const PR = { Farm:['n_sun', 'n_hay', 'n_pumpkin', 'n_flowers', 'n_rock'], Town:['n_flowers', 'n_sun', 'n_rocks', 'n_rbush'], Forest:['n_mush', 'n_fern', 'n_log', 'n_stump', 'n_rocks', 'n_bamboo'], Lake:['n_cattail', 'n_reed', 'n_rocks', 'n_rock'] }[this.scene.key];
+      const pk = PR && rnd() < .45 ? PR[Math.floor(rnd() * PR.length)] : null; // ~45% là đồ trang trí pixel-art, còn lại là bụi cũ
+      this.add.image(x, y, pk && this.textures.exists(pk) ? pk : (k % 3 === 2 ? 'bushF' : 'bushG')).setOrigin(.5, 1).setDepth(y); k++;
     }
   }
 
@@ -1257,7 +1271,7 @@ class Base extends Phaser.Scene {
     g.fillStyle = '#5c8f3e'; g.fillRect(X(0), Y(0), this.W * sc, this.H * sc);
     if (this.roadCells) { g.fillStyle = '#d8b87a'; this.roadCells.forEach(k => { const p = k.split(','); g.fillRect(X(p[0] * 64), Y(p[1] * 64), 64 * sc + .6, 64 * sc + .6); }); }
     this.mm.r.forEach(r => { g.fillStyle = r[4] || '#b5651d'; g.fillRect(X(r[0]), Y(r[1]), Math.max(2, r[2] * sc), Math.max(2, r[3] * sc)); });
-    if (!this._trees) this._trees = this.solids.getChildren().filter(o => o.texture && o.texture.key === 'tree');
+    if (!this._trees) this._trees = this.solids.getChildren().filter(o => o.texture && /^(tree|pine|blossom)$/.test(o.texture.key));
     g.fillStyle = '#2e6b32'; this._trees.forEach(t => g.fillRect(X(t.x) - 1, Y(t.y) - 2, 3, 3));
     if (this.mm.spots) { g.fillStyle = '#ffd54a'; this.mm.spots.forEach((p, i) => { if (!S.foraged.includes(i)) g.fillRect(X(p.x) - 1.5, Y(p.y) - 1.5, 3, 3); }); }
     g.fillStyle = '#7fe3ff'; this.mm.exits.forEach(e => g.fillRect(X(e[0]), Y(e[1]), Math.max(3, e[2] * sc), Math.max(3, e[3] * sc)));
@@ -1291,6 +1305,8 @@ class Boot extends Phaser.Scene {
       for (let i = 0; i < 6; i++) cx.drawImage(IMG.tiles, i * 64, 0, 64, 64, i * 32, 0, 32, 32);
       const ct = T.addCanvas('grassS', cv); for (let i = 0; i < 6; i++) ct.add('g' + i, 0, i * 32, 0, 32, 32); }
     Object.keys(window.ASSETS.bld || {}).forEach(k => { if (IMG['b_' + k]) T.addImage('b_' + k, IMG['b_' + k]); }); // công trình pixel-art
+    // sprite trùng tên texture vẽ-bằng-code → thay thế luôn (makeTextures bỏ qua key đã có)
+    Object.keys(SPR).forEach(k => { if (IMG['s_' + k] && !/^(ui|it)_/.test(k) && !T.exists(k)) T.addImage(k, IMG['s_' + k]); });
     T.addImage('shopimg', IMG.shop); T.addImage('bushG', IMG.bushG); T.addImage('bushF', IMG.bushF);
     [['down', 0], ['up', 4], ['side', 8]].forEach(([k, st]) => this.anims.create({
       key:'walk-' + k, frames:this.anims.generateFrameNumbers('hero', { start:st, end:st + 3 }), frameRate:10, repeat:-1 }));
@@ -1314,9 +1330,10 @@ class Farm extends Base {
       if ((x > 80 && x < 900 && y > 60 && y < 520) || (x > 880 && x < 1140 && y > 680 && y < 840)) continue; // chừa khu nông trại
       if (x > 150 && y > 530 && y < 690) continue; // chừa con đường nhà → thị trấn
       if (x > 500 && x < 780 && (y < 150 || y > H - 150)) continue; // chừa lối lên Rừng / xuống Hồ
-      this.solids.create(x, y, 'tree');
+      this.solids.create(x, y, Math.random() < .18 ? 'blossom' : 'tree');
     }
     this.binObj = this.solids.create(430, 440, 'bin'); // thùng bán hàng
+    this.mailObj = this.solids.create(120, 300, 'mailbox'); // hộp thư (thư tiếng Anh mỗi ngày)
     this.solids.refresh();
     this.solids.children.each(t => t.setDepth(t.y + t.height / 2 - 4)); // sắp lớp theo chân cây / nhà
     // đường đất (ô 64px): nhà → xuống dưới → sang thị trấn (phải) + nhánh rẽ ra ruộng
@@ -1405,6 +1422,7 @@ class Farm extends Base {
     this.pv.forEach((v, i) => { const dd = Phaser.Math.Distance.Between(px, py, v.x, v.y); if (dd < d) { d = dd; best = { t:'plot', i }; } });
     if (best) return best;
     if (Phaser.Math.Distance.Between(px, py, this.binObj.x, this.binObj.y) < 70) return { t:'bin' };
+    if (Phaser.Math.Distance.Between(px, py, this.mailObj.x, this.mailObj.y) < 64) return { t:'mail' };
     if (Phaser.Math.Distance.Between(px, py, this.emma.x, this.emma.y) < 85) return { t:'emma' };
     if (Phaser.Math.Distance.Between(px, py, this.house.x, this.house.y) < 120) return { t:'house' };
     return null;
@@ -1414,6 +1432,7 @@ class Farm extends Base {
     if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: hành động · 1-9 hoặc [ ]: chọn hạt · B: túi đồ · đi sang phải: thị trấn';
     if (c.t === 'emma') return 'E: học tiếng Anh với cô Emma 🎓 (B1/B2)';
     if (c.t === 'bin') return 'E: bỏ nông sản vào thùng 📦 (qua đêm tiền sẽ vào ví)';
+    if (c.t === 'mail') return 'E: mở hộp thư ✉️ (mỗi ngày 1 lá thư tiếng Anh, +EXP)';
     if (c.t === 'house') return 'E: vào nhà 🏠 (ngủ, trang trí)';
     const p = S.plots[c.i];
     if (p.s === 0) return `E: xới đất (⚡${COST.till})`;
@@ -1423,8 +1442,16 @@ class Farm extends Base {
     return p.w ? `${nm} — đã tưới, hãy đi ngủ để cây lớn (${p.g}/${cc.days} ngày)` : `E: tưới nước 💧 cho ${nm} (⚡${COST.water})`;
   }
 
+  mail() {
+    snd('chat');
+    if (S.mailDay === S.day) return modal('Hộp thư ✉️', '<b>“No new letters today.”</b><br>(Hôm nay chưa có thư mới.) Mai quay lại nhé!', [{ label:'Đóng', fn:closeModal }]);
+    const p = PHRASES[(S.day * 5 + 2) % PHRASES.length]; S.mailDay = S.day; save();
+    modal('Hộp thư ✉️', `<b>“Dear farmer, ${p.en}”</b><br>${p.vi}<br><small>💡 ${p.tip}</small><br>🎓 +3 EXP`, [{ label:'Thank you! 💌', fn:closeModal }]);
+    gainExp(3);
+  }
+
   doAct(c) {
-    if (c.t === 'plot') this.plot(c.i); else if (c.t === 'bin') binUI(); else if (c.t === 'emma') { if (!turnIn('Farm:emma')) emma(); } else this.go('Home');
+    if (c.t === 'plot') this.plot(c.i); else if (c.t === 'mail') this.mail(); else if (c.t === 'bin') binUI(); else if (c.t === 'emma') { if (!turnIn('Farm:emma')) emma(); } else this.go('Home');
   }
 
   plot(i) {
@@ -1588,7 +1615,7 @@ class Town extends Base {
 
     // ---- cây: hàng viền + rải ngẫu nhiên ở vùng ngoại ô ----
     for (let x = 30; x < W; x += 66) {
-      if (!(x > 80 && x < 360) && !inRiver(x)) place('tree', x, 40);
+      if (!(x > 80 && x < 360) && !inRiver(x)) place(Math.floor(x / 66) % 4 === 1 ? 'blossom' : 'tree', x, 40);
       if (x > 620 && !inRiver(x)) place('tree', x + 20, H - 36);
     }
     for (let y = 120; y < H - 40; y += 70) { if (!(y > 250 && y < 430)) place('tree', 24, y); place('tree', W - 24, y); }
@@ -1799,7 +1826,7 @@ class Forest extends Base {
     for (let i = 0, n = 0; n < 95 && i < 600; i++) {
       const x = 30 + rnd() * (W - 60), y = 50 + rnd() * (H - 80);
       if (near(x, y) || FSPOTS.some(p => Math.hypot(p[0] - x, p[1] - y) < 56)) continue;
-      const t = this.solids.create(x, y, 'tree'); t.setDepth(y + 28); n++;
+      const t = this.solids.create(x, y, Math.random() < .5 ? 'pine' : 'tree'); t.setDepth(y + 28); n++;
     }
     this.solids.refresh();
     this.physics.add.collider(this.player, this.solids);
@@ -2012,8 +2039,17 @@ const startGame = () => { game = new Phaser.Game({
 }); };
 const loadImg = (key, src) => new Promise(r => { const i = new Image(); i.onload = () => { IMG[key] = i; r(); }; i.onerror = r; i.src = src; });
 Promise.all(['tiles', 'crops', 'hero', 'shop', 'bushG', 'bushF'].map(k => loadImg(k, window.ASSETS[k]))
-  .concat(Object.keys(window.ASSETS.bld || {}).map(k => loadImg('b_' + k, window.ASSETS.bld[k])))).then(startGame);
+  .concat(Object.keys(window.ASSETS.bld || {}).map(k => loadImg('b_' + k, window.ASSETS.bld[k])))
+  .concat(Object.keys(SPR).map(k => loadImg('s_' + k, SPR[k])))).then(() => { startGame(); uiSkin(); });
 
+// icon pixel-art cho thanh HUD (stamina, EXP, túi, bản đồ)
+function uiSkin() {
+  const ms = document.querySelectorAll('#farm-app .meter > span'), put = (el, k) => { if (el && SPR[k]) el.innerHTML = spImg(k, 20); };
+  put(ms[0], 'ui_bolt'); put(ms[1], 'ui_exp');
+  if (SPR.ui_bag) $('#bagBtn').innerHTML = spImg('ui_bag', 20) + ' Túi';
+  if (SPR.ui_map) $('#mapBtn').innerHTML = spImg('ui_map', 20) + ' Bản đồ';
+  storyCheck();
+}
 $('#bookBtn').onclick = () => { if (!open) { snd('click'); wordBook(); } };
 $('#bagBtn').onclick = () => { if (!open) bag(); };
 $('#questBtn').onclick = () => { if (!open) questLog(); };
