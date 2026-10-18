@@ -109,6 +109,7 @@ const SLOTS = [ // vị trí đặt đồ trong nhà (px của phòng đã phón
   { x:600, y:456, kind:'floor' }, { x:696, y:456, kind:'floor' }, { x:264, y:504, kind:'floor' }
 ];
 // Lưới đi được của room.png (17x13 ô, mỗi ô 16px x3 = 48px). '.' = sàn trống, '#' = tường/đồ. Hàng 12 là cửa ra.
+const HOME_HERO = 1.5; // hệ số phóng nhân vật khi ở trong nhà
 const HOME_T = 48, HOME_GRID = [
   '#################', '#################', '#################', '#################',
   '#######..########', '####......#######', '..........#######', '####...#...######',
@@ -957,7 +958,7 @@ function makeTextures(sc) {
     win(ox + 12); win(ox + w - 32);
   };
 
-  tex('grass', 32, 32, g => { g.fillStyle(0x7cc062); g.fillRect(0,0,32,32); g.fillStyle(0x72b858); [[4,6],[20,3],[12,18],[26,24],[6,27]].forEach(p => g.fillRect(p[0],p[1],3,3)); g.fillStyle(0x92d374); [[14,8],[28,12],[2,20],[18,28]].forEach(p => g.fillRect(p[0],p[1],2,2)); });
+  tex('grass', 32, 32, g => { g.fillStyle(0x7aad55); g.fillRect(0,0,32,32); g.fillStyle(0x6fa04c); [[4,6],[20,3],[12,18],[26,24],[6,27]].forEach(p => g.fillRect(p[0],p[1],3,3)); g.fillStyle(0x8fc169); [[14,8],[28,12],[2,20],[18,28]].forEach(p => g.fillRect(p[0],p[1],2,2)); });
   tex('momo', 32, 32, g => { g.fillStyle(0x7a3d0a); g.fillRect(3,7,26,24); g.fillTriangle(3,8,3,-1,13,8); g.fillTriangle(29,8,29,-1,19,8);
     g.fillStyle(0xff9a1f); g.fillRect(4,8,24,22); g.fillTriangle(4,8,4,1,12,8); g.fillTriangle(28,8,28,1,20,8);
     g.fillStyle(0xffb3a7); g.fillTriangle(6,8,6,4,10,8); g.fillTriangle(26,8,26,4,22,8);
@@ -1071,7 +1072,7 @@ class Base extends Phaser.Scene {
 
   boot(W, H, px, py) {
     makeTextures(this);
-    this.W = W; this.H = H;
+    this.W = W; this.H = H; this._swayed = false; // (cảnh được dùng lại khi đổi map → cho cây đung đưa lại)
     this.physics.world.setBounds(0, 0, W, H);
     this.add.tileSprite(0, 0, W, H, 'grass').setOrigin(0).setDepth(-1);
     this.solids = this.physics.add.staticGroup();
@@ -1205,7 +1206,7 @@ class Base extends Phaser.Scene {
     if (this.stepT > 300) { this.stepT = 0; snd(this.scene.key === 'Home' ? 'wood' : 'step'); }
     this.player.setDepth(this.player.y);
     this.animate(vx, vy, moving);
-    this.shadow.setPosition(this.player.x, this.player.y + 10);
+    this.shadow.setPosition(this.player.x, this.player.y + 10 * this.player.scaleY);
     return true;
   }
 
@@ -1225,18 +1226,22 @@ class Base extends Phaser.Scene {
   rng(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
   paintGround(cells, solid) {
     // Nền được "nướng" thành 1 ảnh duy nhất (hết vạch kẻ ô khi zoom). Cỏ vẽ ô 32px (nhỏ bằng nửa trước), đường đất giữ ô 64px.
-    const T = 64, S2 = 32, rnd = this.rng(5), has = (x, y) => cells.has(x + ',' + y);
+    const T = 64, rnd = this.rng(5), has = (x, y) => cells.has(x + ',' + y);
     const cw = Math.ceil(this.W / T), ch = Math.ceil(this.H / T);
     this.roadCells = cells;
     const rt = this.add.renderTexture(0, 0, cw * T, ch * T).setOrigin(0).setDepth(-.5);
-    rt.fill(0x6a9f46);
+    const GB = GROUND_BASE; rt.fill(Phaser.Display.Color.GetColor(GB[0], GB[1], GB[2])); // nền cỏ phẳng (màu lấy từ bộ tileset nhà)
     for (let cy = 0; cy < ch; cy++) for (let cx = 0; cx < cw; cx++) {
       if (has(cx, cy)) {
         const n = has(cx, cy - 1), e = has(cx + 1, cy), so = has(cx, cy + 1), w = has(cx - 1, cy);
-        const full = n && e && so && w && has(cx - 1, cy - 1) && has(cx + 1, cy - 1) && has(cx - 1, cy + 1) && has(cx + 1, cy + 1);
-        const f = full || (solid && solid.has(cx + ',' + cy)) ? 22 : 6 + ((n ? 1 : 0) | (e ? 2 : 0) | (so ? 4 : 0) | (w ? 8 : 0)); // 6..21: 16 kiểu đường, 22: đất đặc
-        rt.drawFrame('tiles', f, cx * T, cy * T);
-      } else for (let sy = 0; sy < 2; sy++) for (let sx = 0; sx < 2; sx++) rt.drawFrame('grassS', 'g' + Math.floor(rnd() * 6), cx * T + sx * S2, cy * T + sy * S2);
+        const sd = solid && solid.has(cx + ',' + cy); // sân lát: coi như mọi góc chéo đều có đường
+        const m = (n ? 1 : 0) | (e ? 2 : 0) | (so ? 4 : 0) | (w ? 8 : 0);
+        const c = (n && e && (sd || has(cx + 1, cy - 1)) ? 1 : 0) | (e && so && (sd || has(cx + 1, cy + 1)) ? 2 : 0) | (so && w && (sd || has(cx - 1, cy + 1)) ? 4 : 0) | (w && n && (sd || has(cx - 1, cy - 1)) ? 8 : 0);
+        rt.drawFrame('road', GR.rf[m * 16 + c], cx * T, cy * T); // ground_assets.js: 47 ô đường (đất + đá cuội) theo hướng nối + góc chéo
+      } else if (GROUND_TUFTS.length) { // rải 0-2 cụm cỏ 16px (phóng GROUND_SCALE lần), nằm gọn trong ô để không đè lên đường
+        const n = (rnd() < .55 ? 1 : 0) + (rnd() < .2 ? 1 : 0);
+        for (let k = 0; k < n; k++) rt.drawFrame('gdet', 'd' + GROUND_TUFTS[Math.floor(rnd() * GROUND_TUFTS.length)], cx * T + GROUND_SCALE * Math.floor(rnd() * ((T - GS) / GROUND_SCALE + 1)), cy * T + GROUND_SCALE * Math.floor(rnd() * ((T - GS) / GROUND_SCALE + 1)));
+      }
     }
   }
   // rải bụi cỏ / bụi hoa trang trí (ok(x,y) = chỗ được phép đặt)
@@ -1276,7 +1281,7 @@ class Base extends Phaser.Scene {
     const g = cv.getContext('2d'), sc = Math.min((w - 8) / this.W, (h - 26) / this.H), ox = (w - this.W * sc) / 2, oy = 4, X = v => ox + v * sc, Y = v => oy + v * sc;
     g.clearRect(0, 0, w, h);
     g.fillStyle = '#5c8f3e'; g.fillRect(X(0), Y(0), this.W * sc, this.H * sc);
-    if (this.roadCells) { g.fillStyle = '#d8b87a'; this.roadCells.forEach(k => { const p = k.split(','); g.fillRect(X(p[0] * 64), Y(p[1] * 64), 64 * sc + .6, 64 * sc + .6); }); }
+    if (this.roadCells) { g.fillStyle = '#967e5d'; this.roadCells.forEach(k => { const p = k.split(','); g.fillRect(X(p[0] * 64), Y(p[1] * 64), 64 * sc + .6, 64 * sc + .6); }); }
     this.mm.r.forEach(r => { g.fillStyle = r[4] || '#b5651d'; g.fillRect(X(r[0]), Y(r[1]), Math.max(2, r[2] * sc), Math.max(2, r[3] * sc)); });
     if (!this._trees) this._trees = this.solids.getChildren().filter(o => o.texture && /^(tree|pine|blossom)$/.test(o.texture.key));
     g.fillStyle = '#2e6b32'; this._trees.forEach(t => g.fillRect(X(t.x) - 1, Y(t.y) - 2, 3, 3));
@@ -1288,7 +1293,13 @@ class Base extends Phaser.Scene {
     g.fillStyle = '#f3e7c9'; g.font = '11px sans-serif'; g.fillText(SCENE_NAME[this.scene.key] + '  (M)', 6, h - 5);
   }
 
+  swayTrees() {
+    this.solids.getChildren().forEach(t => { const k = t.texture && t.texture.key;
+      if (t.anims && NAT.trees[k]) { t.anims.timeScale = .8 + Math.random() * .4; t.anims.play({ key:'sway-' + k, startFrame:Math.floor(Math.random() * NAT.trees[k].n) }); } });
+  }
+
   update(time, delta) {
+    if (!this._swayed) { this._swayed = true; this.swayTrees(); }
     if (!this.move(time, delta)) return;
     this.edge();
     this.interact();
@@ -1299,18 +1310,28 @@ class Base extends Phaser.Scene {
 
 // ====== CẢNH 0: NẠP SPRITE (từ assets.js) ======
 const IMG = {};
+const GR = window.GROUND || { cols:21, tufts:[], base:[106, 159, 70] }; // ground_assets.js (tools/pack_ground.py)
+const GROUND_BASE = GR.base, GROUND_TUFTS = GR.tufts;
+const GROUND_SCALE = 2;                         // phóng cụm cỏ 16px lên 2x (=32px). Tăng lên 3 nếu muốn cụm cỏ to hơn
+const GS = 16 * GROUND_SCALE;                   // kích thước 1 cụm cỏ sau khi phóng
+const NAT = window.NATURE || { trees:{}, decor:{} }; // nature_assets.js (tools/pack_nature.py): cây có hoạt ảnh + bụi/đá/nấm...
 class Boot extends Phaser.Scene {
   constructor() { super('Boot'); }
   create() {
     const T = this.textures, M = window.ASSET_META;
-    T.addSpriteSheet('tiles', IMG.tiles, { frameWidth:M.tile, frameHeight:M.tile });          // 0-5 cỏ · 6-21 đường (theo bitmask N=1 E=2 S=4 W=8) · 22 đất đặc
+    T.addSpriteSheet('road', IMG.road, { frameWidth:64, frameHeight:64 });                    // đường: xem tools/pack_ground.py
     T.addSpriteSheet('crops', IMG.crops, { frameWidth:M.cropCell, frameHeight:M.cropCell });   // mỗi cây 3 khung: cây con / đang lớn / chín
     T.addSpriteSheet('hero',  IMG.hero,  { frameWidth:M.hero[0], frameHeight:M.hero[1] });     // hàng 1 đi xuống · hàng 2 đi lên · hàng 3 đi ngang
-    // cỏ thu nhỏ còn 32px (6 kiểu) để cỏ không còn "quá bự"
-    { const cv = document.createElement('canvas'); cv.width = 32 * 6; cv.height = 32;
-      const cx = cv.getContext('2d'); cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
-      for (let i = 0; i < 6; i++) cx.drawImage(IMG.tiles, i * 64, 0, 64, 64, i * 32, 0, 32, 32);
-      const ct = T.addCanvas('grassS', cv); for (let i = 0; i < 6; i++) ct.add('g' + i, 0, i * 32, 0, 32, 32); }
+    // cụm cỏ 16px từ ground_grass_details.png, phóng 3x không làm mờ (giống tỉ lệ room.png)
+    if (IMG.gdet && GROUND_TUFTS.length) { const w = IMG.gdet.width * GROUND_SCALE, h = IMG.gdet.height * GROUND_SCALE, cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const cx = cv.getContext('2d'); cx.imageSmoothingEnabled = false; cx.drawImage(IMG.gdet, 0, 0, w, h);
+      const ct = T.addCanvas('gdet', cv); GROUND_TUFTS.forEach(i => ct.add('d' + i, 0, (i % GR.cols) * GS, Math.floor(i / GR.cols) * GS, GS, GS)); }
+    // cây từ Trees_animation.png: mỗi loại 13 khung gió thổi (tree / blossom / pine giữ nguyên tên nên mọi cảnh tự dùng cây mới)
+    Object.keys(NAT.trees).forEach(k => { const t = NAT.trees[k]; if (!IMG['tr_' + k]) return;
+      T.addSpriteSheet(k, IMG['tr_' + k], { frameWidth:t.w, frameHeight:t.h });
+      this.anims.create({ key:'sway-' + k, frames:this.anims.generateFrameNumbers(k, { start:0, end:t.n - 1 }), frameRate:7, repeat:-1 }); });
+    // bụi / đá / gốc cây / nấm... từ exterior.png (bushG, bushF là ảnh dùng chung nên đổi ngay trong IMG)
+    Object.keys(NAT.decor).forEach(k => { const im = IMG['nd_' + k]; if (!im) return; if (k === 'bushG' || k === 'bushF') IMG[k] = im; else if (!T.exists(k)) T.addImage(k, im); });
     Object.keys(window.ASSETS.bld || {}).forEach(k => { if (IMG['b_' + k]) T.addImage('b_' + k, IMG['b_' + k]); }); // công trình pixel-art
     // sprite trùng tên texture vẽ-bằng-code → thay thế luôn (makeTextures bỏ qua key đã có)
     Object.keys(SPR).forEach(k => { if (IMG['s_' + k] && !/^(ui|it)_/.test(k) && !T.exists(k)) T.addImage(k, IMG['s_' + k]); });
@@ -1334,11 +1355,15 @@ class Farm extends Base {
     this.house = this.add.image(200, 236, 'b_home').setOrigin(.5, 1).setDepth(236).setScale(1.5); // nhà người chơi (ảnh 131x144, phóng 1.5)
     this.add.sprite(this.house.x - 98 + 3, this.house.y - 216, 'smoke').setOrigin(0).setScale(1.5).setDepth(237).play('smoke'); // khói trên ống khói
     { const z = this.add.zone(200, 211, 150, 50); this.physics.add.existing(z, true); this.house.zone = z; }
+    // đường đất (ô 64px): nhà → xuống dưới → sang thị trấn (phải) + nhánh rẽ ra ruộng
+    const cells = new Set(), road = (x0, y0, x1, y1) => { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) cells.add(x + ',' + y); };
+    road(3, 3, 3, 9); road(3, 9, 19, 9); road(4, 5, 6, 5); road(9, 0, 9, 2); road(9, 12, 9, 14);
+    const near = (x, y) => cells.has(Math.floor(x / 64) + ',' + Math.floor(y / 64));
     let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     for (let i = 0; i < 45; i++) {
       const x = 40 + rnd() * (W - 80), y = 40 + rnd() * (H - 80);
       if ((x > 80 && x < 900 && y > 60 && y < 520) || (x > 880 && x < 1140 && y > 680 && y < 840)) continue; // chừa khu nông trại
-      if (x > 150 && y > 530 && y < 690) continue; // chừa con đường nhà → thị trấn
+      if (near(x, y) || near(x - 40, y) || near(x + 40, y) || near(x, y + 30)) continue; // chừa mọi đoạn đường (tán cây rộng ~80px)
       if (x > 500 && x < 780 && (y < 150 || y > H - 150)) continue; // chừa lối lên Rừng / xuống Hồ
       this.solids.create(x, y, Math.random() < .18 ? 'blossom' : 'tree');
     }
@@ -1346,11 +1371,7 @@ class Farm extends Base {
     this.mailObj = this.solids.create(120, 300, 'mailbox'); // hộp thư (thư tiếng Anh mỗi ngày)
     this.solids.refresh();
     this.solids.children.each(t => t.setDepth(t.y + t.height / 2 - 4)); // sắp lớp theo chân cây / nhà
-    // đường đất (ô 64px): nhà → xuống dưới → sang thị trấn (phải) + nhánh rẽ ra ruộng
-    const cells = new Set(), road = (x0, y0, x1, y1) => { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) cells.add(x + ',' + y); };
-    road(3, 3, 3, 9); road(3, 9, 19, 9); road(4, 5, 6, 5); road(9, 0, 9, 2); road(9, 12, 9, 14);
     this.paintGround(cells);
-    const near = (x, y) => cells.has(Math.floor(x / 64) + ',' + Math.floor(y / 64));
     this.scatter(34, 21, (x, y) => !near(x, y) && !near(x + 24, y) && !near(x - 24, y) && !near(x, y - 20)
       && !(x > 440 && x < 880 && y > 250 && y < 520) && !(x < 320 && y < 270) && !(x > 900 && y > 690 && y < 830));
     const pond = this.add.image(1010, 760, 'pond').setDepth(.3);
@@ -1955,6 +1976,7 @@ class Home extends Base {
   create() {
     const T = HOME_T, W = 17 * T, H = 13 * T;
     this.boot(W, H, 13.5 * T, 11.2 * T);
+    this.player.setScale(HOME_HERO); this.shadow.setScale(HOME_HERO); // phòng vẽ ở tỉ lệ 3x → nhân vật cũng phóng to cho cân với đồ đạc
     this.add.rectangle(0, 0, W, H, 0x2f2929).setOrigin(0).setDepth(0);
     this.add.image(0, 0, 'room').setOrigin(0).setScale(3).setDepth(.05);
     this.add.text(14 * T, 10.9 * T, '⬇ Ra ngoài', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
@@ -2043,10 +2065,13 @@ const startGame = () => { game = new Phaser.Game({
   scene: [Boot, Farm, Town, Forest, Lake, Home]
 }); };
 const loadImg = (key, src) => new Promise(r => { const i = new Image(); i.onload = () => { IMG[key] = i; r(); }; i.onerror = r; i.src = src; });
-Promise.all(['tiles', 'crops', 'hero', 'shop', 'bushG', 'bushF'].map(k => loadImg(k, window.ASSETS[k]))
+Promise.all(['crops', 'hero', 'shop', 'bushG', 'bushF'].map(k => loadImg(k, window.ASSETS[k]))
   .concat(Object.keys(window.ASSETS.bld || {}).map(k => loadImg('b_' + k, k === 'home' ? HOUSE.house : window.ASSETS.bld[k]))) // nhà chính: ảnh mới
   .concat(['room', 'smoke'].map(k => loadImg(k, HOUSE[k])))
-  .concat(Object.keys(SPR).map(k => loadImg('s_' + k, SPR[k])))).then(() => { startGame(); uiSkin(); });
+  .concat(Object.keys(SPR).map(k => loadImg('s_' + k, SPR[k])))
+  .concat([loadImg('road', GR.road)]).concat(GR.det ? [loadImg('gdet', GR.det)] : [])
+  .concat(Object.keys(NAT.trees).map(k => loadImg('tr_' + k, NAT.trees[k].src)))
+  .concat(Object.keys(NAT.decor).map(k => loadImg('nd_' + k, NAT.decor[k])))).then(() => { startGame(); uiSkin(); });
 
 // icon pixel-art cho thanh HUD (stamina, EXP, túi, bản đồ)
 function uiSkin() {
