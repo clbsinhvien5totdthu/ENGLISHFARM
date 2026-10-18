@@ -103,10 +103,17 @@ const DECOR = [
   { id:'sofa',     e:'🛋️', en:'Sofa',     vi:'ghế sô-pha',   cost:120, kind:'floor' },
   { id:'piano',    e:'🎹', en:'Piano',    vi:'đàn piano',    cost:150, kind:'floor' }
 ];
-const SLOTS = [ // vị trí đặt đồ trong nhà
-  { x:250, y:75, kind:'wall' }, { x:400, y:75, kind:'wall' }, { x:550, y:75, kind:'wall' }, { x:700, y:75, kind:'wall' },
-  { x:300, y:200, kind:'floor' }, { x:480, y:200, kind:'floor' }, { x:660, y:200, kind:'floor' },
-  { x:270, y:390, kind:'floor' }, { x:530, y:390, kind:'floor' }, { x:690, y:380, kind:'floor' }
+const SLOTS = [ // vị trí đặt đồ trong nhà (px của phòng đã phóng x3, xem HOME_GRID)
+  { x:336, y:120, kind:'wall' }, { x:424, y:120, kind:'wall' }, { x:165, y:215, kind:'wall' }, { x:738, y:360, kind:'wall' },
+  { x:312, y:264, kind:'floor' }, { x:408, y:264, kind:'floor' }, { x:120, y:312, kind:'floor' },
+  { x:600, y:456, kind:'floor' }, { x:696, y:456, kind:'floor' }, { x:264, y:504, kind:'floor' }
+];
+// Lưới đi được của room.png (17x13 ô, mỗi ô 16px x3 = 48px). '.' = sàn trống, '#' = tường/đồ. Hàng 12 là cửa ra.
+const HOME_T = 48, HOME_GRID = [
+  '#################', '#################', '#################', '#################',
+  '#######..########', '####......#######', '..........#######', '####...#...######',
+  '####.#####.######', '####.#####......#', '####...#........#', '####............#',
+  '#############..##'
 ];
 const placedCount = id => Object.values(S.placed).filter(x => x === id).length;
 
@@ -1307,6 +1314,8 @@ class Boot extends Phaser.Scene {
     Object.keys(window.ASSETS.bld || {}).forEach(k => { if (IMG['b_' + k]) T.addImage('b_' + k, IMG['b_' + k]); }); // công trình pixel-art
     // sprite trùng tên texture vẽ-bằng-code → thay thế luôn (makeTextures bỏ qua key đã có)
     Object.keys(SPR).forEach(k => { if (IMG['s_' + k] && !/^(ui|it)_/.test(k) && !T.exists(k)) T.addImage(k, IMG['s_' + k]); });
+    T.addImage('room', IMG.room); T.addSpriteSheet('smoke', IMG.smoke, { frameWidth:48, frameHeight:48 }); // trong nhà + khói ống khói (6 khung)
+    this.anims.create({ key:'smoke', frames:this.anims.generateFrameNumbers('smoke', { start:0, end:5 }), frameRate:6, repeat:-1 });
     T.addImage('shopimg', IMG.shop); T.addImage('bushG', IMG.bushG); T.addImage('bushF', IMG.bushF);
     [['down', 0], ['up', 4], ['side', 8]].forEach(([k, st]) => this.anims.create({
       key:'walk-' + k, frames:this.anims.generateFrameNumbers('hero', { start:st, end:st + 3 }), frameRate:10, repeat:-1 }));
@@ -1322,7 +1331,8 @@ class Farm extends Base {
     const W = 1280, H = 960;
     const sp = this.from === 'Town' ? [1200, 600] : this.from === 'Forest' ? [610, 70] : this.from === 'Lake' ? [610, 890] : this.from === 'Home' ? [200, 292] : [420, 340];
     this.boot(W, H, sp[0], sp[1]);
-    this.house = this.add.image(200, 236, 'b_home').setOrigin(.5, 1).setDepth(236); // nhà người chơi (sprite)
+    this.house = this.add.image(200, 236, 'b_home').setOrigin(.5, 1).setDepth(236).setScale(1.5); // nhà người chơi (ảnh 131x144, phóng 1.5)
+    this.add.sprite(this.house.x - 98 + 3, this.house.y - 216, 'smoke').setOrigin(0).setScale(1.5).setDepth(237).play('smoke'); // khói trên ống khói
     { const z = this.add.zone(200, 211, 150, 50); this.physics.add.existing(z, true); this.house.zone = z; }
     let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     for (let i = 0; i < 45; i++) {
@@ -1943,22 +1953,17 @@ class Home extends Base {
   constructor() { super('Home'); }
 
   create() {
-    const W = 800, H = 520;
-    this.boot(W, H, 400, H - 70);
-    this.physics.world.setBounds(0, 120, W, H - 120); // không đi lên tường được
-    this.add.tileSprite(0, 0, W, 130, 'wall').setOrigin(0).setDepth(.05);
-    this.add.rectangle(0, 126, W, 8, 0x6b4a2b).setOrigin(0).setDepth(.07);
-    this.add.tileSprite(0, 134, W, H - 134, 'wood').setOrigin(0).setDepth(.05);
-    // cửa sổ
-    this.add.rectangle(110, 68, 70, 56, 0x6e3b17).setDepth(.1);
-    this.add.rectangle(110, 68, 62, 48, 0x8fd3ff).setDepth(.11);
-    this.add.rectangle(110, 68, 3, 48, 0x6e3b17).setDepth(.12);
-    this.add.rectangle(110, 68, 62, 3, 0x6e3b17).setDepth(.12);
-    this.add.image(400, 330, 'rug').setDepth(.2);
-    // cửa ra ngoài
-    this.add.rectangle(W / 2, H - 6, 110, 14, 0x6b3a22).setDepth(.3);
-    this.add.text(W / 2, H - 44, '⬇ Ra ngoài', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
-    this.bed = this.solids.create(120, 196, 'bed'); this.bed.setDepth(196);
+    const T = HOME_T, W = 17 * T, H = 13 * T;
+    this.boot(W, H, 13.5 * T, 11.2 * T);
+    this.add.rectangle(0, 0, W, H, 0x2f2929).setOrigin(0).setDepth(0);
+    this.add.image(0, 0, 'room').setOrigin(0).setScale(3).setDepth(.05);
+    this.add.text(14 * T, 10.9 * T, '⬇ Ra ngoài', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
+    const free = (x, y) => (HOME_GRID[y] || '')[x] === '.';
+    HOME_GRID.forEach((row, y) => [...row].forEach((c, x) => { // ô tường/đồ nằm cạnh sàn → thành vật cản
+      if (c === '.' || ![-1, 0, 1].some(dy => [-1, 0, 1].some(dx => free(x + dx, y + dy)))) return;
+      const z = this.add.zone(x * T + T / 2, y * T + T / 2, T, T); this.physics.add.existing(z, true); this.solids.add(z);
+    }));
+    this.bed = { x:235, y:195 }; // giường (vẽ sẵn trong room.png)
     this.solids.refresh();
     this.physics.add.collider(this.player, this.solids);
     this.slotV = SLOTS.map(s => ({
@@ -1978,7 +1983,7 @@ class Home extends Base {
 
   edge() {
     this.night.setAlpha(this.night.alpha * .25); // trong nhà sáng hơn
-    if (this.player.y > this.H - 34 && this.player.x > 330 && this.player.x < 470) this.go('Farm');
+    if (this.player.y > this.H - 1.3 * HOME_T && this.player.x > 13 * HOME_T && this.player.x < 15 * HOME_T) this.go('Farm');
   }
 
   look() {
@@ -1987,7 +1992,7 @@ class Home extends Base {
     let best = null, d = 999;
     SLOTS.forEach((s, i) => {
       const dd = Phaser.Math.Distance.Between(px, py, s.x, s.y);
-      if (dd < (s.kind === 'wall' ? 85 : 62) && dd < d) { d = dd; best = { t:'slot', i }; }
+      if (dd < (s.kind === 'wall' ? 120 : 62) && dd < d) { d = dd; best = { t:'slot', i }; }
     });
     return best;
   }
@@ -2039,7 +2044,8 @@ const startGame = () => { game = new Phaser.Game({
 }); };
 const loadImg = (key, src) => new Promise(r => { const i = new Image(); i.onload = () => { IMG[key] = i; r(); }; i.onerror = r; i.src = src; });
 Promise.all(['tiles', 'crops', 'hero', 'shop', 'bushG', 'bushF'].map(k => loadImg(k, window.ASSETS[k]))
-  .concat(Object.keys(window.ASSETS.bld || {}).map(k => loadImg('b_' + k, window.ASSETS.bld[k])))
+  .concat(Object.keys(window.ASSETS.bld || {}).map(k => loadImg('b_' + k, k === 'home' ? HOUSE.house : window.ASSETS.bld[k]))) // nhà chính: ảnh mới
+  .concat(['room', 'smoke'].map(k => loadImg(k, HOUSE[k])))
   .concat(Object.keys(SPR).map(k => loadImg('s_' + k, SPR[k])))).then(() => { startGame(); uiSkin(); });
 
 // icon pixel-art cho thanh HUD (stamina, EXP, túi, bản đồ)
