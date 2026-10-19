@@ -13,39 +13,28 @@ const maxSt = () => 100 + (S.lvl - 1) * 10; // stamina tối đa tăng theo cấ
 
 // ====== DỮ LIỆU CÂY TRỒNG: thêm cây mới chỉ cần thêm 1 dòng ======
 // cost: giá mở khóa hạt · days: số ngày (đã tưới) để lớn · price: tiền khi thu hoạch
-// Thêm cây mới: thêm 1 dòng ở đây + 1 tên vào ASSET_META.crops (assets.js) nếu có sprite
+// Thêm cây mới: thêm 1 dòng ở đây + 1 mục FRAMES trong tools/pack_plants.py rồi chạy lại tool
 const CROPS = [
   // cây mở sẵn
   { id:'carrot',      en:'CARROT',       vi:'cà rốt',        cost:0,   days:2, price:12 },
-  { id:'tomato',      en:'TOMATO',       vi:'cà chua',       cost:0,   days:3, price:18 },
-  // cây rau củ – ngũ cốc (3-4 ngày)
-  { id:'corn',        en:'CORN',         vi:'bắp ngô',       cost:40,  days:3, price:25 },
-  { id:'strawberry',  en:'STRAWBERRY',   vi:'dâu tây',       cost:60,  days:3, price:32 },
-  { id:'potato',      en:'POTATO',       vi:'khoai tây',     cost:80,  days:3, price:35 },
-  { id:'cabbage',     en:'CABBAGE',      vi:'bắp cải',       cost:100, days:3, price:38 },
-  { id:'chili',       en:'CHILI',        vi:'ớt',            cost:120, days:3, price:42 },
-  { id:'wheat',       en:'WHEAT',        vi:'lúa mì',        cost:140, days:4, price:50 },
-  { id:'rice',        en:'RICE',         vi:'lúa gạo',       cost:160, days:4, price:54 },
-  { id:'sweetpotato', en:'SWEET POTATO', vi:'khoai lang',    cost:180, days:4, price:58 },
-  { id:'garlic',      en:'GARLIC',       vi:'tỏi',           cost:200, days:3, price:50 },
-  { id:'sugarcane',   en:'SUGARCANE',    vi:'cây mía',       cost:220, days:4, price:64 },
-  { id:'mushroom',    en:'MUSHROOM',     vi:'nấm',           cost:240, days:3, price:60 },
-  { id:'soybean',     en:'SOYBEAN',      vi:'đậu nành',      cost:260, days:4, price:68 },
-  { id:'tea',         en:'TEA',          vi:'trà',           cost:280, days:4, price:72 },
-  { id:'cotton',      en:'COTTON',       vi:'bông vải',      cost:300, days:4, price:76 },
-  { id:'jasmine',     en:'JASMINE',      vi:'hoa nhài',      cost:320, days:4, price:80 },
-  { id:'rose',        en:'ROSE',         vi:'hoa hồng',      cost:340, days:4, price:86 },
-  { id:'melon',       en:'MELON',        vi:'dưa vàng',      cost:360, days:4, price:90 },
+  { id:'radish',      en:'RADISH',       vi:'củ cải',        cost:0,   days:2, price:14 },
+  // rau củ (3-4 ngày)
+  { id:'cauliflower', en:'CAULIFLOWER',  vi:'súp lơ',        cost:40,  days:3, price:26 },
+  { id:'bean',        en:'BEAN',         vi:'đậu que',       cost:60,  days:3, price:30 },
+  { id:'cucumber',    en:'CUCUMBER',     vi:'dưa chuột',     cost:80,  days:3, price:34 },
+  { id:'chili',       en:'CHILI',        vi:'ớt',            cost:100, days:3, price:40 },
+  { id:'soybean',     en:'SOYBEAN',      vi:'đậu nành',      cost:130, days:4, price:48 },
+  { id:'sunflower',   en:'SUNFLOWER',    vi:'hoa hướng dương', cost:160, days:4, price:56 },
+  { id:'wheat',       en:'WHEAT',        vi:'lúa mì',        cost:190, days:4, price:62 },
+  { id:'pumpkin',     en:'PUMPKIN',      vi:'bí ngô',        cost:220, days:4, price:72 },
   // cây ăn quả (5 ngày)
-  { id:'grape',       en:'GRAPE',        vi:'nho',           cost:380, days:5, price:104 },
-  { id:'blueberry',   en:'BLUEBERRY',    vi:'việt quất',     cost:400, days:5, price:110 },
-  { id:'peach',       en:'PEACH',        vi:'quả đào',       cost:430, days:5, price:118 },
-  { id:'lemon',       en:'LEMON',        vi:'chanh vàng',    cost:460, days:5, price:124 },
-  { id:'mangosteen',  en:'MANGOSTEEN',   vi:'măng cụt',      cost:490, days:5, price:132 },
-  { id:'pineapple',   en:'PINEAPPLE',    vi:'quả dứa',       cost:520, days:5, price:140 },
-  { id:'banana',      en:'BANANA',       vi:'chuối',         cost:550, days:5, price:148 },
-  { id:'coconut',     en:'COCONUT',      vi:'dừa',           cost:580, days:5, price:156 },
-  { id:'coffee',      en:'COFFEE',       vi:'cà phê',        cost:620, days:5, price:170 }
+  { id:'pineapple',   en:'PINEAPPLE',    vi:'quả dứa',       cost:260, days:5, price:95 },
+  { id:'grape',       en:'GRAPE',        vi:'nho',           cost:300, days:5, price:105 },
+  { id:'plum',        en:'PLUM',         vi:'quả mận',       cost:340, days:5, price:118 },
+  { id:'lemon',       en:'LEMON',        vi:'chanh vàng',    cost:380, days:5, price:126 },
+  { id:'pomegranate', en:'POMEGRANATE',  vi:'quả lựu',       cost:420, days:5, price:136 },
+  { id:'banana',      en:'BANANA',       vi:'chuối',         cost:470, days:5, price:150 },
+  { id:'coconut',     en:'COCONUT',      vi:'dừa',           cost:520, days:5, price:165 }
 ];
 // Giá hạt giống & cấp độ mở khóa: cây đắt cần Lv cao hơn → học bài với cô Emma để lên cấp
 const SEED_PRICE = c => Math.max(4, Math.round(c.price * .35));
@@ -120,7 +109,7 @@ const placedCount = id => Object.values(S.placed).filter(x => x === id).length;
 
 // ====== LƯU TRỮ ======
 const KEY = 'englishFarmSave2'; // giữ nguyên key để không mất dữ liệu cũ; trường mới tự thêm giá trị mặc định
-const fresh = () => ({ coins:20, day:1, sel:'carrot', inv:{ seeds:{ carrot:6, tomato:6 }, crops:{}, fish:{} }, learned:{},
+const fresh = () => ({ coins:20, day:1, sel:'carrot', inv:{ seeds:{ carrot:6, radish:6 }, crops:{}, fish:{} }, learned:{},
   exp:0, lvl:1, stamina:100, words:{}, phraseDay:0, dinhDay:0, mossDay:0, story:{ ch:0, intro:false, nt:-1, cnt:{ harvest:0, fish:0, forage:0 } }, rod:false, fishDex:{}, foraged:[], forageDay:0, own:{}, placed:{},
   plots: Array.from({ length:15 }, () => ({ s:0, c:null, g:0, w:false })) });
 let S, old = null;
@@ -128,11 +117,12 @@ try { old = JSON.parse(localStorage.getItem(KEY)); S = Object.assign(fresh(), ol
 S.stamina = Math.min(S.stamina, maxSt());
 // dữ liệu lưu cũ có thể còn cây không còn tồn tại (bí ngô, cà tím…) → dọn để không lỗi
 { const known = id => CROPS.some(c => c.id === id);
-  if (!S.inv || !S.inv.seeds) S.inv = { seeds:{ carrot:6, tomato:6 }, crops:{} };
+  if (!S.inv || !S.inv.seeds) S.inv = { seeds:{ carrot:6, radish:6 }, crops:{} };
   if (!S.inv.crops) S.inv.crops = {};
   // save cũ (chưa có túi đồ): tặng 3 hạt cho mỗi cây đã mở khóa
   if (old && !old.inv && old.unlocked) old.unlocked.filter(known).forEach(id => { S.inv.seeds[id] = Math.max(S.inv.seeds[id] || 0, 3); });
   [S.inv.seeds, S.inv.crops].forEach(o => Object.keys(o).forEach(id => { if (!known(id) || !(o[id] > 0)) delete o[id]; }));
+  if (!Object.keys(S.inv.seeds).length) S.inv.seeds = { carrot:6, radish:6 };
   if (!known(S.sel)) S.sel = 'carrot';
   S.plots.forEach(p => { if (p.c && !known(p.c)) { p.s = 1; p.c = null; p.g = 0; p.w = false; } }); }
 // dữ liệu lưu cũ: bổ sung các trường mới (cốt truyện, câu cá…)
@@ -405,7 +395,7 @@ function hud() {
   fixSel();
   const box = $('#seeds'); box.innerHTML = '';
   const o = owned();
-  if (!o.length) box.innerHTML = '<small class="noseed">🌱 Hết hạt giống — mua ở Seed Shop hoặc học bài với cô Emma</small>';
+  if (!o.length) box.innerHTML = '<small class="noseed">🌱 Hết hạt giống — mua ở Plant Workshop hoặc học bài với cô Emma</small>';
   o.forEach((id, i) => {
     const b = document.createElement('button');
     const c = crop(id);
@@ -462,7 +452,7 @@ function bag() {
   const btns = o.map(id => { const c = crop(id); return { on: id === S.sel, html: `${id === S.sel ? '✋ ' : ''}${sico(id, 26)} ${c.en} <small>(${c.vi})</small> ×${seedCount(id)}`,
     fn: () => { S.sel = id; snd('select'); hud(); save(); bag(); } }; });
   btns.push({ label:'Đóng', fn:closeModal });
-  modal('🎒 Túi đồ', '<b>🧺 Nông sản</b>' + crops + fishList() + goodsList() + binLine() + '<b>🌱 Hạt giống</b> <small>— bấm để cầm trên tay rồi đi gieo' + (o.length ? '' : '. Chưa có hạt: mua ở Seed Shop hoặc học bài với cô Emma') + '</small>', btns);
+  modal('🎒 Túi đồ', '<b>🧺 Nông sản</b>' + crops + fishList() + goodsList() + binLine() + '<b>🌱 Hạt giống</b> <small>— bấm để cầm trên tay rồi đi gieo' + (o.length ? '' : '. Chưa có hạt: mua ở Plant Workshop hoặc học bài với cô Emma') + '</small>', btns);
 }
 
 // ====== CÔ EMMA: BÀI HỌC B1 / B2 ======
@@ -569,9 +559,9 @@ const STORY = [
     goal:() => `Thu hoạch 3 cây (${Math.min(3, S.story.cnt.harvest)}/3), rồi gặp cô Emma`, need:() => S.story.cnt.harvest >= 3,
     done:[ { who:'Teacher Emma 🎓', en:'Wonderful! Your grandfather would be so proud of you.', vi:'Tuyệt vời! Ông của bạn chắc sẽ rất tự hào.' },
       { who:'Teacher Emma 🎓', en:'Nobody remembers the festival now. We must invite the whole village!', vi:'Giờ chẳng ai nhớ lễ hội nữa. Ta phải mời cả làng!' },
-      { who:'Teacher Emma 🎓', en:'Go to town and ask Lily at the Seed Shop. She knows every family.', vi:'Hãy vào thị trấn hỏi Lily ở Seed Shop. Cô ấy biết mọi gia đình.' } ],
+      { who:'Teacher Emma 🎓', en:'Go to town and ask Lily at the Plant Workshop. She knows every family.', vi:'Hãy vào thị trấn hỏi Lily ở Plant Workshop. Cô ấy biết mọi gia đình.' } ],
     reward:{ coins:40, exp:20 } },
-  { title:'Chương 2 · Words for Friends 💬', who:'Lily (Seed Shop)', at:'Town:shop', where:'Thị trấn (đi sang phải)',
+  { title:'Chương 2 · Words for Friends 💬', who:'Lily (Plant Workshop)', at:'Town:shop', where:'Thị trấn (đi sang phải)',
     goal:() => `Học 10 từ vựng với cô Emma (${Math.min(10, Object.keys(S.words).length)}/10), rồi gặp Lily`, need:() => Object.keys(S.words).length >= 10,
     done:[ { who:'Lily 🌱', en:'Your English is so good now! Everyone will understand our invitation.', vi:'Tiếng Anh của bạn giỏi quá! Ai cũng sẽ hiểu lời mời của ta.' },
       { who:'Lily 🌱', en:'Next, the fishermen must hear the news. Captain Hai lives at Moon Lake.', vi:'Tiếp theo, các ngư dân cần nghe tin. Thuyền trưởng Hải ở Hồ Trăng.' },
@@ -1320,7 +1310,7 @@ class Boot extends Phaser.Scene {
   create() {
     const T = this.textures, M = window.ASSET_META;
     T.addSpriteSheet('road', IMG.road, { frameWidth:64, frameHeight:64 });                    // đường: xem tools/pack_ground.py
-    T.addSpriteSheet('crops', IMG.crops, { frameWidth:M.cropCell, frameHeight:M.cropCell });   // mỗi cây 3 khung: cây con / đang lớn / chín
+    T.addSpriteSheet('crops', IMG.crops, { frameWidth:M.cropW, frameHeight:M.cropH });   // mỗi cây 3 khung: cây con / đang lớn / chín
     T.addSpriteSheet('hero',  IMG.hero,  { frameWidth:M.hero[0], frameHeight:M.hero[1] });     // hàng 1 đi xuống · hàng 2 đi lên · hàng 3 đi ngang
     // cụm cỏ 16px từ ground_grass_details.png, phóng 3x không làm mờ (giống tỉ lệ room.png)
     if (IMG.gdet && GROUND_TUFTS.length) { const w = IMG.gdet.width * GROUND_SCALE, h = IMG.gdet.height * GROUND_SCALE, cv = document.createElement('canvas'); cv.width = w; cv.height = h;
@@ -1399,7 +1389,7 @@ class Farm extends Base {
     // 15 ô đất (5 x 3)
     this.pv = S.plots.map((p, i) => {
       const x = 520 + (i % 5) * 64, y = 300 + Math.floor(i / 5) * 64;
-      return { x, y, f:-2, bg:this.add.image(x, y, 'soil').setDepth(1), img:this.add.image(x, y - 2, 'crops', 0).setDepth(2).setVisible(false) };
+      return { x, y, f:-2, bg:this.add.image(x, y, 'soil').setDepth(1), img:this.add.image(x, y + 30, 'crops', 0).setOrigin(.5, 1).setDepth(2).setVisible(false) };
     });
     this.pv.forEach((_, i) => this.paint(i));
     this.mark = this.add.rectangle(0, 0, 60, 60).setStrokeStyle(3, 0xffffff).setVisible(false).setDepth(3);
@@ -1467,7 +1457,7 @@ class Farm extends Base {
     if (c.t === 'house') return 'E: vào nhà 🏠 (ngủ, trang trí)';
     const p = S.plots[c.i];
     if (p.s === 0) return `E: xới đất (⚡${COST.till})`;
-    if (p.s === 1) return seedCount(S.sel) > 0 ? `E: gieo ${crop(S.sel).en} (${crop(S.sel).vi}) — còn ${seedCount(S.sel)} hạt (⚡${COST.sow})` : 'Hết hạt giống! Mua ở Seed Shop 🌱 hoặc học bài với cô Emma để nhận thêm.';
+    if (p.s === 1) return seedCount(S.sel) > 0 ? `E: gieo ${crop(S.sel).en} (${crop(S.sel).vi}) — còn ${seedCount(S.sel)} hạt (⚡${COST.sow})` : 'Hết hạt giống! Mua ở Plant Workshop 🌱 hoặc học bài với cô Emma để nhận thêm.';
     if (this.ready(p)) return `E: thu hoạch ${crop(p.c).en} (${crop(p.c).vi}) (⚡${COST.harvest})`;
     const cc = crop(p.c), nm = `${cc.en} (${cc.vi})`;
     return p.w ? `${nm} — đã tưới, hãy đi ngủ để cây lớn (${p.g}/${cc.days} ngày)` : `E: tưới nước 💧 cho ${nm} (⚡${COST.water})`;
@@ -1494,7 +1484,7 @@ class Farm extends Base {
     }
     if (p.s === 1) {
       const c = crop(S.sel);
-      if (seedCount(c.id) <= 0) { snd('error'); return toast('Hết hạt giống rồi 🌱 — mua ở Seed Shop hoặc học bài với cô Emma.'); }
+      if (seedCount(c.id) <= 0) { snd('error'); return toast('Hết hạt giống rồi 🌱 — mua ở Plant Workshop hoặc học bài với cô Emma.'); }
       if (!can(COST.sow)) return;
       use(COST.sow); S.inv.seeds[c.id]--;
       p.s = 2; p.c = c.id; p.g = 0; p.w = wxNow() === 'rain';
@@ -1548,7 +1538,7 @@ class Town extends Base {
       this.mm.r.push([x - s.width / 2, bottom - s.height, s.width, s.height]);
       return s;
     };
-    this.shopB  = bldg('seedshop', 220, 304, 60, .75);   // Seed Shop
+    this.shopB  = bldg('seedshop', 220, 320, 60, .75);   // Plant Workshop (xưởng bán cây giống)
     this.homesB = bldg('homes', 560, 275, 50, .85);      // nhà dân (2 căn)
     this.foodB  = bldg('food', 380, 545, 50, .8);        // quầy đồ ăn
     this.decorB = bldg('decor', 840, 268, 50, .8);       // tiệm nội thất / trang trí
@@ -1668,7 +1658,7 @@ class Town extends Base {
 
     // ---- biển tên + nhân vật ----
     const sign = (x, y, t) => this.add.text(x, y, t, { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
-    sign(560, 292, '🏠 Town Homes'); sign(380, 562, '🍞 Food Stall'); sign(840, 285, '🛋️ Decor Shop'); sign(220, 322, '🌱 Seed Shop'); sign(950, 596, '🏛️ Đình làng'); sign(60, 292, '← Nông trại');
+    sign(560, 292, '🏠 Town Homes'); sign(380, 562, '🍞 Food Stall'); sign(840, 285, '🛋️ Decor Shop'); sign(220, 322, '🌱 Plant Workshop'); sign(950, 596, '🏛️ Đình làng'); sign(60, 292, '← Nông trại');
     sign(1236, 296, '🌉 Cầu Sunny'); sign(800, 660, '⛰️ Đồi Cao ↓'); sign(320, 680, '🌼 Khu vườn Hoa'); sign(1500, 322, '🌬️ Cối xay gió'); sign(1540, 530, '🐄 Đồng cỏ Bờ Đông');
     this.lily = this.npc('lily', 322, 328, 'Lily');
     this.chef = this.npc('chef', 500, 530, 'Chef Bo');
@@ -1715,7 +1705,7 @@ class Town extends Base {
 
   label(c) {
     if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: hành động · trái: nông trại · phải: qua cầu · xuống: vườn hoa & đồi cao';
-    if (c.t === 'shop') return 'E: vào Seed Shop — mua hạt giống 🌱';
+    if (c.t === 'shop') return 'E: vào Plant Workshop — mua hạt giống 🌱';
     if (c.t === 'dinh') return 'E: thắp hương ở Đình làng 🏛️ (mỗi ngày nhận 1 lời chúc, +EXP)';
     if (c.t === 'homes') return 'E: gõ cửa nhà dân 🏠 (mỗi ngày nghe 1 câu mới, +EXP)';
     if (c.t === 'decor') return 'E: vào Decor Shop — mua đồ trang trí nhà 🛋️';
@@ -1776,7 +1766,7 @@ class Town extends Base {
         html: lock ? `🔒 ${c.en} — mở ở Lv ${REQ_LVL(c)}` : `${sico(c.id, 26)} ${c.en} <small>(${c.vi})</small> — ${pr} 🪙 <small>· đang có ${seedCount(c.id)}</small>`,
         fn:() => { S.coins -= pr; addSeed(c.id, this.qty); S.sel = c.id; snd('buy'); hud(); save(); toast(`Đã mua ${this.qty} hạt ${c.en} 🌱`); this.shop('buy', true); } };
     });
-    modal('Lily · Seed Shop', '<b>“Hello! Welcome to my shop.”</b><br>(Xin chào! Chào mừng đến cửa hàng của mình.)<br><small>🪙 ' + S.coins + ' · ⭐ Lv ' + S.lvl + ' — lên cấp bằng cách học bài với cô Emma để mở thêm hạt giống.</small><br><small>📦 Muốn bán nông sản? Bỏ vào thùng ở nông trại — qua đêm Lily sẽ trả tiền vào ví bạn!</small>', nav.concat(qty, items, close), keep);
+    modal('Lily · Plant Workshop', '<b>“Welcome to my plant workshop!”</b><br>(Chào mừng đến xưởng cây của mình! Ở đây bán hạt giống và cây giống.)<br><small>🪙 ' + S.coins + ' · ⭐ Lv ' + S.lvl + ' — lên cấp bằng cách học bài với cô Emma để mở thêm hạt giống.</small><br><small>📦 Muốn bán nông sản? Bỏ vào thùng ở nông trại — qua đêm Lily sẽ trả tiền vào ví bạn!</small>', nav.concat(qty, items, close), keep);
   }
 
   food() {
@@ -1839,7 +1829,7 @@ class Town extends Base {
 
 
 // ====== CẢNH 4: RỪNG SƯƠNG (phía bắc nông trại) ======
-const FORAGE = ['mushroom', 'blueberry', 'tea', 'garlic', 'strawberry'];
+const FORAGE = ['radish', 'cucumber', 'bean', 'chili', 'sunflower'];
 const FSPOTS = [[150, 130], [470, 150], [830, 100], [1110, 210], [990, 430], [250, 530], [1150, 630], [820, 600]];
 class Forest extends Base {
   constructor() { super('Forest'); }
@@ -1863,7 +1853,7 @@ class Forest extends Base {
     this.physics.add.collider(this.player, this.solids);
     this.spots = FSPOTS.map((p, i) => {
       const id = FORAGE[(i + S.day) % FORAGE.length];
-      const img = this.add.image(p[0], p[1], 'crops', FRAME(id) + 2).setScale(.8).setDepth(p[1]).setVisible(!S.foraged.includes(i));
+      const img = this.add.image(p[0], p[1] + 14, 'crops', FRAME(id) + 2).setOrigin(.5, 1).setScale(.8).setDepth(p[1]).setVisible(!S.foraged.includes(i));
       this.tweens.add({ targets: img, y: p[1] - 4, yoyo: true, repeat: -1, duration: 900 + i * 60 });
       return { x: p[0], y: p[1], id, img };
     });
@@ -1891,7 +1881,7 @@ class Forest extends Base {
     if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: nhặt đồ trong rừng · đi xuống: về nông trại';
     if (c.t === 'moss') return 'E: nói chuyện với cụ Moss 🧙';
     const cc = crop(this.spots[c.i].id);
-    return `E: nhặt ${cc.en} (${cc.vi}) 🍄 (⚡1)`;
+    return `E: nhặt ${cc.en} (${cc.vi}) 🌿 (⚡1)`;
   }
 
   doAct(c) {
