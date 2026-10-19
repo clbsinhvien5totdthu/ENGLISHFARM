@@ -49,7 +49,7 @@ for r, id in enumerate(IDS):
         if f == 2: ripe[id] = t
 
 def fit(im, n):  # icon vuông n x n, giữ nét pixel (phóng nguyên lần khi nhỏ, thu bằng BOX khi lớn)
-    k = n // max(im.size)
+    k = min(4, n // max(im.size))
     if k >= 1: im = im.resize((im.width * k, im.height * k), Image.NEAREST)
     else: im = im.resize((max(1, im.width * n // max(im.size)), max(1, im.height * n // max(im.size))), Image.BOX)
     out = Image.new("RGBA", (n, n)); out.alpha_composite(im, ((n - im.width) // 2, (n - im.height) // 2)); return out
@@ -61,8 +61,18 @@ def bag(icon):  # túi hạt giống: giấy nâu + nhãn kem có hình cây
     d.rectangle((19, 24, 45, 50), fill=(247, 232, 196), outline=(110, 72, 36))
     g.alpha_composite(fit(icon, 22), (21, 26)); return g
 
-icons = {id: b64(fit(ripe[id], 64)) for id in IDS}
-seeds = {id: b64(bag(ripe[id])) for id in IDS}
+FRUIT = {  # hộp (x0,y0,x1,y1) của quả rời trong Supplies.png
+  "radish": (275, 196, 284, 205), "cucumber": (95, 209, 113, 223), "bean": (0, 209, 15, 221), "chili": (191, 162, 209, 172),
+  "cauliflower": (0, 192, 16, 206), "pomegranate": (195, 146, 206, 157), "pineapple": (240, 163, 256, 189), "coconut": (194, 178, 207, 191),
+  "banana": (0, 175, 15, 192), "lemon": (243, 131, 252, 140), "pumpkin": (52, 211, 63, 221), "grape": (241, 208, 254, 224), "plum": (196, 212, 204, 220)}
+def carrot():
+    g = Image.new("RGBA", (14, 16)); d = ImageDraw.Draw(g)
+    for a, b in (((5, 4), (3, 0)), ((6, 4), (6, 0)), ((8, 4), (10, 0))): d.line([a, b], fill=(60, 160, 60))
+    d.polygon([(3, 5), (10, 5), (7, 15)], fill=(237, 125, 35), outline=(150, 70, 20)); d.line([(4, 8), (6, 8)], fill=(255, 170, 80)); d.line([(6, 11), (8, 11)], fill=(255, 170, 80))
+    return g
+fruit = {id: S.crop(FRUIT[id]) if id in FRUIT else (carrot() if id == "carrot" else ripe[id]) for id in IDS}
+icons = {id: b64(fit(fruit[id], 64)) for id in IDS}   # icon = quả / củ đã thu hoạch (cũng là hình nhặt ở Rừng Sương)
+seeds = {id: b64(bag(fruit[id])) for id in IDS}
 
 # ---------- TIỆM: Exterior_house.png (nhà thợ thổi kính) -> Plant Workshop ----------
 B = X.crop((0, 9, 138, 160)); a = np.array(B)
@@ -79,6 +89,30 @@ for k, cx in (("grape", 104), ("pine", 124)): put(crate(CR[k]).crop(crate(CR[k])
 put(trim(FRAMES["plum"][1]), 14, H); put(trim(FRAMES["pomegranate"][1]), W - 14, H)
 shop = shop.crop(shop.getbbox()); shop = shop.resize((shop.width * 2, shop.height * 2), Image.NEAREST)   # nhân vật cao 56px nên cần cửa to ~2x
 
+# ---------- NỘI THẤT TIỆM (224x176, game phóng 3x): tường/kệ/quầy từ Walls_interior + Interior_objects, hàng từ Plants/Supplies ----------
+WL = Image.open("img/workshop/Walls_interior.png").convert("RGBA"); IO = Image.open("img/workshop/Interior_objects.png").convert("RGBA")
+RW, RH = 224, 176
+room = Image.new("RGBA", (RW, RH), (74, 45, 22, 255)); d = ImageDraw.Draw(room)
+d.rectangle((3, 44, RW - 4, RH - 4), fill=(150, 100, 56))                       # sàn gỗ: ván ngang + mối nối so le
+for y in range(44, RH - 3, 16):
+    d.line([(3, y), (RW - 4, y)], fill=(112, 72, 40))
+    for x in range(3 + ((y // 16) % 2) * 20, RW - 3, 40): d.line([(x, y), (x, min(y + 15, RH - 4))], fill=(126, 82, 46))
+wall = WL.crop((10, 126, 232, 176)); wall = wall.crop(wall.getbbox()).resize((RW, 46), Image.NEAREST); room.alpha_composite(wall, (0, 0))
+d.rectangle((96, RH - 4, 127, RH), fill=(150, 100, 56))                         # khe cửa ra ở giữa đáy
+def paste(sheet, box, x, y): c = sheet.crop(box); room.alpha_composite(c, (x, y))
+rug = (5, 396, 60, 428); paste(IO, rug, 85, 134)
+shelf = (63, 194, 101, 249); mini = ["pomegranate", "lemon", "pumpkin", "cauliflower", "radish", "chili", "bean", "banana"]
+for i, sx in enumerate((4, 44, 142, 182)):
+    paste(IO, shelf, sx, 16)
+    for row, base in enumerate((16 + 23, 16 + 46)):
+        for j in range(3):
+            f = S.crop(FRUIT[mini[(i * 2 + row + j * 3) % len(mini)]]); room.alpha_composite(f, (sx + 6 + j * 10 + (10 - f.width) // 2 if f.width < 10 else sx + 6 + j * 10, base - f.height))
+paste(IO, (14, 43, 126, 62), 56, 92)                                            # quầy gỗ giữa phòng
+for k, cx in (("pine", 70), ("grape", 100), ("chili", 128), ("lemon", 152)):      # thùng hàng trên quầy
+    c = S.crop(CR[k]); c = c.crop(c.getbbox()); room.alpha_composite(c, (cx - c.width // 2, 96 - c.height + 4))
+for id, cx in (("plum", 16), ("pomegranate", RW - 16)): t = trim(FRAMES[id][1]); room.alpha_composite(t, (cx - t.width // 2, RH - 6 - t.height))
+for id, cx in (("sunflower", 40), ("grape", RW - 42)): t = trim(FRAMES[id][2]); room.alpha_composite(t, (cx - t.width // 2, RH - 6 - t.height))
+
 # ---------- ghi assets.js ----------
 L = open("assets.js", encoding="utf-8").read().split("\n")
 js = lambda l: json.loads(l[l.index("=") + 1:].rstrip(";"))
@@ -86,8 +120,9 @@ A_, M_, B_, SI_, BM_ = js(L[1]), js(L[2]), js(L[4]), js(L[5]), js(L[6])
 A_["crops"] = b64(sheet); A_["icons"] = icons
 M_["crops"] = IDS; M_["cropW"] = CW; M_["cropH"] = CH; M_.pop("cropCell", None)
 B_["seedshop"] = b64(shop); BM_["seedshop"] = [shop.width, shop.height]
+B_["shoproom"] = b64(room); BM_["shoproom"] = [RW, RH]
 L[1] = "window.ASSETS=" + json.dumps(A_) + ";"; L[2] = "window.ASSET_META=" + json.dumps(M_) + ";"
 L[4] = "window.ASSETS.bld=" + json.dumps(B_) + ";"; L[5] = "window.ASSETS.seedIcons=" + json.dumps(seeds) + ";"
 L[6] = "window.ASSET_META.bld=" + json.dumps(BM_) + ";"
 open("assets.js", "w", encoding="utf-8").write("\n".join(L))
-sheet.save("/tmp/crops_sheet.png"); shop.save("/tmp/shop.png"); print("OK", IDS, shop.size)
+sheet.save("/tmp/crops_sheet.png"); shop.save("/tmp/shop.png"); room.save("/tmp/room.png"); print("OK", IDS, shop.size)
