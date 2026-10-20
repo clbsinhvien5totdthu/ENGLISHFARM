@@ -30,6 +30,7 @@
     <button id="questBtn" type="button" title="Nhiệm vụ (phím Q)">📜 Nhiệm vụ</button>
     <button id="mapBtn" type="button" title="Bản đồ thế giới">🗺️ Bản đồ</button>
     <button id="bookBtn" type="button">📖 Sổ từ</button>
+    <button id="journalBtn" type="button" title="Nhật ký của Grandpa (phím J)">📔 Nhật ký</button>
     <button id="sndBtn" type="button" title="Bật / tắt âm thanh" aria-label="Bật tắt âm thanh">🔊</button>
   </header>
   <div id="game-container"><canvas id="fx"></canvas><canvas id="minimap" width="176" height="138" title="Bản đồ nhỏ — bấm hoặc phím M để phóng to"></canvas></div>
@@ -50,6 +51,22 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.80.1/phaser.min.js"></script>
 <script src="vocab.js"></script>
+<script src="data/vocabulary_data.js"></script>
+<script src="data/characters.js"></script>
+<script src="data/story_data.js"></script>
+<script src="data/quest_data.js"></script>
+<script src="data/dialogue_data.js"></script>
+<script src="systems/language_system.js"></script>
+<script src="systems/assessment_system.js"></script>
+<script src="systems/quest_system.js"></script>
+<script src="systems/dialogue_system.js"></script>
+<script src="systems/activity_system.js"></script>
+<script src="systems/story_system.js"></script>
+<script src="systems/review_system.js"></script>
+<script src="systems/save_system.js"></script>
+<script src="ui/character_creator.js"></script>
+<script src="ui/dialogue_ui.js"></script>
+<script src="ui/vocabulary_book.js"></script>
 <script src="assets.js"></script>
 <script src="house_assets.js"></script>
 <script src="ground_assets.js"></script>

@@ -1,10 +1,12 @@
 (() => {
+const EF = window.EF;
 // ====== CẤU HÌNH ======
 const B2_LEVEL = 2;                 // cấp độ người chơi cần đạt để mở bài học B2
 const SPEED = 150;                 // tốc độ đi bộ
 const COST = { till:4, sow:5, water:4, harvest:4 }; // stamina hao khi làm nông (100 stamina ≈ 7 ô đủ xới + gieo + tưới)
 const COST_PET = 1;                // chơi với vật nuôi: mỗi lần bấm đều tốn stamina (kể cả khi đã chơi hôm nay)
-const LESSON = {                    // stamina hao MỖI CÂU hỏi · exp đúng lần đầu / đúng sau khi thử lại · thưởng 5/5 · coin mỗi câu đúng lần đầu
+const LESSON = {
+  A2: { st:2, exp:3, retry:1, perfect:8, coin:1 },                    // stamina hao MỖI CÂU hỏi · exp đúng lần đầu / đúng sau khi thử lại · thưởng 5/5 · coin mỗi câu đúng lần đầu
   B1: { st:3, exp:4, retry:1, perfect:10, coin:2 },
   B2: { st:4, exp:7, retry:2, perfect:18, coin:4 }
 };
@@ -99,6 +101,7 @@ const SLOTS = [ // vị trí đặt đồ trong nhà (px của phòng đã phón
   { x:600, y:456, kind:'floor' }, { x:696, y:456, kind:'floor' }, { x:264, y:504, kind:'floor' }
 ];
 // Lưới đi được của room.png (17x13 ô, mỗi ô 16px x3 = 48px). '.' = sàn trống, '#' = tường/đồ. Hàng 12 là cửa ra.
+const NPC_SC = 1.5;                // NPC 32px phóng lên cho cân với nhân vật chính
 const HOME_HERO = 1.5; // hệ số phóng nhân vật khi ở trong nhà
 const HOME_T = 48, HOME_GRID = [
   '#################', '#################', '#################', '#################',
@@ -129,11 +132,12 @@ S.stamina = Math.min(S.stamina, maxSt());
 // dữ liệu lưu cũ: bổ sung các trường mới (cốt truyện, câu cá…)
 S.story = Object.assign({ ch:0, intro:false, nt:-1 }, S.story || {}); S.story.cnt = Object.assign({ harvest:0, fish:0, forage:0 }, S.story.cnt || {});
 if (!S.inv.fish) S.inv.fish = {}; if (!S.fishDex) S.fishDex = {}; if (!Array.isArray(S.foraged)) S.foraged = [];
+EF.Save.migrate(S, old, { set:(k, v) => localStorage.setItem(k, v) }); // Design Bible v3: character/story/language/relationships + sao lưu trước khi chuyển đổi
 const seedCount = id => S.inv.seeds[id] || 0;
 const addSeed = (id, n = 1) => { S.inv.seeds[id] = seedCount(id) + n; };
 const owned = () => CROPS.filter(c => seedCount(c.id) > 0).map(c => c.id);
 const fixSel = () => { if (seedCount(S.sel) <= 0) { const o = owned(); if (o.length) S.sel = o[0]; } };
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+const save = () => { try { if (S.__noSave) return; localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
 
 // ====== TIỆN ÍCH ======
 const $ = s => document.querySelector('#farm-app ' + s);
@@ -415,7 +419,8 @@ function quiz(title, prompt, answer, done) {
 }
 
 // ====== SỔ TỪ ======
-function wordBook() {
+function wordBook() { EF.UI.vocabBook(); }
+function oldWordBook() {
   const rows = CROPS.map(c => {
     const n = S.learned[c.id] || 0;
     return n ? `<li>${ico(c.id, 22)} <b>${c.en}</b> — ${c.vi} <small>×${n}</small></li>` : '<li class="lock">❔ ???</li>';
@@ -448,81 +453,12 @@ function bag() {
 }
 
 // ====== CÔ EMMA: BÀI HỌC B1 / B2 ======
-function emma() {
-  snd('chat');
-  const btn = lv => {
-    const L = LESSON[lv], lock = lv === 'B2' && S.lvl < B2_LEVEL;
-    return { label: lock ? `🔒 B2 — mở ở Lv ${B2_LEVEL}` : `${lv === 'B1' ? '📘' : '📙'} Bài ${lv} · ${N_Q} câu (⚡${L.st}/câu · +${L.exp} EXP)`,
-      off: lock, fn: () => lesson(lv) };
-  };
-  modal('Teacher Emma 🎓',
-    '<b>“Hello! Ready to practise your English?”</b><br>(Chào bạn! Sẵn sàng luyện tiếng Anh chưa?)<br>' +
-    `<small>⭐ Lv ${S.lvl} · EXP ${S.exp}/${expNeed(S.lvl)} · ⚡ ${S.stamina}/${maxSt()}. Học từ vựng tốn stamina · trả lời đúng ngay lần đầu được 🌱 hạt giống.</small>`,
-    [btn('B1'), btn('B2'), { label:'Đóng', fn:closeModal }]);
-}
+function emma() { snd('chat'); EF.Review.menu(); }
 
 // Thưởng 1 hạt giống ngẫu nhiên (ưu tiên cây rẻ) cho mỗi câu đúng ngay lần đầu
 function rewardSeed() {
   const a = CROPS.filter(c => REQ_LVL(c) <= S.lvl), c = a[Math.floor(Math.random() ** 2 * a.length)];
   addSeed(c.id); return c.id;
-}
-
-function lesson(lv) {
-  const L = LESSON[lv], pool = VOCAB[lv];
-  // ưu tiên những từ bạn ít trả lời đúng nhất
-  const picks = pool.map(w => [(S.words[w.en] || 0) + Math.random() * 2.5, w]).sort((a, b) => a[0] - b[0]).slice(0, N_Q).map(x => x[1]);
-  const R = { first:0, exp:0, up:false, seeds:{} };
-  const tag = `<span class="tag ${lv === 'B2' ? 'b2' : ''}">${lv}</span> `;
-
-  const tired = () => modal('Emma 🎓',
-    '<b>“You look exhausted!”</b> (Bạn trông kiệt sức rồi!)<br>Hãy ăn gì đó ở thị trấn hoặc về nhà đi ngủ để lấy lại ⚡ rồi học tiếp nhé.',
-    [{ label:'Đóng', fn:closeModal }]);
-
-  const finish = () => {
-    let bonus = 0;
-    if (R.first === N_Q) bonus = L.perfect;
-    const coins = R.first * L.coin; S.coins += coins; if (coins) snd('coin');
-    const sd = Object.keys(R.seeds).map(id => sico(id, 20) + '×' + R.seeds[id]).join(' ');
-    const lvBefore = S.lvl; if (bonus) gainExp(bonus); else { hud(); save(); }
-    const total = R.exp + bonus;
-    modal('Kết quả bài ' + lv + ' 🎓',
-      '<b>“Well done!”</b> (Làm tốt lắm!)<ul class="sum">' +
-      `<li>✅ Đúng ngay lần đầu: <b>${R.first}/${N_Q}</b></li>` +
-      `<li>🎓 EXP: <b>+${total}</b>${bonus ? ' (có thưởng 5/5 +' + bonus + ')' : ''}</li>` +
-      `<li>🪙 Coin: <b>+${coins}</b></li>` +
-      (sd ? `<li>🌱 Hạt thưởng: ${sd}</li>` : '') +
-      `<li>⭐ Lv ${S.lvl} · EXP ${S.exp}/${expNeed(S.lvl)}${S.lvl > lvBefore || R.up ? ' 🎉 vừa lên cấp!' : ''}</li>` +
-      `<li>⚡ Stamina còn ${S.stamina}/${maxSt()}</li></ul>`,
-      [{ label:'Học tiếp 📚', fn:() => (S.stamina >= L.st ? lesson(lv) : tired()) }, { label:'Xong', fn:closeModal }]);
-  };
-
-  const ask = i => {
-    if (i >= picks.length) return finish();
-    if (S.stamina < L.st) return tired();
-    const w = picks[i], type = ['en2vi', 'vi2en', 'cloze'][Math.floor(Math.random() * 3)];
-    const others = shuffle(pool.filter(x => x.en !== w.en));
-    const ds = others.filter(x => x.pos === w.pos).concat(others.filter(x => x.pos !== w.pos)).slice(0, 3);
-    let prompt, ans, opts;
-    if (type === 'en2vi') { prompt = `Nghĩa của <b>${w.en}</b> <small>(${w.pos})</small> là gì?`; ans = w.vi; opts = ds.map(x => x.vi); }
-    else if (type === 'vi2en') { prompt = `Từ tiếng Anh nào có nghĩa là <b>“${w.vi}”</b>?`; ans = w.en; opts = ds.map(x => x.en); }
-    else { prompt = `Điền từ vào chỗ trống <small>(${w.pos})</small>:<div class="sent">${w.ex.replace('{}', '_____')}</div>`; ans = w.en; opts = ds.map(x => x.en); }
-    let tried = false;
-    modal(`Câu ${i + 1}/${N_Q}`, tag + prompt, shuffle([ans, ...opts]).map(o => ({
-      label: o,
-      fn: el => {
-        if (o !== ans) { tried = true; snd('wrong'); el.disabled = true; $('#mText').innerHTML = tag + prompt + '<br><em>Chưa đúng, thử lại nhé!</em>'; return; }
-        snd('ok');
-        const g = tried ? L.retry : L.exp;
-        use(L.st); let sid = null; if (!tried) { R.first++; sid = rewardSeed(); R.seeds[sid] = (R.seeds[sid] || 0) + 1; }
-        S.words[w.en] = (S.words[w.en] || 0) + 1;
-        R.exp += g; if (gainExp(g)) R.up = true;
-        modal(tried ? 'Gần đúng rồi!' : 'Chính xác! ✨',
-          `${tag}<span class="ok">${w.en}</span> = ${w.vi} <small>(${w.pos})</small><div class="sent">${w.ex.replace('{}', '<b>' + w.en + '</b>')}</div>🎓 +${g} EXP${sid ? ' · 🌱 +1 ' + sico(sid, 20) + ' ' + crop(sid).en : ''}`,
-          [{ label: i + 1 < picks.length ? 'Câu tiếp ➜' : 'Xem kết quả', fn:() => ask(i + 1) }]);
-      }
-    })));
-  };
-  ask(0);
 }
 
 // ====== TEXTURE (vẽ bằng code, chỉ tạo 1 lần cho mọi cảnh) ======
@@ -540,73 +476,16 @@ function talk(pages, fin) {
   };
   snd('chat'); show();
 }
-const PROLOGUE = [
-  { who:'📜 Thư của ông', en:'Dear grandchild, the old farm is yours now.', vi:'Cháu yêu, nông trại cũ giờ là của cháu.' },
-  { who:'📜 Thư của ông', en:'Long ago, our village held the Lantern Festival at the Village Hall.', vi:'Ngày xưa, làng ta tổ chức Lễ hội Đèn Lồng ở Đình làng.' },
-  { who:'📜 Thư của ông', en:'Learn English, make friends, and light the lanterns again.', vi:'Hãy học tiếng Anh, kết bạn và thắp sáng những chiếc đèn lồng lần nữa.' },
-  { who:'📜 Thư của ông', en:'Start with your first harvest. Teacher Emma will help you. Love, Grandpa.', vi:'Hãy bắt đầu bằng vụ thu hoạch đầu tiên. Cô Emma sẽ giúp cháu. Thương cháu, ông.' }
-];
-const STORY = [
-  { title:'Chương 1 · Welcome Home 🏡', who:'Cô Emma (nông trại)', at:'Farm:emma', where:'Nông trại',
-    goal:() => `Thu hoạch 3 cây (${Math.min(3, S.story.cnt.harvest)}/3), rồi gặp cô Emma`, need:() => S.story.cnt.harvest >= 3,
-    done:[ { who:'Teacher Emma 🎓', en:'Wonderful! Your grandfather would be so proud of you.', vi:'Tuyệt vời! Ông của bạn chắc sẽ rất tự hào.' },
-      { who:'Teacher Emma 🎓', en:'Nobody remembers the festival now. We must invite the whole village!', vi:'Giờ chẳng ai nhớ lễ hội nữa. Ta phải mời cả làng!' },
-      { who:'Teacher Emma 🎓', en:'Go to town and ask Lily at the Plant Workshop. She knows every family.', vi:'Hãy vào thị trấn hỏi Lily ở Plant Workshop. Cô ấy biết mọi gia đình.' } ],
-    reward:{ coins:40, exp:20 } },
-  { title:'Chương 2 · Words for Friends 💬', who:'Lily (Plant Workshop)', at:'Town:shop', where:'Thị trấn (đi sang phải)',
-    goal:() => `Học 10 từ vựng với cô Emma (${Math.min(10, Object.keys(S.words).length)}/10), rồi gặp Lily`, need:() => Object.keys(S.words).length >= 10,
-    done:[ { who:'Lily 🌱', en:'Your English is so good now! Everyone will understand our invitation.', vi:'Tiếng Anh của bạn giỏi quá! Ai cũng sẽ hiểu lời mời của ta.' },
-      { who:'Lily 🌱', en:'Next, the fishermen must hear the news. Captain Hai lives at Moon Lake.', vi:'Tiếp theo, các ngư dân cần nghe tin. Thuyền trưởng Hải ở Hồ Trăng.' },
-      { who:'Lily 🌱', en:'Walk to the bottom of your farm. The lake is just south!', vi:'Đi xuống phía dưới nông trại của bạn. Hồ ở ngay phía nam!' } ],
-    reward:{ coins:60, exp:30, seeds:3 } },
-  { title:'Chương 3 · The Silver Fish 🎣', who:'Thuyền trưởng Hải (Hồ Trăng)', at:'Lake:captain', where:'Hồ Trăng (cuối nông trại, phía nam)',
-    goal:() => `Câu 3 con cá (${Math.min(3, S.story.cnt.fish)}/3), rồi gặp thuyền trưởng Hải`, need:() => S.story.cnt.fish >= 3,
-    done:[ { who:'Captain Hai ⚓', en:'Ha-ha! You caught them yourself. That is real fisherman’s luck!', vi:'Ha-ha! Bạn tự câu được rồi. Đúng là vận may của dân chài!' },
-      { who:'Captain Hai ⚓', en:'We need lantern paper for the festival. Elder Moss makes the best.', vi:'Lễ hội cần giấy đèn lồng. Cụ Moss làm giấy đẹp nhất.' },
-      { who:'Captain Hai ⚓', en:'Look for him in Mist Forest, north of your farm.', vi:'Hãy tìm cụ ở Rừng Sương, phía bắc nông trại của bạn.' } ],
-    reward:{ coins:80, exp:40 } },
-  { title:'Chương 4 · Whispers of the Forest 🌲', who:'Cụ Moss (Rừng Sương)', at:'Forest:moss', where:'Rừng Sương (phía bắc nông trại)',
-    goal:() => `Nhặt 5 món trong rừng (${Math.min(5, S.story.cnt.forage)}/5), rồi gặp cụ Moss`, need:() => S.story.cnt.forage >= 5,
-    done:[ { who:'Elder Moss 🧙', en:'Mushrooms, berries and herbs... the forest likes you.', vi:'Nấm, quả mọng và thảo dược... khu rừng quý mến bạn.' },
-      { who:'Elder Moss 🧙', en:'Here is the lantern paper, and my blessing.', vi:'Đây là giấy đèn lồng và lời chúc phúc của ta.' },
-      { who:'Elder Moss 🧙', en:'Grow strong. Reach level 4, then light the lanterns at the Village Hall!', vi:'Hãy trưởng thành. Đạt cấp 4 rồi thắp đèn lồng ở Đình làng!' } ],
-    reward:{ coins:100, exp:50 } },
-  { title:'Chương 5 · Lantern Festival 🏮', who:'Đình làng (thị trấn)', at:'Town:dinh', where:'Đình làng (thị trấn)',
-    goal:() => `Đạt Lv 4 (Lv ${Math.min(4, S.lvl)}/4), rồi thắp đèn ở Đình làng`, need:() => S.lvl >= 4,
-    done:[ { who:'🏮 Village Hall', en:'You place the lantern paper and light the first candle.', vi:'Bạn đặt giấy đèn lồng và thắp ngọn nến đầu tiên.' },
-      { who:'🏮 Village Hall', en:'One by one, the villagers come. Lily, Captain Hai, Elder Moss, Emma…', vi:'Từng người một, dân làng kéo đến. Lily, thuyền trưởng Hải, cụ Moss, cô Emma…' },
-      { who:'🏮 Village Hall', en:'“Thank you for bringing us together,” they say. “Welcome home!”', vi:'“Cảm ơn bạn đã gắn kết chúng tôi,” họ nói. “Chào mừng về nhà!”' },
-      { who:'📜 Grandpa', en:'I knew you could do it. The farm and the village are in good hands.', vi:'Ông biết cháu làm được. Nông trại và ngôi làng đã ở trong tay tốt.' },
-      { who:'🎉 THE END', en:'Thank you for playing English Farm!', vi:'Hết phần cốt truyện chính! Bạn vẫn tiếp tục chơi tự do được: đèn lồng sẽ sáng mãi ở Đình làng.' } ],
-    reward:{ coins:300, exp:100, seeds:5 } }
-];
-const curCh = () => STORY[S.story.ch];
+const curCh = () => EF.Story.current();
 function storyCheck() {
+  if (EF.Quest && EF.Quest.host) EF.Quest.check();
   const ch = curCh();
   if (ch && ch.need() && S.story.nt !== S.story.ch) { S.story.nt = S.story.ch; save(); toast('📜 Xong nhiệm vụ! Hãy gặp: ' + ch.who); snd('levelup'); }
   const b = $('#questBtn'); if (b) b.innerHTML = (SPR.ui_scroll ? spImg('ui_scroll', 20) : '📜') + ' Nhiệm vụ' + (ch ? (ch.need() ? ' ❗' : '') : ' ✔');
 }
-// bấm vào NPC / nơi nhận nhiệm vụ: nếu đủ điều kiện thì trả nhiệm vụ và trả về true
-function turnIn(key) {
-  const ch = curCh();
-  if (!ch || ch.at !== key || !ch.need()) return false;
-  talk(ch.done, () => {
-    const r = ch.reward; S.coins += r.coins || 0;
-    let seeds = ''; for (let i = 0; i < (r.seeds || 0); i++) seeds += sico(rewardSeed(), 20);
-    S.story.ch++; save(); hud(); snd('coin');
-    const nx = curCh();
-    modal('🎁 Hoàn thành!', `<b>${ch.title}</b><br>+${r.coins || 0} 🪙 · +${r.exp || 0} EXP ${seeds}` + (nx ? `<br><br>📜 <b>Nhiệm vụ mới</b><br>${nx.title}<br><small>${nx.goal()}</small>` : '<br><br>🏮 Bạn đã hoàn thành cốt truyện chính!'),
-      [{ label:'OK 👍', fn: () => { closeModal(); gainExp(r.exp || 0); } }]);
-  });
-  return true;
-}
-function questLog() {
-  snd('click');
-  const ch = curCh();
-  const done = STORY.slice(0, S.story.ch).map(c => `<li>✅ ${c.title}</li>`).join('');
-  modal('📜 Nhiệm vụ', (ch ? `<b>${ch.title}</b><br>🎯 ${ch.goal()}<br><small>📍 ${ch.where} · gặp: ${ch.who}</small>` : '<b>🏮 Bạn đã thắp sáng Lễ hội Đèn Lồng!</b><br>Cốt truyện chính đã hoàn thành.') +
-    (done ? `<ul class="sum" style="margin-top:8px">${done}</ul>` : ''), [{ label:'Đóng', fn:closeModal }]);
-}
+// bấm vào NPC / nơi nhận nhiệm vụ: nếu đủ điều kiện thì trả nhiệm vụ và trả về true (logic nằm trong systems/story_system.js)
+function turnIn(key) { return EF.Story.turnIn(key); }
+function questLog() { EF.UI.questLog(); }
 function worldMap() {
   snd('click');
   const here = activeScene() ? activeScene().scene.key : '', mk = k => (here === k ? '📍' : '') + SCENE_NAME[k];
@@ -677,7 +556,7 @@ function reel(f) {
 }
 function caught(f) {
   S.inv.fish[f.id] = (S.inv.fish[f.id] || 0) + 1;
-  if (f.id !== 'boot') S.story.cnt.fish++;
+  if (f.id !== 'boot') { S.story.cnt.fish++; EF.Quest.emit('catch', { id:f.id }); }
   const first = !S.fishDex[f.id]; S.fishDex[f.id] = (S.fishDex[f.id] || 0) + 1;
   save(); snd('harvest');
   modal(`${f.em} You caught a ${f.en}!`, `<div class="big">${f.e}</div><b>${f.en}</b> = ${f.vi}<br>💰 ${f.price} 🪙 ${first ? '<br>📖 Loài mới! +8 EXP' : '<br>🎓 +2 EXP'}`,
@@ -689,7 +568,7 @@ function captain() {
   snd('chat');
   if (!S.rod) {
     return talk([{ who:'Captain Hai ⚓', en:'Welcome to Moon Lake! Every fisherman needs a rod. Take this one!', vi:'Chào mừng đến Hồ Trăng! Dân chài nào cũng cần một chiếc cần câu. Tặng bạn nhé!' },
-      { who:'Captain Hai ⚓', en:'Stand near the water and press E to fish. Hold Space to catch the fish.', vi:'Đứng gần mặt nước và bấm E để câu. Giữ Space để kéo cá.' }], () => { S.rod = true; save(); toast('🎣 Nhận được cần câu tre!'); snd('coin'); });
+      { who:'Captain Hai ⚓', en:'Stand near the water and press E to fish. Hold Space to catch the fish.', vi:'Đứng gần mặt nước và bấm E để câu. Giữ Space để kéo cá.' }], () => { S.rod = true; EF.Quest.emit('interact', { tag:'rod', id:'rod' }); save(); toast('🎣 Nhận được cần câu tre!'); snd('coin'); });
   }
   const got = FISH.filter(f => (S.inv.fish[f.id] || 0) > 0), total = got.reduce((t, f) => t + f.price * S.inv.fish[f.id], 0);
   const sell = list => { let g = 0; list.forEach(f => { g += f.price * S.inv.fish[f.id]; delete S.inv.fish[f.id]; }); S.coins += g; snd('coin'); hud(); save(); toast(`Đã bán cá +${g} 🪙`); captain(); };
@@ -1088,11 +967,15 @@ class Base extends Phaser.Scene {
 
 
   // nhân vật đứng yên có va chạm + bóng + nhãn tên
-  npc(key, x, y, name) {
-    const s = this.physics.add.sprite(x, y, key).setImmovable(true).setDepth(y), hh = s.height;
-    if (hh > 40) s.body.setSize(22, 16).setOffset((s.width - 22) / 2, hh - 18); // chỉ va chạm ở chân
-    this.add.image(x, y + hh / 2 - (hh > 40 ? 5 : 0), 'shadow').setDepth(.5);
-    if (name) this.add.text(x, y - hh / 2 - 14, name, { fontSize:'14px', color:'#fff', backgroundColor:'#00000088', padding:{ x:4, y:1 } }).setOrigin(.5).setDepth(1500);
+  npc(key, x, y, name, sc) {
+    // NPC 32px (người thật chỉ cao ~25px trong khung) được phóng NPC_SC lần cho cân với nhân vật chính (40x56)
+    const s = this.physics.add.sprite(x, y, key).setImmovable(true), hh = s.height, tall = hh > 40;
+    sc = tall ? 1 : (sc || NPC_SC); s.setScale(sc);
+    const pad = hh === 32 ? 5 : 0, feet = hh === 32 ? 14 : hh / 2, fy = y + (feet - hh / 2) * sc, ty = y + (pad - hh / 2) * sc;   // chân / đỉnh đầu thật
+    if (tall) s.body.setSize(22, 16).setOffset((s.width - 22) / 2, hh - 18); else { const w = Math.min(14, s.width); s.body.setSize(w, 10).setOffset((s.width - w) / 2, hh - 14); }
+    s.setDepth(fy);
+    this.add.image(x, fy + 2, 'shadow').setDepth(.5).setScale(sc);
+    if (name) this.add.text(x, ty - 12, name, { fontSize:'14px', color:'#fff', backgroundColor:'#00000088', padding:{ x:4, y:1 } }).setOrigin(.5).setDepth(1500);
     this.physics.add.collider(this.player, s);
     this.mm.n.push(s);
     return s;
@@ -1443,7 +1326,7 @@ class Farm extends Base {
       '<b>“Welcome to the farm!”</b><br>Chào mừng bạn! Mở <b>🎒 Túi đồ</b> (phím B) → chọn hạt giống → xới đất → gieo hạt → tưới nước → vào nhà đi ngủ → thu hoạch. Làm nông tốn ⚡ stamina.<br>🎓 Nói chuyện với <b>cô Emma</b> để học từ vựng B1/B2: lấy EXP, lên cấp và nhận 🌱 hạt giống thưởng. Đi sang phải để vào 🏘️ thị trấn: mua hạt giống, ăn đồ hồi stamina; qua cầu, vườn hoa và đồi cao cũng rất đáng ghé. Bán nông sản bằng cách bỏ vào 📦 thùng ở nông trại, nhớ đi ngủ trước 24:00 kẻo bị móc túi!',
       [{ label:'Bắt đầu chơi 🌾', fn:closeModal }]);
     const first = S.day === 1 && !Object.keys(S.learned).length && !Object.keys(S.words).length;
-    if (!S.story.intro) talk(PROLOGUE, () => { S.story.intro = true; save(); hud(); if (first) showWelcome(); });
+    if (!S.story.intro) EF.Story.prologue(() => { S.story.intro = true; save(); hud(); if (first) showWelcome(); });
     else if (first) showWelcome();
   }
 
@@ -1512,6 +1395,7 @@ class Farm extends Base {
 
   mail() {
     snd('chat');
+    if (S.story.ch === 0 && !EF.Quest.hasClue('page_01') && S.story.flags['prologue.done']) return EF.Act.oldLetter();
     if (S.mailDay === S.day) return modal('Hộp thư ✉️', '<b>“No new letters today.”</b><br>(Hôm nay chưa có thư mới.) Mai quay lại nhé!', [{ label:'Đóng', fn:closeModal }]);
     const p = PHRASES[(S.day * 5 + 2) % PHRASES.length]; S.mailDay = S.day; save();
     modal('Hộp thư ✉️', `<b>“Dear farmer, ${p.en}”</b><br>${p.vi}<br><small>💡 ${p.tip}</small><br>🎓 +3 EXP`, [{ label:'Thank you! 💌', fn:closeModal }]);
@@ -1535,7 +1419,7 @@ class Farm extends Base {
       if (!can(COST.sow)) return;
       use(COST.sow); S.inv.seeds[c.id]--;
       p.s = 2; p.c = c.id; p.g = 0; p.w = wxNow() === 'rain';
-      S.learned[c.id] = (S.learned[c.id] || 0) + 1;
+      S.learned[c.id] = (S.learned[c.id] || 0) + 1; EF.Quest.emit('plant', { id:c.id });
       snd('sow'); this.fx(i, 0x9be564, '🌱');
       toast(`Đã gieo ${c.en} = ${c.vi} · còn ${seedCount(c.id)} hạt`);
       fixSel(); return after();
@@ -1543,7 +1427,7 @@ class Farm extends Base {
     if (this.ready(p)) {
       if (!can(COST.harvest)) return;
       const c = crop(p.c); use(COST.harvest);
-      S.inv.crops[c.id] = (S.inv.crops[c.id] || 0) + 1; S.story.cnt.harvest++;
+      S.inv.crops[c.id] = (S.inv.crops[c.id] || 0) + 1; S.story.cnt.harvest++; EF.Quest.emit('harvest', { id:c.id });
       const seed = Math.random() < .4; if (seed) addSeed(c.id);
       p.s = 1; p.c = null; p.g = 0; p.w = false;
       S.learned[c.id] = (S.learned[c.id] || 0) + 1;
@@ -1703,10 +1587,10 @@ class Town extends Base {
     // ---- biển tên + nhân vật ----
     const sign = (x, y, t) => this.add.text(x, y, t, { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
     sign(560, 292, '🏠 Town Homes'); sign(380, 562, '🍞 Food Stall'); sign(840, 285, '🛋️ Decor Shop'); sign(220, 322, '🌱 Plant Workshop'); sign(950, 596, '🏛️ Đình làng'); sign(60, 292, '← Nông trại');
-    sign(1236, 296, '🌉 Cầu Sunny'); sign(800, 660, '⛰️ Đồi Cao ↓'); sign(320, 680, '🌼 Khu vườn Hoa'); sign(1500, 322, '🌬️ Cối xay gió'); sign(1540, 530, '🐄 Đồng cỏ Bờ Đông');
+    sign(1236, 268, '🌉 Cầu Sunny'); sign(800, 660, '⛰️ Đồi Cao ↓'); sign(320, 680, '🌼 Khu vườn Hoa'); sign(1500, 410, '🌬️ Cối xay gió'); sign(1540, 530, '🐄 Đồng cỏ Bờ Đông');
     this.chef = this.npc('chef', 500, 530, 'Chef Bo');
     this.mia = this.npc('mia', 962, 296, 'Mia');
-    this.npc('ben', 470, 286); this.npc('rose', 660, 288);
+    this.sam = this.npc('ben', 470, 286, 'Sam 🎒'); this.npc('rose', 660, 288);
     const arrow = this.add.text(18, 332, '➜', { fontSize:'26px', color:'#fff', stroke:'#2a1d10', strokeThickness:4 }).setOrigin(.5).setFlipX(true).setDepth(1500);
     this.tweens.add({ targets: arrow, x: 30, yoyo: true, repeat: -1, duration: 500 });
 
@@ -1734,20 +1618,26 @@ class Town extends Base {
 
   look() {
     const px = this.player.x, py = this.player.y, D = Phaser.Math.Distance.Between;
+    if (this.sam && D(px, py, this.sam.x, this.sam.y) < 70) return { t:'sam' };
     if (D(px, py, this.daisy.x, this.daisy.y) < 75) return { t:'daisy' };
     if (D(px, py, this.pete.x, this.pete.y) < 75) return { t:'pete' };
     if (D(px, py, this.scope.x, this.scope.y - 10) < 80) return { t:'scope' };
     if (this.zones.shop.contains(px, py)) return { t:'shop' };
     if (this.zones.dinh.contains(px, py)) return { t:'dinh' };
     if (this.zones.homes.contains(px, py)) return { t:'homes' };
-    if (this.zones.decor.contains(px, py) || D(px, py, this.mia.x, this.mia.y) < 70) return { t:'decor' };
-    if (this.zones.food.contains(px, py) || D(px, py, this.chef.x, this.chef.y) < 70) return { t:'food' };
+    if (D(px, py, this.mia.x, this.mia.y) < 70) return { t:'mia' };
+    if (this.zones.decor.contains(px, py)) return { t:'decor' };
+    if (D(px, py, this.chef.x, this.chef.y) < 70) return { t:'chef' };
+    if (this.zones.food.contains(px, py)) return { t:'food' };
     if (!(py > 300 && py < 400) && this.riverZone.some(r => px > r[0] && px < r[1])) return { t:'river' };
     return null;
   }
 
   label(c) {
     if (!c) return 'WASD / phím mũi tên: đi · E hoặc Space: hành động · trái: nông trại · phải: qua cầu · xuống: vườn hoa & đồi cao';
+    if (c.t === 'sam') return 'E: nói chuyện với Sam 🎒 (sinh viên trao đổi)';
+    if (c.t === 'mia') return 'E: nói chuyện với Mia 🧺 — chợ ven sông & Decor Shop';
+    if (c.t === 'chef') return 'E: nói chuyện với Chef Bo 🍲 — bếp & order';
     if (c.t === 'shop') return 'E: bước vào Plant Workshop 🌱 — mua hạt giống, cây giống';
     if (c.t === 'dinh') return 'E: thắp hương ở Đình làng 🏛️ (mỗi ngày nhận 1 lời chúc, +EXP)';
     if (c.t === 'homes') return 'E: gõ cửa nhà dân 🏠 (mỗi ngày nghe 1 câu mới, +EXP)';
@@ -1760,11 +1650,19 @@ class Town extends Base {
   }
 
   doAct(c) {
-    if (c.t === 'dinh') { if (!turnIn('Town:dinh')) this.dinh(); }
+    if (c.t === 'sam') EF.Story.npcMenu('sam', () => this.samChat(), 'Sam · Exchange Student');
+    else if (c.t === 'mia') { if (!turnIn('Town:mia')) EF.Story.npcMenu('mia', () => this.decorShop(), 'Mia · Market Keeper'); }
+    else if (c.t === 'chef') { if (!turnIn('Town:food')) EF.Story.npcMenu('chef', () => this.food(), 'Chef Bo'); }
+    else if (c.t === 'dinh') { if (!turnIn('Town:dinh')) EF.Story.npcMenu('dinh', () => this.dinh(), 'Open Day · Đình làng'); }
     else if (c.t === 'shop') this.go('Workshop');
-    else if (c.t === 'homes') this.homes(); else if (c.t === 'decor') this.decorShop();
-    else if (c.t === 'daisy') this.daisyTalk(); else if (c.t === 'pete') this.peteTalk(); else if (c.t === 'scope') this.scopeLook();
+    else if (c.t === 'homes') EF.Story.npcMenu('homes', () => this.homes(), 'Town Homes · Archive'); else if (c.t === 'decor') this.decorShop();
+    else if (c.t === 'daisy') EF.Story.npcMenu('daisy', () => this.daisyTalk(), 'Daisy 🌸'); else if (c.t === 'pete') { if (!turnIn('Town:pete')) EF.Story.npcMenu('pete', () => this.peteTalk(), 'Pete · English Corner'); } else if (c.t === 'scope') this.scopeLook();
     else if (c.t === 'river') fishing(); else this.food();
+  }
+
+  samChat() {
+    snd('chat'); const L = [['Hi! I am Sam. I am studying here this summer.', 'Chào! Mình là Sam. Mình học ở đây mùa hè này.'], ['The river looks beautiful in the evening.', 'Dòng sông buổi chiều thật đẹp.'], ['Could you teach me one new word today?', 'Hôm nay bạn dạy mình một từ mới được không?']], p = L[S.day % L.length];
+    modal('Sam 🎒', `<b>“${p[0]}”</b><br>${p[1]}`, [{ label:'Nice to meet you! 👋', fn:closeModal }]);
   }
 
   daisyTalk() {
@@ -1884,7 +1782,7 @@ class Workshop extends Base {
     this.add.text(112 * K, 168 * K, '⬇ Ra ngoài', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
     [[0, 0, 224, 50], [0, 0, 5, 176], [219, 0, 5, 176], [0, 172, 96, 4], [128, 172, 96, 4], [4, 16, 80, 58], [142, 16, 82, 58], [56, 90, 112, 20]]
       .forEach(r => this.block(r[0] * K, r[1] * K, r[2] * K, r[3] * K));   // tường · mép phòng · 2 cụm kệ · quầy
-    this.lily = this.npc('lily', 112 * K, 82 * K, 'Lily');
+    this.lily = this.npc('lily', 112 * K, 82 * K, 'Lily', NPC_SC * HOME_HERO);
     hud();
   }
 
@@ -1895,7 +1793,7 @@ class Workshop extends Base {
 
   look() { const p = this.player; return p.y < 128 * 3 && p.x > 50 * 3 && p.x < 174 * 3 ? { t:'shop' } : null; }
   label(c) { return c ? 'E: nói chuyện với Lily — mua hạt giống, cây giống 🌱' : 'WASD / phím mũi tên: đi · lại gần quầy để gặp Lily · đi xuống cửa để ra ngoài'; }
-  doAct() { if (!turnIn('Town:shop')) this.shop(); }
+  doAct() { if (!turnIn('Town:shop')) EF.Story.npcMenu('lily', () => this.shop(), 'Lily · Plant Workshop'); }
 }
 Workshop.prototype.shop = Town.prototype.shop;
 
@@ -1960,13 +1858,17 @@ class Forest extends Base {
     const s = this.spots[c.i];
     if (!can(1)) return;
     use(2); S.foraged.push(c.i); s.img.setVisible(false);
-    const cc = crop(s.id); S.inv.crops[cc.id] = (S.inv.crops[cc.id] || 0) + 1; S.story.cnt.forage++;
+    const cc = crop(s.id); S.inv.crops[cc.id] = (S.inv.crops[cc.id] || 0) + 1; S.story.cnt.forage++; EF.Quest.emit('forage', { id:cc.id });
     let extra = ''; if (Math.random() < .25) { const sid = rewardSeed(); extra = ' + hạt ' + crop(sid).en; }
     snd('harvest'); toast(`+1 ${cc.en} (${cc.vi})${extra}`); gainExp(2); save();
   }
 
   talkMoss() {
     if (turnIn('Forest:moss')) return;
+    if (EF.Story.activities('moss').length) return EF.Story.npcMenu('moss', () => this.mossChat(), 'Cụ Mộc · Elder Moss');
+    return this.mossChat();
+  }
+  mossChat() {
     snd('chat');
     if (S.mossDay === S.day) return modal('Elder Moss 🧙', '<b>“The forest is quiet today.”</b><br>(Hôm nay rừng yên ắng.) Mai cụ sẽ kể bạn nghe một câu mới.', [{ label:'Đóng', fn:closeModal }]);
     const p = PHRASES[(S.day * 3) % PHRASES.length]; S.mossDay = S.day; save();
@@ -1999,7 +1901,7 @@ class Lake extends Base {
     this.solids.refresh();
     this.physics.add.collider(this.player, this.solids);
     this.scatter(26, 41, (x, y) => !(x > 140 && x < 1140 && y > 280 && y < 760) && !(x > 540 && x < 740 && y < 300));
-    this.hai = this.npc('hai', 740, 285, 'Captain Hai ⚓');
+    this.hai = this.npc('hai', 830, 285, 'Captain Hai ⚓');
     for (let i = 0; i < 3; i++) this.addAnimal('chick', 260 + i * 120, 400 + i * 50, [200, 330, 860, 370], [[590, 260, 100, 300]]);
     this.fishZone = new Phaser.Geom.Rectangle(150, 285, 980, 470);
     const sg = (x, y, t) => this.add.text(x, y, t, { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
@@ -2027,7 +1929,7 @@ class Lake extends Base {
     return S.rod ? `E: thả câu 🎣 (⚡${COST_FISH})` : 'Cần có cần câu — hãy hỏi thuyền trưởng Hải ⚓';
   }
 
-  doAct(c) { if (c.t === 'captain') { if (!turnIn('Lake:captain')) captain(); } else fishing(); }
+  doAct(c) { if (c.t === 'captain') { if (!turnIn('Lake:captain')) EF.Story.npcMenu('hai', captain, 'Chú Hai · Captain Hai'); } else fishing(); }
 }
 
 // ====== CẢNH 3: TRONG NHÀ ======
@@ -2117,6 +2019,8 @@ class Home extends Base {
   }
 }
 
+EF.host = { S:() => S, modal, closeModal, toast, snd, gainExp, save, hud, use, talk, rewardSeed, sico, crop, maxSt, LESSON, B2_LEVEL, oldWordBook };
+['Lang', 'Quest', 'Story', 'Dialogue'].forEach(k => EF[k].init(EF.host));
 let game;
 const startGame = () => { game = new Phaser.Game({
   type: Phaser.AUTO, parent: 'game-container', pixelArt: true, backgroundColor: '#1d2b19',
@@ -2136,7 +2040,8 @@ Promise.all(['crops', 'hero', 'shop'].map(k => loadImg(k, window.ASSETS[k]))
   .concat(Object.keys(TW.npc).map(k => loadImg('n_' + k, TW.npc[k]))).concat(GR.det ? [loadImg('gdet', GR.det)] : [])
   .concat(Object.keys(NAT.trees).map(k => loadImg('tr_' + k, NAT.trees[k].src)))
   .concat(Object.keys(NAT.decor).map(k => loadImg('nd_' + k, NAT.decor[k])))
-  .concat(Object.keys(AN).map(k => loadImg('an_' + k, AN[k].src)))).then(() => { startGame(); uiSkin(); });
+  .concat(Object.keys(AN).map(k => loadImg('an_' + k, AN[k].src)))).then(() => { EF.Char.setBase(IMG.hero); return S.character.created ? Promise.resolve() : EF.UI.characterCreator(); })
+  .then(() => EF.Char.prepare(IMG, S.character.appearance)).then(() => { startGame(); uiSkin(); });
 
 // icon pixel-art cho thanh HUD (stamina, EXP, túi, bản đồ)
 function uiSkin() {
@@ -2146,6 +2051,7 @@ function uiSkin() {
   if (SPR.ui_map) $('#mapBtn').innerHTML = spImg('ui_map', 20) + ' Bản đồ';
   storyCheck();
 }
+$('#journalBtn').onclick = () => { if (!open) { snd('click'); EF.UI.journal(); } };
 $('#bookBtn').onclick = () => { if (!open) { snd('click'); wordBook(); } };
 $('#bagBtn').onclick = () => { if (!open) bag(); };
 $('#questBtn').onclick = () => { if (!open) questLog(); };
@@ -2166,6 +2072,7 @@ window.addEventListener('keydown', e => {
   if (!open && (e.key === '[' || e.key === ']') && o.length) { const k = o.length; S.sel = o[(Math.max(0, o.indexOf(S.sel)) + (e.key === ']' ? 1 : k - 1)) % k]; snd('select'); hud(); save(); }
   if (!open && (e.key === 'm' || e.key === 'M')) MM.big = !MM.big;
   if (!open && (e.key === 'q' || e.key === 'Q')) questLog();
+  if (!open && (e.key === 'j' || e.key === 'J')) EF.UI.journal();
   if (!open && (e.key === 'b' || e.key === 'B' || e.key === 'i' || e.key === 'I')) bag();
 });
 hud();

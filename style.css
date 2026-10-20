@@ -179,3 +179,21 @@ body{margin:0}
 @keyframes zzz{from{opacity:0;transform:translateY(8px)}50%{opacity:1}to{opacity:0;transform:translateY(-18px)}}
 @keyframes bagbob{from{transform:translateY(0)}to{transform:translateY(-4px)}}
 @media (prefers-reduced-motion:reduce){.cn-card,.cn-rows li,.cs-stage .zz,.cs-stage .bag{animation:none}.cn-sky.night,.cn-sun,.cn-hill{transition:none}}
+
+/* ===== Design Bible v3: hội thoại, tạo nhân vật, quest ===== */
+#farm-app .npc{background:#fff8e6;border-left:4px solid #e0a63a;padding:6px 10px;margin:6px 0;border-radius:6px}
+#farm-app .npc.old{opacity:.6;font-size:.9em}
+#farm-app .you{background:#e8f4ff;border-left:4px solid #4a90d9;padding:4px 10px;margin:4px 0;border-radius:6px}
+#farm-app .fb{padding:6px 10px;margin:6px 0;border-radius:6px;background:#f3f3f3}
+#farm-app .fb.good{background:#e4f7dc}#farm-app .fb.mid{background:#fff3cf}#farm-app .fb.bad{background:#fde3e0}
+#farm-app .vi{color:#6a5a45}#farm-app .turn{display:block;color:#8a7a60}
+#farm-app textarea{width:100%;box-sizing:border-box;margin:8px 0;padding:6px;border-radius:6px;border:2px solid #c9a96a;font:inherit}
+#farm-app .cc{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+#farm-app .cc canvas{width:120px;height:168px;image-rendering:pixelated;align-self:center;background:#cfe8b0;border-radius:8px}
+#farm-app .cc input{margin-left:6px;padding:4px 8px;border-radius:6px;border:2px solid #c9a96a;font:inherit}
+#farm-app .ccrow{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+#farm-app .sw{padding:3px 8px;border-radius:12px;border:2px solid #c9a96a;background:#fff;cursor:pointer;font:inherit;font-size:.82em}
+#farm-app .sw.on{background:#ffd54a;border-color:#a8741a}
+#farm-app .pbar{display:inline-block;width:90px;height:8px;background:#e5dcc8;border-radius:4px;vertical-align:middle;margin-left:6px;overflow:hidden}
+#farm-app .pbar i{display:block;height:100%;background:#6bbf4a}
+#farm-app .quests li{margin-bottom:6px}
