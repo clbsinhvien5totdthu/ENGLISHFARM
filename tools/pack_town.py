@@ -9,13 +9,12 @@ up = lambda im, k=S: im.resize((im.width * k, im.height * k), Image.NEAREST)
 def uri(im):
     b = io.BytesIO(); im.save(b, "PNG"); return "data:image/png;base64," + base64.b64encode(b.getvalue()).decode()
 
-# ---- cầu gỗ nằm ngang (ghép: đầu trái + thân + đầu phải), vừa sông rộng 104px + hai bờ cát ----
+# ---- cầu gỗ nằm ngang: lấy THÂN cầu liền một khối (x 292-394), giữ hai đầu trụ + đoạn giữa -> 68px (x2 = 136px) phủ sông 104px + hai bờ cát 16px ----
+# (bản cũ ghép đầu trái + thân + đầu phải nên bị hở một khe nước giữa ván cầu)
 BR = op("Bridges.png"); Y0, Y1 = 356, 392
-seg = lambda x0, x1: BR.crop((x0, Y0, x1 + 1, Y1))
-L, M, R = seg(272, 281), seg(292, 394), seg(400, 415)   # đầu trái bỏ cột trụ (thân đã có trụ ở đầu)
-MID = 30    # thân cắt đúng chỗ giữa hai cột trụ (cột cách nhau ~30px)
-bridge = Image.new("RGBA", (L.width + MID + R.width, Y1 - Y0))
-bridge.paste(L, (0, 0)); bridge.paste(M.crop((0, 0, MID, M.height)), (L.width, 0)); bridge.paste(R, (L.width + MID, 0))
+M = BR.crop((292, Y0, 395, Y1)); CAP = 14; MIDW = 40
+bridge = Image.new("RGBA", (CAP + MIDW + CAP, Y1 - Y0))
+bridge.paste(M.crop((0, 0, CAP, M.height)), (0, 0)); bridge.paste(M.crop((CAP, 0, CAP + MIDW, M.height)), (CAP, 0)); bridge.paste(M.crop((M.width - CAP, 0, M.width, M.height)), (CAP + MIDW, 0))
 
 # ---- cầu tàu dọc (rộng ~64px = vừa lối đi ở Hồ Trăng) ----
 pier = Image.new("RGBA", (33, 12 + 124))
