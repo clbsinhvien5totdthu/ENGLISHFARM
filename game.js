@@ -995,6 +995,13 @@ class Base extends Phaser.Scene {
     for (let i = 0; i < 40 && this.animalBlocked(a, a.x, a.y); i++) { a.x = rect[0] + 10 + Math.random() * (rect[2] - 20); a.y = rect[1] + 10 + Math.random() * (rect[3] - 20); }
     this.animals.push(a); return a;
   }
+  // nhà Tiny Village (3x, đã có bóng đổ ở chân): vẽ theo đáy, chỉ chặn phần chân, thêm vào minimap
+  vb(key, x, bottom, solidH = 34, solidW = .7, col = '#a07a4a') {
+    const k = 'v_' + key; if (!this.textures.exists(k)) return null;
+    const s = this.add.image(x, bottom + 6, k).setOrigin(.5, 1).setDepth(bottom);
+    this.block(x - s.width * solidW / 2, bottom - solidH, s.width * solidW, solidH);
+    this.mm.r.push([x - s.width / 2, bottom - s.height, s.width, s.height, col]); return s;
+  }
   isWet(x, y) { return this.wet.some(f => f(x, y)) && !this.dry.some(f => f(x, y)); }
   wetRect(x, y, w, h, m = 10) { this.wet.push((px, py) => px > x - m && px < x + w + m && py > y - m && py < y + h + m + 4); }
   wetEllipse(cx, cy, rx, ry, m = 12) { this.wet.push((px, py) => ((px - cx) / (rx + m)) ** 2 + ((py - 6 - cy) / (ry + m)) ** 2 < 1); }
@@ -1289,11 +1296,11 @@ class Farm extends Base {
       const x = 40 + rnd() * (W - 80), y = 40 + rnd() * (H - 80);
       if ((x > 80 && x < 900 && y > 60 && y < 520) || (x > 880 && x < 1140 && y > 680 && y < 840)) continue; // chừa khu nông trại
       if (near(x, y) || !clipRoad(x, y)) continue; // chừa mọi đoạn đường (tán cây ~104x140px)
-      if (x > 930 && x < 1130 && y > 150 && y < 370) continue; // chỗ chuồng ngựa
+      if (x > 880 && x < 1180 && y > 120 && y < 380) continue; // chỗ chuồng ngựa
       if (x > 500 && x < 780 && (y < 150 || y > H - 150)) continue; // chừa lối lên Rừng / xuống Hồ
       this.solids.create(x, y, Math.random() < .18 ? 'blossom' : 'tree');
     }
-    if (this.textures.exists('v_stable')) { this.add.image(1030, 350, 'v_stable').setOrigin(.5, 1).setDepth(350); this.block(965, 318, 130, 34); this.mm.r.push([954, 210, 152, 140, '#8a5e34']); }   // chuồng ngựa (Tiny Village) cạnh bãi chăn
+    this.vb('stable', 1030, 350, 36, .75, '#8a5e34');   // chuồng ngựa (Tiny Village) cạnh bãi chăn
     this.binObj = this.solids.create(430, 440, 'bin'); // thùng bán hàng
     this.mailObj = this.solids.create(120, 300, 'mailbox'); // hộp thư (thư tiếng Anh mỗi ngày)
     this.solids.refresh();
@@ -1477,7 +1484,7 @@ class Town extends Base {
     // ---- đường (ô 64px): đường chính kéo dài qua cầu · lối lên đồi · lối vào khu vườn ----
     const cells = new Set(), road = (x0, y0, x1, y1) => { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) cells.add(x + ',' + y); };
     road(0, 5, 26, 5);                                   // đường chính
-    road(3, 4, 3, 4); road(8, 4, 8, 4); road(13, 4, 13, 4); // lối vào tiệm hạt giống / nhà dân / decor
+    road(3, 4, 3, 4); road(7, 4, 7, 4); road(10, 4, 10, 4); road(13, 4, 13, 4); // lối vào tiệm hạt giống / nhà dân / decor
     road(6, 6, 6, 6);                                    // lối xuống quầy ăn
     const plaza = new Set(); road(10, 6, 12, 8);          // sân giếng nước (lát đất đặc)
     for (let x = 10; x <= 12; x++) for (let y = 5; y <= 8; y++) plaza.add(x + ',' + y);
@@ -1488,15 +1495,15 @@ class Town extends Base {
     const place = (key, x, y) => { const s = this.solids.create(x, y, key); s.setDepth(y + s.height / 2 - 4); return s; };
     // Công trình pixel-art: vẽ theo đáy (origin .5,1), vật cản chỉ ở phần chân → đi vòng ra sau được
     const bldg = (key, x, bottom, solidH = 56, solidW = .8) => {
-      const s = this.add.image(x, bottom, 'b_' + key).setOrigin(.5, 1).setDepth(bottom);
+      const nv = this.textures.exists('v_' + key), s = this.add.image(x, nv ? bottom + 6 : bottom, (nv ? 'v_' : 'b_') + key).setOrigin(.5, 1).setDepth(bottom);   // v_ = nhà Tiny Village (3x, có bóng)
       const z = this.add.zone(x, bottom - solidH / 2, s.width * solidW, solidH); this.physics.add.existing(z, true); this.physics.add.collider(this.player, z);
       this.mm.r.push([x - s.width / 2, bottom - s.height, s.width, s.height]);
       return s;
     };
     this.shopB  = bldg('seedshop', 220, 320, 60, .75);   // Plant Workshop (xưởng bán cây giống)
-    this.homesB = bldg('homes', 560, 275, 50, .85);      // nhà dân (2 căn)
-    this.foodB  = bldg('food', 380, 545, 50, .8);        // quầy đồ ăn
-    this.decorB = bldg('decor', 840, 268, 50, .8);       // tiệm nội thất / trang trí
+    this.homesB = bldg('homes', 575, 284, 50, .82);      // nhà dân (2 căn)
+    this.foodB  = bldg('food', 466, 604, 50, .8);        // quầy đồ ăn
+    this.decorB = bldg('decor', 880, 284, 50, .8);       // tiệm nội thất / trang trí
     this.wellB  = bldg('well', 700, 505, 40, .55);       // giếng nước
     this.dinhB  = bldg('dinh', 950, 572, 56, .85);       // đình làng
     this.mm.exits.push([0, 0, 8, H]);
@@ -1537,13 +1544,13 @@ class Town extends Base {
     this.block(PX0 - 12, 690, 14, PH); this.block(PX0 + PW - 2, 690, 14, PH);   // mép tây / đông
     this.block(PX0, PY0 + PH - 6, PW, 62);                                      // vách đá phía nam
     this.mm.r.push([PX0, PY0, PW, PH + 56, '#8fcf6a'], [768, 672, 64, 48, '#d8c79e']);
-    if (this.textures.exists('v_observatory')) { this.gazebo = this.add.image(900, 905, 'v_observatory').setOrigin(.5, 1).setDepth(905); this.block(850, 872, 100, 34); this.mm.r.push([844, 761, 112, 144, '#9a8a70']); }   // đài thiên văn (Tiny Village)
+    if (this.textures.exists('v_observatory')) { this.gazebo = this.vb('observatory', 900, 930, 36, .7, '#9a8a70'); }   // đài thiên văn (Tiny Village)
     else { this.gazebo = this.add.image(900, 905, 'gazebo').setOrigin(.5, 1).setDepth(905); this.block(850, 880, 12, 14); this.block(938, 880, 12, 14); }
     this.scope = this.add.image(1040, 810, 'telescope').setOrigin(.5, 1).setDepth(810);
     this.block(1028, 796, 24, 14);
     this.add.image(1030, 890, 'bench').setOrigin(.5, 1).setDepth(890);
     { const rnd = this.rng(5), cols = [0xff6f91, 0xffd54a, 0xffffff, 0xb28cff];
-      for (let i = 0; i < 26; i++) { const fx = PX0 + 24 + rnd() * (PW - 48), fy = PY0 + 40 + rnd() * (PH - 60); if (fx > 770 && fx < 960 && fy > 800) continue; this.add.image(fx, fy, 'flower').setTint(cols[i % 4]).setDepth(fy); } }
+      for (let i = 0; i < 26; i++) { const fx = PX0 + 24 + rnd() * (PW - 48), fy = PY0 + 40 + rnd() * (PH - 60); if (fx > 800 && fx < 1000 && fy > 700) continue; this.add.image(fx, fy, 'flower').setTint(cols[i % 4]).setDepth(fy); } }
     place('tree', 745, 770); place('tree', 1085, 745); place('tree', 1085, 905);
 
     // ============ KHU VƯỜN HOA (chỗ thấp, phía tây-nam) ============
@@ -1570,10 +1577,8 @@ class Town extends Base {
     });
 
     // ============ BỜ ĐÔNG: cối xay gió + đồng cỏ ============
-    if (this.textures.exists('v_mill')) {   // nhà xay bột + trường làng (Tiny Village) thay cối xay gió vẽ bằng code
-      this.add.image(1650, 300, 'v_mill').setOrigin(.5, 1).setDepth(300); this.block(1596, 262, 108, 38); this.mm.r.push([1576, 150, 148, 150, '#e8d7b0']);
-      this.add.image(1450, 300, 'v_school').setOrigin(.5, 1).setDepth(300); this.block(1396, 258, 108, 42); this.mm.r.push([1384, 144, 132, 156, '#d8c9a8']);
-    } else {
+    if (this.textures.exists('v_mill')) { this.vb('mill', 1416, 300, 40, .75, '#e8d7b0'); this.vb('school', 1640, 300, 40, .75, '#d8c9a8'); }   // nhà xay sát sông (bánh xe nước), trường làng ở phía đông   // nhà xay bột + trường làng (Tiny Village)
+    else {
       this.add.image(1590, 300, 'windmill').setOrigin(.5, 1).setDepth(300);
       this.block(1556, 268, 68, 32);
       const bl = this.add.image(1590, 196, 'blades').setDepth(301); this.tweens.add({ targets: bl, angle: 360, duration: 9000, repeat: -1 });
@@ -1597,12 +1602,12 @@ class Town extends Base {
       if (!(x > 80 && x < 360) && !inRiver(x)) place(Math.floor(x / 66) % 4 === 1 ? 'blossom' : 'tree', x, 40);
       if (x > 620 && !inRiver(x)) place('tree', x + 20, H - 36);
     }
-    for (let y = 120; y < H - 40; y += 70) { if (!(y > 250 && y < 430)) place('tree', 24, y); place('tree', W - 24, y); }
+    for (let y = 120; y < H - 40; y += 70) { if (!(y > 250 && y < 430)) place('tree', 24, y); if (!(y > 90 && y < 440)) place('tree', W - 24, y); }
     const rt = this.rng(9), nearR = (x, y) => cells.has(Math.floor(x / 64) + ',' + Math.floor(y / 64));
     for (let i = 0, n = 0; n < 45 && i < 500; i++) {
       const x = 60 + rt() * (W - 120), y = 80 + rt() * (H - 160);
       if (nearR(x, y) || !this.clearOfRoad(cells, x, y) || inRiver(x) || (x < 1150 && y < 650) || (x < 620 && y > 660) || (x > 670 && x < 1150 && y > 650 && y < 1020)
-        || (x > 1330 && x < 1740 && y > 500 && y < 1050) || (x > 1380 && x < 1740 && y < 420)) continue;
+        || (x > 1330 && x < 1740 && y > 500 && y < 1050) || (x > 1320 && x < 1740 && y < 420)) continue;
       place('tree', x, y); n++;
     }
     this.solids.refresh();
@@ -1610,17 +1615,17 @@ class Town extends Base {
 
     const near = (x, y) => cells.has(Math.floor(x / 64) + ',' + Math.floor(y / 64));
     const inside = (x, y, r) => x > r[0] && x < r[2] && y > r[1] && y < r[3];
-    const blocks = [[90, 10, 350, 330], [390, 90, 730, 290], [735, 80, 950, 285], [280, 360, 480, 565], [630, 380, 775, 520], [820, 410, 1085, 600], [1380, 130, 1740, 420]];
+    const blocks = [[90, 10, 350, 330], [380, 40, 780, 300], [760, 50, 1010, 300], [330, 370, 600, 630], [630, 380, 775, 520], [820, 410, 1085, 600], [1320, 40, 1740, 420]];
     this.scatter(70, 33, (x, y) => !near(x, y) && !near(x + 24, y) && !near(x - 24, y) && !near(x, y - 20) && !inRiver(x) && y < 1070
       && !(x < 600 && y > 660) && !(x > 660 && x < 1150 && y > 640 && y < 1020) && !blocks.some(r => inside(x, y, r)));
 
     // ---- biển tên + nhân vật ----
     const sign = (x, y, t) => this.add.text(x, y, t, { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
-    sign(560, 292, '🏠 Town Homes'); sign(380, 562, '🍞 Food Stall'); sign(840, 285, '🛋️ Decor Shop'); sign(220, 322, '🌱 Plant Workshop'); sign(950, 596, '🏛️ Đình làng'); sign(60, 292, '← Nông trại');
-    sign(1236, 268, '🌉 Cầu Sunny'); sign(800, 660, '⛰️ Đồi Cao ↓'); sign(320, 680, '🌼 Khu vườn Hoa'); sign(1650, 314, '🌾 Nhà xay bột'); sign(1450, 314, '🏫 Trường làng'); sign(1540, 530, '🐄 Đồng cỏ Bờ Đông');
-    this.chef = this.npc('chef', 500, 530, 'Chef Bo');
+    sign(575, 304, '🏠 Town Homes'); sign(466, 624, '🍞 Bakery'); sign(880, 304, '🛋️ Decor Shop'); sign(220, 322, '🌱 Plant Workshop'); sign(950, 596, '🏛️ Đình làng'); sign(60, 292, '← Nông trại');
+    sign(1236, 268, '🌉 Cầu Sunny'); sign(800, 660, '⛰️ Đồi Cao ↓'); sign(320, 680, '🌼 Khu vườn Hoa'); sign(1416, 290, '🌾 Nhà xay bột'); sign(1640, 290, '🏫 Trường làng'); sign(1540, 530, '🐄 Đồng cỏ Bờ Đông');
+    this.chef = this.npc('chef', 630, 606, 'Chef Bo');
     this.mia = this.npc('mia', 962, 296, 'Mia');
-    this.sam = this.npc('ben', 470, 286, 'Sam 🎒'); this.npc('rose', 660, 288);
+    this.sam = this.npc('ben', 440, 306, 'Sam 🎒'); this.npc('rose', 690, 308);
     const arrow = this.add.text(18, 332, '➜', { fontSize:'26px', color:'#fff', stroke:'#2a1d10', strokeThickness:4 }).setOrigin(.5).setFlipX(true).setDepth(1500);
     this.tweens.add({ targets: arrow, x: 30, yoyo: true, repeat: -1, duration: 500 });
 
@@ -1827,7 +1832,7 @@ class Workshop extends Base {
 }
 Workshop.prototype.shop = Town.prototype.shop;
 
-// ====== CẢNH: TRONG ĐÌNH LÀNG (phòng 336x224 vẽ sẵn bằng tools/pack_guild.py từ Craftpix Guild Hall tầng 1, phóng 3x như nhà chính) ======
+// ====== CẢNH: TRONG ĐÌNH LÀNG (phòng 336x224 vẽ bằng tools/pack_guild.py: bàn thờ, hoành phi, câu đối, cột sơn son, chiếu + mâm trà, trống đình; phóng 3x như nhà chính) ======
 class Guild extends Base {
   constructor() { super('Guild'); }
 
@@ -1838,12 +1843,20 @@ class Guild extends Base {
     this.add.rectangle(0, 0, W, H, 0x2f2929).setOrigin(0).setDepth(0);
     this.add.image(0, 0, 'guildroom').setOrigin(0).setScale(K).setDepth(.05);
     this.add.text(168 * K, 187 * K, '⬇ Ra ngoài', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
-    // vật cản (toạ độ px của phòng đã phóng 3x): tường · kệ sách · bảng thông báo · bàn + rồng xương · ghế dài · cầu thang · chậu hoa · rương
-    [[0, 0, 1008, 232], [210, 0, 150, 275], [0, 232, 190, 115], [820, 232, 190, 115], [0, 340, 50, 340], [962, 340, 50, 340],
-     [0, 478, 330, 200], [655, 458, 353, 230], [0, 575, 430, 100], [580, 575, 428, 100],
-     [62, 400, 50, 75], [900, 400, 52, 75], [65, 225, 125, 150], [820, 225, 125, 150], [640, 232, 70, 35],
-     [295, 262, 395, 220], [690, 420, 175, 50]].forEach(r => this.block(r[0], r[1], r[2], r[3]));
-    this.talkZone = new Phaser.Geom.Rectangle(250, 235, 500, 300);
+    // vật cản (px phòng đã phóng 3x): tường · chái · bàn thờ · 2 cột · bảng tin · tủ sổ · trống + chiêng · lọ hoa · cụ Đình trưởng + mâm trà
+    [[0, 0, 1008, 236], [396, 225, 204, 60], [0, 236, 192, 80], [804, 236, 210, 80], [0, 236, 54, 440], [954, 236, 60, 440],
+     [0, 471, 198, 210], [804, 471, 204, 210], [0, 573, 426, 100], [580, 573, 428, 100],
+     [264, 256, 36, 26], [696, 256, 36, 26], [66, 300, 114, 36], [816, 300, 126, 36], [846, 430, 36, 42],
+     [60, 360, 180, 100], [204, 510, 48, 42], [750, 510, 48, 42], [440, 282, 126, 160]].forEach(r => this.block(r[0], r[1], r[2], r[3]));
+    this.talkZone = new Phaser.Geom.Rectangle(300, 235, 400, 300);
+    // chữ hoành phi + khói hương + lửa nến (hiệu ứng nhẹ)
+    const G = GLD || {}, pl = G.plaque || [166, 41], bu = G.burner || [166, 46];
+    this.add.text(pl[0] * K, pl[1] * K, 'ĐÌNH LÀNG', { fontFamily:'serif', fontStyle:'bold', fontSize:'27px', color:'#f8dc78', stroke:'#4a0f0a', strokeThickness:4 }).setOrigin(.5).setDepth(.2);
+    this.time.addEvent({ delay: 520, loop: true, callback: () => {
+      const p = this.add.circle(bu[0] * K + Phaser.Math.Between(-5, 5), bu[1] * K, Phaser.Math.Between(3, 6), 0xe8e4dc, .5).setDepth(.3);
+      this.tweens.add({ targets: p, y: p.y - 70, x: p.x + Phaser.Math.Between(-14, 14), alpha: 0, scale: 2.2, duration: 2600, onComplete: () => p.destroy() }); } });
+    (G.candles || []).forEach((c, i) => { const f = this.add.circle(c[0] * K, c[1] * K, 5, 0xffc24a, .5).setDepth(.3).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: f, alpha: { from: .25, to: .7 }, scale: { from: .8, to: 1.35 }, yoyo: true, repeat: -1, duration: 380 + i * 120 }); });
     hud();
   }
 
@@ -1853,8 +1866,8 @@ class Guild extends Base {
   }
 
   look() { return this.talkZone.contains(this.player.x, this.player.y) ? { t:'master' } : null; }
-  label(c) { return c ? 'E: nói chuyện với thầy Đình trưởng 📜 — lời chúc mỗi ngày, nhận / nộp nhiệm vụ' : 'WASD / phím mũi tên: đi · lại gần bàn thầy Đình trưởng · đi xuống cửa để ra ngoài'; }
-  doAct() { if (!turnIn('Town:dinh')) EF.Story.npcMenu('dinh', () => this.dinh(), 'Open Day · Đình làng'); }
+  label(c) { return c ? 'E: chào cụ Đình trưởng 📜 — thắp hương nhận lời chúc mỗi ngày, nhận / nộp nhiệm vụ' : 'WASD / phím mũi tên: đi · lại gần bàn thờ, hỏi chuyện cụ Đình trưởng · đi xuống cửa để ra ngoài'; }
+  doAct() { if (!turnIn('Town:dinh')) EF.Story.npcMenu('dinh', () => this.dinh(), 'Cụ Đình trưởng · Đình làng'); }
 }
 Guild.prototype.dinh = Town.prototype.dinh;
 
@@ -1876,7 +1889,7 @@ class Forest extends Base {
     const rnd = this.rng(11);
     for (let i = 0, n = 0; n < 95 && i < 600; i++) {
       const x = 30 + rnd() * (W - 60), y = 50 + rnd() * (H - 80);
-      if (near(x, y) || !this.clearOfRoad(cells, x, y) || (x > 430 && x < 650 && y < 230) || FSPOTS.some(p => Math.hypot(p[0] - x, p[1] - y) < 56)) continue;
+      if (near(x, y) || !this.clearOfRoad(cells, x, y) || (x > 420 && x < 670 && y < 270) || FSPOTS.some(p => Math.hypot(p[0] - x, p[1] - y) < 56)) continue;
       const t = this.solids.create(x, y, Math.random() < .5 ? 'pine' : 'tree'); t.setDepth(y + 28); n++;
     }
     this.solids.refresh();
@@ -1887,7 +1900,7 @@ class Forest extends Base {
       this.tweens.add({ targets: img, y: p[1] - 4, yoyo: true, repeat: -1, duration: 900 + i * 60 });
       return { x: p[0], y: p[1], id, img };
     });
-    if (this.textures.exists('v_wizard')) { this.add.image(540, 200, 'v_wizard').setOrigin(.5, 1).setDepth(200); this.block(490, 168, 100, 32); this.mm.r.push([477, 54, 126, 146, '#6a4a8a']); }   // chòi phù thủy của cụ Moss (Tiny Village)
+    this.vb('wizard', 540, 244, 34, .7, '#6a4a8a');   // chòi phù thủy của cụ Moss (Tiny Village)
     this.moss = this.npc('moss', 330, 205, 'Elder Moss 🧙');
     for (let i = 0; i < 3; i++) this.addAnimal(i === 1 ? 'piglet' : 'rooster', 300 + i * 220, 400 + i * 40, [80, 250, 1100, 450]);
     this.add.text(640, 770, '↓ Nông trại', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
@@ -1958,13 +1971,13 @@ class Lake extends Base {
     const rnd = this.rng(23);
     for (let i = 0, n = 0; n < 40 && i < 400; i++) {
       const x = 30 + rnd() * (W - 60), y = 40 + rnd() * (H - 60);
-      if ((x > 120 && x < 1160 && y > 240 && y < 780) || (x > 520 && x < 760 && y < 280) || y < 30) continue;
+      if ((x > 120 && x < 1160 && y > 240 && y < 780) || (x > 520 && x < 760 && y < 280) || (x > 780 && x < 1200 && y < 340) || y < 30) continue;
       const t = this.solids.create(x, y, 'tree'); t.setDepth(y + 28); n++;
     }
     this.solids.refresh();
     this.physics.add.collider(this.player, this.solids);
     this.scatter(26, 41, (x, y) => !(x > 140 && x < 1140 && y > 280 && y < 760) && !(x > 540 && x < 740 && y < 300));
-    if (this.textures.exists('v_fisher')) { this.add.image(990, 268, 'v_fisher').setOrigin(.5, 1).setDepth(268); this.block(934, 236, 112, 32); this.mm.r.push([919, 142, 142, 126, '#8a5e34']); }   // chòi câu cá (Tiny Village)
+    this.vb('fisher', 960, 330, 34, .75, '#8a5e34');   // chòi câu cá (Tiny Village)
     this.hai = this.npc('hai', 830, 285, 'Captain Hai ⚓');
     for (let i = 0; i < 3; i++) this.addAnimal('chick', 220 + i * 70, 170, [170, 70, 330, 150]);   // bờ tây-bắc (trước đây nằm giữa hồ)
     this.fishZone = new Phaser.Geom.Rectangle(150, 285, 980, 470);
