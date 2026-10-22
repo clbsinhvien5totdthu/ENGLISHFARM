@@ -197,3 +197,101 @@ body{margin:0}
 #farm-app .pbar{display:inline-block;width:90px;height:8px;background:#e5dcc8;border-radius:4px;vertical-align:middle;margin-left:6px;overflow:hidden}
 #farm-app .pbar i{display:block;height:100%;background:#6bbf4a}
 #farm-app .quests li{margin-bottom:6px}
+
+/* =========================================================
+   ENGLISH FARM — Pixel UI skin (sprite thật)
+   Font: VT323 (fonts/VT323-Regular.ttf, giấy phép OFL — giữ fonts/OFL.txt)
+   Khung / nút / ván gỗ / thanh chỉ số: ui_skin.css (python tools/pack_ui.py)
+   Icon: ui_assets.js (cùng tool). Phóng nguyên 2x để khớp tỉ lệ nền game.
+   ========================================================= */
+@font-face{font-family:"VT323";src:url("fonts/VT323-Regular.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}
+
+#farm-app{
+  --font:"VT323","Courier New",monospace;
+  --ink:#2b2115;
+  font-family:var(--font);font-size:20px;image-rendering:pixelated;background:#080619;color:var(--ink);
+}
+#farm-app button,#farm-app textarea,#farm-app input{font-family:var(--font)}
+
+/* ---- nút: khung 9-slice, nhấn xuống đổi sang ảnh "pressed" ---- */
+#farm-app button{
+  border:8px solid transparent;border-image:var(--sk-btn) 4 fill / 8px / 0 stretch;border-radius:0;
+  background:none;box-shadow:none;color:var(--ink);padding:0 4px;font-size:23px;line-height:1;font-weight:400;
+  transition:none;image-rendering:pixelated;
+}
+#farm-app button:hover:not(:disabled){filter:brightness(1.07);transform:none}
+#farm-app button:active:not(:disabled){border-image-source:var(--sk-btn-p);padding-top:2px;transform:none;box-shadow:none}
+#farm-app button:disabled{opacity:.5}
+#farm-app button:focus-visible{outline:3px dashed #ffe98a;outline-offset:2px}
+#farm-app button.ok{border-image-source:var(--sk-btn-ok);color:#fff;text-shadow:2px 2px 0 #1f5a26}
+#farm-app button.ok:active:not(:disabled){border-image-source:var(--sk-btn-ok-p)}
+#farm-app button.no{border-image-source:var(--sk-btn-no);color:#fff;text-shadow:2px 2px 0 #6e1d17}
+#farm-app button.no:active:not(:disabled){border-image-source:var(--sk-btn-no-p)}
+#farm-app button.back,#farm-app #seeds button{border-image-source:var(--sk-btn-wood);color:#fff1c9;text-shadow:2px 2px 0 #3a2412}
+#farm-app button.back:active:not(:disabled),#farm-app #seeds button:active:not(:disabled){border-image-source:var(--sk-btn-wood-p)}
+#farm-app button.on,#farm-app #seeds button.on,#farm-app #actBtn{border-image-source:var(--sk-btn-gold);color:var(--ink);text-shadow:none}
+#farm-app button.on:active:not(:disabled),#farm-app #actBtn:active:not(:disabled){border-image-source:var(--sk-btn-gold-p)}
+#farm-app #actBtn{min-width:130px;font-size:24px}
+#farm-app button .ico{margin-right:4px;width:22px;height:22px}
+#farm-app #hud > button .ico{width:32px;height:32px;margin:-6px 4px -6px 0}   /* 64px -> 32px = đúng 2x lưới 32 của sprite */
+#farm-app #hud > #sndBtn .ico{margin:-6px 0}
+#farm-app .meter > span .ico{width:32px;height:32px;margin:-6px -2px}
+
+/* ---- thanh HUD / thanh dưới: ván gỗ ---- */
+#farm-app #hud,#farm-app #bar{
+  background:var(--sk-plank) repeat 0 0 / 48px 40px;image-rendering:pixelated;box-shadow:none;color:#fff1c9;
+  gap:8px;padding:6px 10px;border-style:solid;border-color:#2a1b10;
+}
+#farm-app #hud{border-width:0 0 4px;flex-shrink:0;padding-top:max(6px,env(safe-area-inset-top,0px))}
+#farm-app #bar{border-width:4px 0 0;font-size:19px;flex-shrink:0}
+#farm-app #hint{color:#fff1c9;font-size:21px;text-shadow:2px 2px 0 #2a1b10}
+#farm-app #stats{gap:6px;font-size:23px}
+#farm-app #stats span{border:8px solid transparent;border-image:var(--sk-btn) 4 fill / 8px / 0 stretch;border-radius:0;background:none;box-shadow:none;color:var(--ink);padding:0 4px}
+#farm-app #seeds{gap:4px}
+
+/* ---- thanh stamina / EXP ---- */
+#farm-app .meter{color:#fff1c9;font-size:22px;gap:5px;text-shadow:2px 2px 0 #2a1b10}
+#farm-app .meter .track{width:100px;height:20px;border:4px solid #3a2412;border-radius:0;background:#4a3320;box-shadow:inset 0 0 0 2px #2a1b10}
+#farm-app .meter .track i{background:var(--sk-fill-green) repeat-x 0 0 / 16px 100%;image-rendering:pixelated;transition:width .18s steps(8)}
+#farm-app .meter.xp .track i{background-image:var(--sk-fill-blue)}
+#farm-app .meter .track i.low{background:#d94c3f;animation:none}
+#farm-app .meter b{min-width:60px;font-size:21px;font-weight:400}
+
+/* ---- hộp thoại / bảng: khung giấy viền gỗ ---- */
+#farm-app #modal{background:rgba(8,6,25,.72);padding:14px}
+#farm-app .card{
+  width:min(540px,100%);border:16px solid transparent;border-image:var(--sk-panel) 8 fill / 16px / 0 stretch;border-radius:0;
+  background:none;box-shadow:none;padding:6px 8px;color:var(--ink);image-rendering:pixelated;
+  filter:drop-shadow(6px 6px 0 rgba(0,0,0,.45));animation:pixel-pop .12s steps(3,end);
+}
+#farm-app .card h2{font-family:var(--font);font-size:30px;font-weight:400;line-height:1.05;color:#6b4420;margin:0 0 8px;padding-bottom:6px;border-bottom:3px dotted #c9a966}
+#farm-app .card p{font-size:23px;line-height:1.15;margin:0 0 12px}
+#farm-app .card em{color:#a02a22;font-style:normal}
+#farm-app #mBtns{gap:8px}
+#farm-app #mBtns button{font-size:23px;min-height:40px;flex:1 1 120px}
+#farm-app .book{columns:2}
+#farm-app .book li{font-size:21px;border-bottom:2px dotted #cdb77d}
+#farm-app .npc{background:#fff3cf;border-left:6px solid #d9a63a;border-radius:0;padding:5px 10px;font-size:22px}
+#farm-app .you{background:#e3f1ff;border-left:6px solid #4aa3e0;border-radius:0;padding:4px 10px;font-size:21px}
+#farm-app .fb{border-radius:0;font-size:21px}
+#farm-app textarea{font-size:21px;border:4px solid #8b5d2b;border-radius:0;background:#fffaf0;padding:6px}
+#farm-app small{font-size:.85em}
+
+/* ---- toast, ô thời tiết, minimap ---- */
+#farm-app #toast{top:78px;border:8px solid transparent;border-image:var(--sk-btn) 4 fill / 8px / 0 stretch;border-radius:0;background:none;box-shadow:none;color:var(--ink);font-size:22px;padding:0 6px;transition:opacity .12s steps(2),transform .12s steps(2)}
+#farm-app .pxbox{border:4px solid #2a1b10;border-radius:0;box-shadow:inset 0 0 0 2px #b98544}
+#farm-app #minimap{border:4px solid #3a2412;box-shadow:inset 0 0 0 2px #b98544,4px 4px 0 rgba(0,0,0,.4)}
+#farm-app #game-container{background:#243a24}
+#farm-app #game-container::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 76%,rgba(8,6,25,.16))}
+
+@keyframes pixel-pop{from{transform:scale(.96);opacity:.4}to{transform:scale(1);opacity:1}}
+@media(max-width:760px){
+  #farm-app #hud{gap:5px;padding:5px;justify-content:center}
+  #farm-app #stats{font-size:19px}
+  #farm-app .meter .track{width:70px}
+  #farm-app #seeds{flex-basis:100%;order:5}
+  #farm-app button{font-size:19px}
+  #farm-app #bar{padding:5px;gap:5px}
+  #farm-app .card{border-width:12px;border-image-width:12px}
+}
+@media(prefers-reduced-motion:reduce){#farm-app .card{animation:none}}

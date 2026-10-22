@@ -336,6 +336,8 @@ function modal(title, html, btns, keep) {
     const el = document.createElement('button');
     el.type = 'button'; if (b.html) el.innerHTML = b.html; else el.textContent = b.label; el.disabled = !!b.off;
     if (b.on) el.classList.add('on');
+    const lb = String(b.label || '').replace(/<[^>]*>/g, '').trim(), kind = b.cls || (/^(Xác nhận|Tiếp|Xong|Gửi|Bắt đầu|Nhận|Mua|Đồng ý|Học|OK)/i.test(lb) ? 'ok' : /^(Hủy|Thoát|Không|Bỏ)/i.test(lb) ? 'no' : /^(Quay lại|↩|Đóng|Trở)/i.test(lb) ? 'back' : '');
+    if (kind) el.classList.add(kind);
     el.onclick = () => { snd('click'); if (b.fn) b.fn(el); };
     box.appendChild(el);
   });
@@ -1851,7 +1853,7 @@ class Guild extends Base {
     this.talkZone = new Phaser.Geom.Rectangle(300, 235, 400, 300);
     // chữ hoành phi + khói hương + lửa nến (hiệu ứng nhẹ)
     const G = GLD || {}, pl = G.plaque || [166, 41], bu = G.burner || [166, 46];
-    this.add.text(pl[0] * K, pl[1] * K, 'ĐÌNH LÀNG', { fontFamily:'serif', fontStyle:'bold', fontSize:'27px', color:'#f8dc78', stroke:'#4a0f0a', strokeThickness:4 }).setOrigin(.5).setDepth(.2);
+    this.add.text(pl[0] * K, pl[1] * K, 'ĐÌNH LÀNG', { fontFamily:'VT323, serif', fontSize:'34px', color:'#f8dc78', stroke:'#4a0f0a', strokeThickness:4 }).setOrigin(.5).setDepth(.2);
     this.time.addEvent({ delay: 520, loop: true, callback: () => {
       const p = this.add.circle(bu[0] * K + Phaser.Math.Between(-5, 5), bu[1] * K, Phaser.Math.Between(3, 6), 0xe8e4dc, .5).setDepth(.3);
       this.tweens.add({ targets: p, y: p.y - 70, x: p.x + Phaser.Math.Between(-14, 14), alpha: 0, scale: 2.2, duration: 2600, onComplete: () => p.destroy() }); } });
@@ -2108,6 +2110,7 @@ const startGame = () => { game = new Phaser.Game({
 }); };
 const loadImg = (key, src) => new Promise(r => { const i = new Image(); i.onload = () => { IMG[key] = i; r(); }; i.onerror = r; i.src = src; });
 Promise.all(['crops', 'hero', 'shop'].map(k => loadImg(k, window.ASSETS[k]))
+  .concat([(document.fonts && document.fonts.load ? document.fonts.load('28px "VT323"').catch(() => 0) : Promise.resolve())])
   .concat(window.ASSET_META.crops.map(k => loadImg('ic_' + k, window.ASSETS.icons[k])))
   .concat(Object.keys(window.ASSETS.bld || {}).map(k => loadImg('b_' + k, k === 'home' ? HOUSE.house : (k === 'dinh' && TW.dinh) || window.ASSETS.bld[k]))) // nhà chính: ảnh mới
   .concat(['room', 'smoke'].map(k => loadImg(k, HOUSE[k])))
@@ -2127,6 +2130,9 @@ function uiSkin() {
   put(ms[0], 'ui_bolt'); put(ms[1], 'ui_exp');
   if (SPR.ui_bag) $('#bagBtn').innerHTML = spImg('ui_bag', 20) + ' Túi';
   if (SPR.ui_map) $('#mapBtn').innerHTML = spImg('ui_map', 20) + ' Bản đồ';
+  if (SPR.ui_book) $('#bookBtn').innerHTML = spImg('ui_book', 20) + ' Sổ từ';
+  if (SPR.ui_journal) $('#journalBtn').innerHTML = spImg('ui_journal', 20) + ' Nhật ký';
+  sndLabel();
   storyCheck();
 }
 $('#journalBtn').onclick = () => { if (!open) { snd('click'); EF.UI.journal(); } };
@@ -2135,7 +2141,7 @@ $('#bagBtn').onclick = () => { if (!open) bag(); };
 $('#questBtn').onclick = () => { if (!open) questLog(); };
 $('#mapBtn').onclick = () => { if (!open) worldMap(); };
 $('#minimap').onclick = () => { MM.big = !MM.big; };
-const sndLabel = () => { $('#sndBtn').textContent = AU.on ? '🔊' : '🔇'; };
+const sndLabel = () => { const b = $('#sndBtn'), k = AU.on ? 'ui_sound' : 'ui_mute'; if (SPR[k]) b.innerHTML = spImg(k, 22); else b.textContent = AU.on ? '🔊' : '🔇'; };
 $('#sndBtn').onclick = () => { AU.on = !AU.on; try { localStorage.setItem('efSound', AU.on ? '1' : '0'); } catch (e) {} sndLabel(); if (AU.on) { snd('select'); startMusic(); } };
 sndLabel();
 // trình duyệt chỉ cho phát âm thanh sau lần tương tác đầu tiên

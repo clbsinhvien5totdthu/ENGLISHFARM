@@ -43,3 +43,11 @@ ui/        character_creator · dialogue_ui · vocabulary_book (Sổ Vườn T�
 - NPC 32px chỉ cao ~25px trong khung nên bé hơn nhân vật chính: phóng `NPC_SC = 1.5` lần (Lily trong Workshop nhân thêm `HOME_HERO`), căn lại bóng, vùng va chạm và độ sâu theo chân.
 - Nhãn tên NPC giờ bám sát đỉnh đầu thật (trước đây lơ lửng cao vì khung có viền trong suốt).
 - Nhãn “Captain Hai” không còn bị biển “Hồ Trăng” đè (dời Chú Hai sang x=830); nhãn “Miller Pete” không còn bị biển “Cối xay gió” che (biển dời xuống y=410); biển “Cầu Sunny” dời lên khỏi lan can cầu.
+
+
+---
+## Từ 22/10/2026 — Pixel UI (sprite + font VT323)
+- **Font**: VT323 chạy offline từ `fonts/VT323-Regular.ttf` (@font-face trong style.css; giấy phép OFL, giữ `fonts/OFL.txt`). Đã bỏ Google Fonts / Baloo 2; chữ trên canvas Phaser (ĐÌNH LÀNG) cũng dùng VT323 — game chờ font tải xong mới khởi động.
+- **Sprite UI vẽ bằng code**: `python tools/pack_ui.py` ghi `ui_assets.js` (13 icon 64x64 gộp vào `ASSETS.spr`: ui_book, ui_journal, ui_sound, ui_mute, ui_gear, ui_trophy, ui_pick, ui_seed, ui_close, ui_check, ui_star, ui_arrow_l, ui_arrow_r) và `ui_skin.css` (khung 9-slice: panel, panel_dark, tab, slot, nút btn/ok/no/gold/wood + bản nhấn `_p`, ván gỗ HUD, 3 ô đổ thanh chỉ số). Đổi màu/hình: sửa tools/pack_ui.py rồi chạy lại.
+- **Thứ tự nạp** trong index.html: `assets.js` -> `ui_assets.js` -> ... -> `game.js`; CSS: `style.css` -> `ui_skin.css`.
+- Nút trong hộp thoại tự đổi màu theo nhãn: Xác nhận/Tiếp/Xong/Gửi/Bắt đầu/Nhận/Mua → xanh; Hủy/Thoát/Không/Bỏ → đỏ; Quay lại/Đóng → gỗ. Ép màu bằng `cls:'ok'|'no'|'back'|'on'` trong mảng nút của `modal()`.
