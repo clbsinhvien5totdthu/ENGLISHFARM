@@ -150,19 +150,7 @@ const crop = id => CROPS.find(c => c.id === id);
 const shuffle = a => a.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(x => x[1]);
 let open = false, clk = 360; // clk = phút trong ngày (360 = 06:00)
 const hhmm = m => { m = Math.floor(m); return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
-// Bảng màu theo giờ: [giờ, màu phủ, độ đậm]. Giữa các mốc nội suy mượt → hoàng hôn rồi tối dần.
-const GRADE = [
-  [0,    0x070d30, .74], [5,    0x070d30, .74], [6,    0x1c2a6b, .56], [6.8,  0xff9a6a, .22], [8,    0xffd9a0, 0],
-  [16.5, 0xffa040, 0],   [17.5, 0xff8a3c, .16], [18.3, 0xf0604a, .27], [19,   0xc0407a, .36],
-  [19.7, 0x6a3a8c, .50], [20.5, 0x1c2570, .62], [21.5, 0x0c1550, .70], [22.5, 0x070d30, .74], [24.5, 0x070d30, .74]
-];
-function grade(h) {
-  let i = 1; while (i < GRADE.length - 1 && h > GRADE[i][0]) i++;
-  const a = GRADE[i - 1], b = GRADE[i], t = Math.max(0, Math.min(1, (h - a[0]) / (b[0] - a[0])));
-  const ch = sh => Math.round(((a[1] >> sh) & 255) * (1 - t) + ((b[1] >> sh) & 255) * t);
-  return { color: (ch(16) << 16) | (ch(8) << 8) | ch(0), alpha: a[2] + (b[2] - a[2]) * t };
-}
-const dark = h => grade(h).alpha;
+const dark = h => h < 6 ? .5 : h < 8 ? .5 * (8 - h) / 2 : h < 17 ? 0 : h < 20.5 ? .5 * (h - 17) / 3.5 : .5;
 
 // ====== THỜI GIAN · THỜI TIẾT · VẬT NUÔI (mới) ======
 const TIME_SPEED = .0045;           // tốc độ đồng hồ (phút game / ms). Muốn ngày dài hơn → giảm số này
@@ -338,9 +326,11 @@ function startMusic() {
   }, 1500);
 }
 
-function modal(title, html, btns, keep) {
+function modal(title, html, btns, keep, who) {
   const card = $('.card'), top = keep ? card.scrollTop : 0;
   open = true;
+  card.classList.remove('shop');
+  card.classList.toggle('talk', !!(EF.Pixel && EF.Pixel.fill($('#mPortrait'), title, who)));   // có chân dung NPC → khung trò chuyện kiểu Stardew
   $('#mTitle').textContent = title;
   $('#mText').innerHTML = html;
   const box = $('#mBtns'); box.innerHTML = '';
@@ -1094,7 +1084,7 @@ class Base extends Phaser.Scene {
 
     clk = Math.min(clk + delta * TIME_SPEED, 1500);
     const wxn = wxNow(), dim = wxn === 'rain' ? .16 : wxn === 'cloud' ? .06 : 0;
-    const gr = grade(clk / 60); this.night.setFillStyle(gr.color, 1).setAlpha(Math.min(.82, gr.alpha + dim));
+    this.night.setAlpha(Math.min(.62, dark(clk / 60) + dim));
     const tick = Math.floor(clk / 10); if (tick !== this.tick) { this.tick = tick; dayText(); }
     // mưa bắt đầu: cây đã gieo được tưới tự nhiên
     if (wxn === 'rain' && S.rainDay !== S.day) {
@@ -1747,16 +1737,22 @@ class Town extends Base {
 
   shop(tab = 'buy', keep = false) {
     this.qty = this.qty || 1;
-    const nav = [];
-    const close = { label:'Đóng', fn:closeModal };
-    const qty = { label:`Số lượng mỗi lần mua: ×${this.qty} (bấm để đổi)`, fn:() => { this.qty = this.qty === 1 ? 5 : this.qty === 5 ? 10 : 1; this.shop('buy', true); } };
+    if (!keep) this.shopSay = null;
+    const old = $('#mText .sh-list'), st = old ? old.scrollTop : 0;
     const items = CROPS.map(c => {
       const lock = S.lvl < REQ_LVL(c), pr = SEED_PRICE(c) * this.qty;
-      return { off: lock || S.coins < pr,
-        html: lock ? `🔒 ${c.en} — mở ở Lv ${REQ_LVL(c)}` : `${sico(c.id, 26)} ${c.en} <small>(${c.vi})</small> — ${pr} 🪙 <small>· đang có ${seedCount(c.id)}</small>`,
-        fn:() => { S.coins -= pr; addSeed(c.id, this.qty); S.sel = c.id; snd('buy'); hud(); save(); toast(`Đã mua ${this.qty} hạt ${c.en} 🌱`); this.shop('buy', true); } };
+      return { icon:sico(c.id, 32), name:c.en, vi:c.vi, price:pr, lock, lvl:REQ_LVL(c), own:seedCount(c.id), off: lock || S.coins < pr,
+        fn:() => { S.coins -= pr; addSeed(c.id, this.qty); S.sel = c.id; snd('buy'); hud(); save(); toast(`Đã mua ${this.qty} hạt ${c.en} 🌱`);
+          this.shopSay = ['Thank you! Anything else?', 'Cảm ơn bạn! Cần gì nữa không?']; this.shop('buy', true); } };
     });
-    modal('Lily · Plant Workshop', '<b>“Welcome to my plant workshop!”</b><br>(Chào mừng đến xưởng cây của mình! Ở đây bán hạt giống và cây giống.)<br><small>🪙 ' + S.coins + ' · ⭐ Lv ' + S.lvl + ' — lên cấp bằng cách học bài với cô Emma để mở thêm hạt giống.</small><br><small>📦 Muốn bán nông sản? Bỏ vào thùng ở nông trại — qua đêm Lily sẽ trả tiền vào ví bạn!</small>', nav.concat(qty, items, close), keep);
+    const inv = CROPS.filter(c => seedCount(c.id) > 0).map(c => ({ icon:sico(c.id, 28), n:seedCount(c.id), sel:S.sel === c.id, tip:`${c.en} (${c.vi})`,
+      fn:() => { S.sel = c.id; hud(); save(); this.shop('buy', true); } }));
+    const o = { npc:'lily', say:this.shopSay || ['Welcome to my plant workshop!', 'Chào mừng đến xưởng cây của mình!'], coins:S.coins, lvl:S.lvl, qty:this.qty, items, inv,
+      setQty:q => { this.qty = q; this.shop('buy', true); } };
+    modal('Lily · Plant Workshop', EF.ShopUI.html(o), [{ label:'Đóng', fn:closeModal }], keep, '-');
+    $('.card').classList.add('shop');
+    EF.ShopUI.bind($('#mText'), o);
+    const l2 = $('#mText .sh-list'); if (l2) l2.scrollTop = st;
   }
 
   food() {

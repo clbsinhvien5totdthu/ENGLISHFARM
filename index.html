@@ -7,6 +7,7 @@
 <link rel="preload" href="fonts/VT323-Regular.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="ui_skin.css">
+<link rel="stylesheet" href="ui/pixel_ui.css">
 </head>
 <body>
 <!-- Toàn bộ game nằm trong #farm-app: có thể copy khối này vào bất kỳ trang nào -->
@@ -40,6 +41,7 @@
   </footer>
   <div id="modal" hidden>
     <div class="card" role="dialog" aria-modal="true">
+      <div id="mPortrait" hidden></div>
       <h2 id="mTitle"></h2>
       <p id="mText"></p>
       <div id="mBtns"></div>
@@ -65,6 +67,7 @@
 <script src="systems/review_system.js"></script>
 <script src="systems/save_system.js"></script>
 <script src="ui/character_creator.js"></script>
+<script src="ui/pixel_ui.js"></script>
 <script src="ui/dialogue_ui.js"></script>
 <script src="ui/vocabulary_book.js"></script>
 <script src="assets.js"></script>
