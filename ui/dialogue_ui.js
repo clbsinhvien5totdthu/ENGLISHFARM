@@ -25,7 +25,7 @@ U.run = (id, opts) => {
     }));
     if (v.canFree && (EF.Lang.data().profile !== 'A2' || (H().S().story.ch >= 3))) btns.push({ label:'✍️ Tự viết câu trả lời', fn:() => showFree(v) });
     btns.push(viBtn(), quit());
-    H().modal(v.name || d.name, histHtml() + head(v) + npcHtml(v), btns);
+    H().modal(v.name || d.name, histHtml() + head(v) + npcHtml(v), btns, false, /customer|guest|visitor/i.test(v.name || d.name) ? undefined : d.speaker);
   };
   const pick = (i, v) => {
     const r = sess.choose(i), c = sess.cur().choices[i];

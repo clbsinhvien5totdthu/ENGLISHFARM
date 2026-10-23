@@ -1,0 +1,96 @@
+/* ====== Khung trò chuyện NPC + cửa hàng (kiểu Stardew) — nạp SAU ui_skin.css ====== */
+#farm-app{--pw:#8b5d2b;--pw-d:#3a2412;--pw-l:#d9a85a;--pap:#fff6dc;--pap2:#f7deaa;--red:#c0392b}
+
+/* ---- chân dung ---- */
+#farm-app #mPortrait[hidden]{display:none}
+#farm-app .pf{width:132px;height:132px;padding:4px;background:var(--pbg,#e8d8b8);border:4px solid var(--pw-d);box-shadow:inset 0 0 0 3px var(--pw-l),4px 4px 0 rgba(0,0,0,.28)}
+#farm-app .pf img{display:block;width:100%;height:100%;image-rendering:pixelated}
+#farm-app .np{margin-top:8px;text-align:center;background:var(--pw);color:#fff3cf;border:3px solid var(--pw-d);box-shadow:inset 0 0 0 2px #b98544;padding:2px 4px 3px;line-height:1}
+#farm-app .np b{display:block;font-weight:400;font-size:24px}
+#farm-app .np small{display:block;font-size:16px;color:#f2d9a0;margin-top:1px}
+
+/* ---- thẻ hội thoại ---- */
+#farm-app .card.talk{width:min(620px,100%);display:grid;grid-template-columns:minmax(0,1fr) 140px;grid-template-areas:"text pf" "btns btns";column-gap:12px;align-items:start}
+#farm-app .card.talk h2{position:absolute;width:1px;height:1px;margin:0;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0)}
+#farm-app .card.talk #mPortrait{grid-area:pf}
+#farm-app .card.talk #mText{grid-area:text;margin:0;min-height:132px;padding:10px 14px;background:var(--pap);border:4px solid var(--pw);box-shadow:inset 0 0 0 2px #e8cf94;font-size:25px;line-height:1.1}
+#farm-app .card.talk #mText>b:first-child{display:block;font-weight:400;font-size:28px;line-height:1.05;color:#2a1d10}
+#farm-app .card.talk #mText small{display:block;margin-top:5px;font-size:19px;line-height:1.05;color:#7a5a35}
+#farm-app .card.talk #mText .qchip{display:block;margin-top:10px;padding:3px 8px;font-size:18px;line-height:1.05;color:#6b4a2b;background:rgba(107,74,43,.1);border-left:4px solid var(--leaf)}
+#farm-app .card.talk #mText .qchip em{display:block;font-style:normal;color:#2a1d10;margin-top:2px}
+#farm-app .card.talk #mText .npc{background:none;border:0;padding:0;margin:0 0 4px;font-size:25px}
+#farm-app .card.talk #mText .npc.old{opacity:.55;font-size:19px}
+#farm-app .card.talk #mText .you{background:none;border:0;border-right:4px solid #4aa3e0;padding:0 8px 0 0;margin:0 0 4px;text-align:right;color:#27527a;font-size:20px}
+#farm-app .card.talk #mText .sent{font-size:22px}
+
+/* lựa chọn: danh sách dòng, không còn nút to rối mắt */
+#farm-app .card.talk #mBtns{grid-area:btns;display:flex;flex-direction:column;flex-wrap:nowrap;gap:2px;margin-top:10px;padding-top:6px;border-top:3px dotted #c9a966}
+#farm-app .card.talk #mBtns button{text-shadow:none !important;flex:none;width:100%;position:relative;text-align:left;min-height:0;padding:5px 8px 5px 30px;font-size:23px;line-height:1.05;color:#2a1d10;
+  background:transparent !important;border:0 !important;border-image:none !important;border-radius:0;box-shadow:none;filter:none;transform:none}
+#farm-app .card.talk #mBtns button::before{content:"";position:absolute;left:10px;top:50%;margin-top:-6px;border:6px solid transparent;border-left:9px solid var(--red);opacity:0}
+#farm-app .card.talk #mBtns button:hover:not(:disabled),#farm-app .card.talk #mBtns button:focus-visible{background:rgba(217,168,90,.35) !important;outline:0;transform:none}
+#farm-app .card.talk #mBtns button:hover:not(:disabled)::before,#farm-app .card.talk #mBtns button:focus-visible::before{opacity:1}
+#farm-app .card.talk #mBtns button small{font-size:.8em;color:#7a5a35}
+#farm-app .card.talk #mBtns button.back,#farm-app .card.talk #mBtns button.no{margin-top:4px;border-top:2px dotted #cdb77d !important;color:#8b6a45;font-size:20px}
+#farm-app .card.talk #mBtns button.ok{font-weight:400;color:#1f6b3a}
+#farm-app .card.talk #mBtns button.on{color:#1f6b3a}
+#farm-app .card.talk #mBtns button[disabled]{opacity:.5}
+#farm-app .card.talk #mBtns .ico{vertical-align:middle}
+
+/* ---- cửa hàng ---- */
+#farm-app .card.shop{width:min(760px,100%)}
+#farm-app .card.shop h2{position:absolute;width:1px;height:1px;margin:0;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0)}
+#farm-app .card.shop #mPortrait{display:none}
+#farm-app .card.shop #mText{margin:0;padding:0;background:none;border:0;font-size:22px}
+#farm-app .card.shop #mBtns{justify-content:flex-end;margin-top:8px;flex-wrap:nowrap}
+#farm-app .card.shop #mBtns button{flex:0 0 auto;min-width:120px;font-size:22px}
+.sh{display:grid;grid-template-columns:150px minmax(0,1fr);grid-template-areas:"who main" "bot bot";gap:10px 12px}
+.sh-who{grid-area:who;display:flex;flex-direction:column;gap:8px}
+.sh-say{background:var(--pap);border:3px solid var(--pw);box-shadow:inset 0 0 0 2px #e8cf94;padding:6px 8px;position:relative;line-height:1.05}
+.sh-say::before{content:"";position:absolute;left:50px;top:-12px;border:6px solid transparent;border-bottom:8px solid var(--pw)}
+.sh-say b{display:block;font-weight:400;font-size:21px}
+.sh-say small{display:block;margin-top:4px;font-size:17px;color:#7a5a35}
+.sh-main{grid-area:main;min-width:0;display:flex;flex-direction:column;background:var(--pap);border:4px solid var(--pw);box-shadow:inset 0 0 0 2px #e8cf94}
+.sh-top{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 10px;background:var(--pw);color:#fff3cf;font-size:22px}
+.sh-qty{display:flex;align-items:center;gap:4px;font-size:18px;color:#f2d9a0}
+.sh-q{min-height:0 !important;padding:0 7px !important;font-size:19px !important;line-height:1.1;color:#fff3cf !important;background:#5a3a1c !important;border:2px solid var(--pw-d) !important;border-image:none !important;border-radius:0 !important}
+.sh-q.on{background:#f2b632 !important;color:#2a1d10 !important}
+.sh-list{height:min(214px,38vh);overflow-y:auto;padding:6px;display:flex;flex-direction:column;gap:5px;scrollbar-width:thin;scrollbar-color:#8b5d2b #f1d79c}
+.sh-list::-webkit-scrollbar{width:12px}.sh-list::-webkit-scrollbar-thumb{background:#8b5d2b;border:2px solid #f1d79c}.sh-list::-webkit-scrollbar-track{background:#f1d79c}
+.sh-row{flex:none;display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;text-align:left;padding:3px 10px 3px 4px !important;
+  background:var(--pap2) !important;border:3px solid #9a6a34 !important;border-image:none !important;border-radius:0 !important;color:#2a1d10;box-shadow:inset 0 0 0 2px #fff0c4;min-height:0}
+.sh-row:hover:not(:disabled),.sh-row:focus-visible{border-color:var(--red) !important;background:#ffe9b0 !important;outline:0}
+.sh-row:disabled{opacity:1;cursor:not-allowed}
+.sh-row:disabled .sh-nm,.sh-row:disabled .sh-ic img{opacity:.55}
+.sh-row.lock{background:#d9c9a0 !important;border-color:#a8946a !important;box-shadow:none}
+.sh-ic{display:flex;align-items:center;justify-content:center;width:44px;height:40px;background:#f1d79c;border:2px solid #b8873f}
+.sh-ic img{width:32px;height:32px;image-rendering:pixelated}
+.sh-pad{display:block;width:16px;height:12px;background:#a8946a;border:2px solid #6a5a3a}
+.sh-nm b{display:block;font-weight:400;font-size:24px;line-height:1}
+.sh-nm small{display:block;font-size:17px;line-height:1;color:#7a5a35;margin-top:1px}
+.sh-pr{display:flex;align-items:center;gap:4px;font-size:26px;min-width:64px;justify-content:flex-end}
+.sh-pr img{image-rendering:pixelated}
+.sh-pr.poor{color:#b2342a}
+.sh-bot{grid-area:bot;display:grid;grid-template-columns:150px minmax(0,1fr);grid-template-rows:auto 1fr;gap:6px 12px}
+.sh-coins{grid-row:1;display:flex;align-items:center;gap:6px;padding:4px 8px;background:#5a3a1c;color:#ffe9a8;border:3px solid var(--pw-d);box-shadow:inset 0 0 0 2px #8b5d2b;font-size:26px;line-height:1}
+.sh-coins img{image-rendering:pixelated}
+.sh-coins small{font-size:17px;color:#d9b97a;margin-left:auto;white-space:nowrap}
+.sh-inv{grid-column:2;grid-row:1 / span 2;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:2px;padding:4px;background:#e2bd78;border:4px solid var(--pw);box-shadow:inset 0 0 0 2px #f4d79a}
+.sh-slot{position:relative;aspect-ratio:1;min-width:0;display:flex;align-items:center;justify-content:center;background:#f1d79c;border:2px solid #b8873f;padding:0 !important;border-radius:0 !important}
+button.sh-slot{cursor:pointer;min-height:0}
+.sh-slot img{width:84%;height:84%;image-rendering:pixelated}
+.sh-slot b{pointer-events:none;position:absolute;right:1px;bottom:-2px;font-size:15px;font-weight:400;line-height:1;color:#fff;text-shadow:1px 1px 0 #2a1d10,-1px 1px 0 #2a1d10,1px -1px 0 #2a1d10,-1px -1px 0 #2a1d10}
+.sh-slot.sel{border-color:var(--red);box-shadow:0 0 0 2px var(--red)}
+.sh-hint{grid-column:1;grid-row:2;font-size:14px;line-height:1.05;color:#7a5a35}
+
+@media(max-width:640px){
+  #farm-app .card.talk{grid-template-columns:minmax(0,1fr) 96px}
+  #farm-app .pf{width:92px;height:92px}
+  #farm-app .np b{font-size:20px}#farm-app .np small{font-size:14px}
+  #farm-app .card.talk #mText{font-size:22px;min-height:96px}
+  #farm-app .card.talk #mText>b:first-child{font-size:24px}
+  .sh{grid-template-columns:96px minmax(0,1fr);gap:8px}
+  .sh-say{display:none}
+  .sh-list{height:220px}
+  .sh-bot{grid-template-columns:1fr}.sh-inv{grid-column:1;grid-row:auto}.sh-hint{grid-column:1;grid-row:auto;color:#6b4a2b}
+}
