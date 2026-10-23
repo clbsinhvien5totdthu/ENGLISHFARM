@@ -115,7 +115,7 @@ St.npcMenu = (npc, fallback, title) => {
   if (fallback) btns.push({ label:'💬 Trò chuyện thường', fn:() => { H().closeModal(); fallback(); } });
   btns.push({ label:'Đóng', fn:H().closeModal });
   const ch = St.chapter(), nm = EF.NPCS[npc] || { name:npc, icon:'💬', want:'' };
-  H().modal(`${nm.icon} ${title || nm.name}`, `<b>“Hi! Can you help me today?”</b><br><small>${ch ? 'Chương ' + ch.no + ' · ' + ch.title + ' — ' + St.goal() : 'Cốt truyện chính đã hoàn thành — bạn vẫn luyện tập tự do.'}</small>`, btns);
+  H().modal(`${nm.icon} ${title || nm.name}`, `<b>“Hi! Can you help me today?”</b><span class="qchip">${ch ? '📌 Chương ' + ch.no + ' · ' + ch.title + '<em>' + St.goal() + '</em>' : 'Cốt truyện chính đã hoàn thành — bạn vẫn luyện tập tự do.'}</span>`, btns);
 };
 })();
 // ----- Prologue: The Freeze → Sam hỏi đường → Emma trao Sổ Vườn Từ -----
