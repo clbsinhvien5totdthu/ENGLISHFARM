@@ -150,7 +150,19 @@ const crop = id => CROPS.find(c => c.id === id);
 const shuffle = a => a.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(x => x[1]);
 let open = false, clk = 360; // clk = phút trong ngày (360 = 06:00)
 const hhmm = m => { m = Math.floor(m); return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
-const dark = h => h < 6 ? .5 : h < 8 ? .5 * (8 - h) / 2 : h < 17 ? 0 : h < 20.5 ? .5 * (h - 17) / 3.5 : .5;
+// Bảng màu theo giờ: [giờ, màu phủ, độ đậm]. Giữa các mốc nội suy mượt → hoàng hôn rồi tối dần.
+const GRADE = [
+  [0,    0x070d30, .74], [5,    0x070d30, .74], [6,    0x1c2a6b, .56], [6.8,  0xff9a6a, .22], [8,    0xffd9a0, 0],
+  [16.5, 0xffa040, 0],   [17.5, 0xff8a3c, .16], [18.3, 0xf0604a, .27], [19,   0xc0407a, .36],
+  [19.7, 0x6a3a8c, .50], [20.5, 0x1c2570, .62], [21.5, 0x0c1550, .70], [22.5, 0x070d30, .74], [24.5, 0x070d30, .74]
+];
+function grade(h) {
+  let i = 1; while (i < GRADE.length - 1 && h > GRADE[i][0]) i++;
+  const a = GRADE[i - 1], b = GRADE[i], t = Math.max(0, Math.min(1, (h - a[0]) / (b[0] - a[0])));
+  const ch = sh => Math.round(((a[1] >> sh) & 255) * (1 - t) + ((b[1] >> sh) & 255) * t);
+  return { color: (ch(16) << 16) | (ch(8) << 8) | ch(0), alpha: a[2] + (b[2] - a[2]) * t };
+}
+const dark = h => grade(h).alpha;
 
 // ====== THỜI GIAN · THỜI TIẾT · VẬT NUÔI (mới) ======
 const TIME_SPEED = .0045;           // tốc độ đồng hồ (phút game / ms). Muốn ngày dài hơn → giảm số này
@@ -185,8 +197,8 @@ const GOODS = {
 };
 // con vật: sp = tốc độ đi · prod = sản phẩm mỗi ngày · snd = tiếng kêu · line = câu tiếng Anh học kèm
 const ANIMALS = {
-  chick:   { en:'Chick',   vi:'con gà con',   e:'🐤', sc:2,   sp:26, sh:.6,  snd:'cluck',  line:['The chick is small and yellow.', 'Con gà con nhỏ và màu vàng.'] },
-  rooster: { en:'Rooster', vi:'con gà trống', e:'🐓', sc:1.5, sp:24, sh:.9,  snd:'cluck',  line:['The rooster wakes us up at dawn.', 'Con gà trống đánh thức chúng ta lúc bình minh.'] },
+  chick:   { en:'Chick',   vi:'con gà con',   e:'🐤', sc:2,   sp:26, sh:.6,  snd:'peep',  line:['The chick is small and yellow.', 'Con gà con nhỏ và màu vàng.'] },
+  rooster: { en:'Rooster', vi:'con gà trống', e:'🐓', sc:1.5, sp:24, sh:.9,  snd:'rooster',  line:['The rooster wakes us up at dawn.', 'Con gà trống đánh thức chúng ta lúc bình minh.'] },
   turkey:  { en:'Turkey',  vi:'con gà tây',   e:'🦃', sc:1.5, sp:18, sh:1.2, prod:'egg',  snd:'gobble', line:['The turkey lays a big egg every morning.', 'Con gà tây đẻ một quả trứng to mỗi sáng.'] },
   sheep:   { en:'Sheep',   vi:'con cừu',      e:'🐑', sc:1.5, sp:16, sh:1.5, prod:'wool', snd:'baa',    line:['The sheep has soft warm wool.', 'Con cừu có bộ lông mềm và ấm.'] },
   lamb:    { en:'Lamb',    vi:'con cừu non',  e:'🐏', sc:1.5, sp:22, sh:1.4, snd:'baa',    line:['The lamb follows its mother.', 'Con cừu non đi theo mẹ.'] },
@@ -247,84 +259,178 @@ function skyIcons() {
 
 
 // ====== ÂM THANH (tổng hợp bằng WebAudio, không cần file mp3) ======
-const AU = { c:null, m:null, nb:null, on:(() => { try { return localStorage.getItem('efSound') !== '0'; } catch (e) { return true; } })() };
+const AU = { c:null, m:null, nb:null, rv:null, on:(() => { try { return localStorage.getItem('efSound') !== '0'; } catch (e) { return true; } })() };
 function au() {
   if (!AU.on) return null;
   try {
     if (!AU.c) {
       const C = window.AudioContext || window.webkitAudioContext; AU.c = new C();
-      AU.m = AU.c.createGain(); AU.m.gain.value = .9; AU.m.connect(AU.c.destination);
-      const n = AU.c.sampleRate, b = AU.c.createBuffer(1, n, AU.c.sampleRate), d = b.getChannelData(0);
-      for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; AU.nb = b;
+      const sr = AU.c.sampleRate, cp = AU.c.createDynamicsCompressor(); cp.threshold.value = -16; cp.ratio.value = 4;
+      AU.m = AU.c.createGain(); AU.m.gain.value = .9; AU.m.connect(cp); cp.connect(AU.c.destination);
+      const b = AU.c.createBuffer(1, sr * 3, sr), d = b.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; AU.nb = b;
+      // vang (reverb) tổng hợp: nhiễu tắt dần → âm chuông / phép màu nghe "có không gian"
+      const L = Math.floor(sr * 1.8), ib = AU.c.createBuffer(2, L, sr);
+      for (let c = 0; c < 2; c++) { const x = ib.getChannelData(c); for (let i = 0; i < L; i++) x[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / L, 2.6); }
+      AU.rv = AU.c.createConvolver(); AU.rv.buffer = ib; const wg = AU.c.createGain(); wg.gain.value = .42; AU.rv.connect(wg); wg.connect(AU.m);
     }
     if (AU.c.state === 'suspended') AU.c.resume();
     return AU.c;
   } catch (e) { return null; }
 }
-// nốt nhạc: tần số, độ dài, kiểu sóng, âm lượng, trễ, tần số cuối (trượt)
-function tone(f, d = .1, type = 'square', vol = .05, delay = 0, to = 0) {
+const send = (a, g, wet) => { if (wet && AU.rv) { const w = a.createGain(); w.gain.value = wet; g.connect(w); w.connect(AU.rv); } };
+// nốt nhạc: tần số, độ dài, kiểu sóng, âm lượng, trễ, tần số cuối (trượt), wet = lượng vang
+function tone(f, d = .1, type = 'square', vol = .05, delay = 0, to = 0, wet = 0) {
   const a = au(); if (!a) return;
   const t = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
   o.type = type; o.frequency.setValueAtTime(f, t); if (to) o.frequency.exponentialRampToValueAtTime(to, t + d);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + d);
-  o.connect(g); g.connect(AU.m); o.start(t); o.stop(t + d + .03);
+  o.connect(g); g.connect(AU.m); send(a, g, wet); o.start(t); o.stop(t + d + .03);
 }
-// tiếng ồn lọc (đất, nước, bước chân…): d <= .5
-function noise(d = .1, f = 800, kind = 'lowpass', vol = .08, delay = 0, to = 0) {
+// tiếng ồn lọc (đất, nước, bước chân…): d <= 2.5
+function noise(d = .1, f = 800, kind = 'lowpass', vol = .08, delay = 0, to = 0, wet = 0) {
   const a = au(); if (!a) return;
   const t = a.currentTime + delay, s = a.createBufferSource(), fl = a.createBiquadFilter(), g = a.createGain();
   s.buffer = AU.nb; fl.type = kind; fl.Q.value = kind === 'bandpass' ? 1.2 : .7;
   fl.frequency.setValueAtTime(f, t); if (to) fl.frequency.exponentialRampToValueAtTime(to, t + d);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + d);
-  s.connect(fl); fl.connect(g); g.connect(AU.m); s.start(t, Math.random() * .5); s.stop(t + d + .03);
+  s.connect(fl); fl.connect(g); g.connect(AU.m); send(a, g, wet); s.start(t, Math.random() * .5); s.stop(t + d + .03);
+}
+// giọng con vật: sóng răng cưa → lọc thấp, có rung (vibrato) và nhấn nhẹ lúc đầu
+function vox(f, d = .3, to = 0, vol = .04, delay = 0, lp = 900, vib = 0, type = 'sawtooth') {
+  const a = au(); if (!a) return;
+  const t = a.currentTime + delay, o = a.createOscillator(), fl = a.createBiquadFilter(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t); if (to) o.frequency.exponentialRampToValueAtTime(to, t + d);
+  fl.type = 'lowpass'; fl.frequency.value = lp; fl.Q.value = 3;
+  g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(.04, d / 4)); g.gain.exponentialRampToValueAtTime(.0001, t + d);
+  o.connect(fl); fl.connect(g); g.connect(AU.m);
+  if (vib) { const l = a.createOscillator(), lg = a.createGain(); l.frequency.value = vib; lg.gain.value = f * .03; l.connect(lg); lg.connect(o.frequency); l.start(t); l.stop(t + d + .03); }
+  o.start(t); o.stop(t + d + .03);
 }
 const sfx = (f, d = .1, type = 'square') => tone(f, d, type, .04);
+const rnd1 = () => Math.random();
+const spark = (d0 = 0, n = 4) => { const F = [1568, 1976, 2349, 2637, 3136]; for (let i = 0; i < n; i++) tone(F[i % 5], .25, 'sine', .018, d0 + i * .05, 0, .6); };
+const bell = (f, d0 = 0, v = .05) => { tone(f, 2, 'sine', v, d0, 0, .6); tone(f * 2.76, 1.1, 'sine', v * .4, d0, 0, .6); tone(f * 5.4, .5, 'sine', v * .2, d0, 0, .6); };
 const SND = {
-  step:  () => noise(.07, 450 + Math.random() * 300, 'lowpass', .06),
-  wood:  () => { tone(150 + Math.random() * 30, .06, 'square', .03, 0, 90); noise(.05, 700, 'lowpass', .05); },
+  // --- bước chân theo mặt đất ---
+  step:  () => { noise(.08, 380 + rnd1() * 260, 'lowpass', .07); noise(.05, 2400, 'highpass', .012, .01); },
+  stepGrass: () => { noise(.11, 2600 + rnd1() * 1200, 'bandpass', .05, 0, 1400); noise(.06, 300 + rnd1() * 100, 'lowpass', .04); },
+  stepStone: () => { noise(.04, 1800 + rnd1() * 600, 'bandpass', .06); tone(190 + rnd1() * 50, .04, 'triangle', .025, 0, 120); },
+  wood:  () => { tone(130 + rnd1() * 30, .08, 'triangle', .05, 0, 80); noise(.05, 900, 'lowpass', .05); },
+  // --- làm nông ---
   till:  () => { noise(.18, 380, 'lowpass', .18); tone(110, .15, 'sine', .09, 0, 55); noise(.08, 900, 'lowpass', .08, .12); },
-  sow:   () => { for (let i = 0; i < 5; i++) noise(.04, 3200 + Math.random() * 900, 'highpass', .05, i * .05); tone(320, .1, 'sine', .03, .08, 200); },
-  water: () => { noise(.45, 2000, 'bandpass', .1, 0, 600); [.1, .2, .3].forEach(d => tone(500 + Math.random() * 300, .09, 'sine', .035, d, 950)); },
-  harvest: () => { noise(.06, 1500, 'bandpass', .08); tone(520, .1, 'triangle', .07, 0, 900); tone(880, .12, 'triangle', .06, .09); tone(1320, .18, 'triangle', .05, .18); },
-  coin:  () => { tone(1320, .08, 'square', .03); tone(1760, .2, 'square', .03, .07); },
-  buy:   () => { tone(988, .06, 'square', .03); tone(1319, .2, 'square', .03, .06); noise(.05, 4000, 'highpass', .04, .1); },
-  error: () => tone(170, .22, 'sawtooth', .05, 0, 90),
-  ok:    () => { tone(660, .1, 'square', .04); tone(880, .16, 'square', .04, .09); },
-  wrong: () => tone(160, .24, 'sawtooth', .05, 0, 100),
-  click: () => tone(720, .04, 'square', .02),
-  select:() => tone(900, .06, 'triangle', .05, 0, 1200),
-  bag:   () => { noise(.14, 1300, 'bandpass', .08, 0, 500); noise(.1, 1600, 'bandpass', .06, .12, 600); },
-  door:  () => { noise(.25, 500, 'lowpass', .12, 0, 200); tone(180, .22, 'sine', .05, .02, 120); },
-  eat:   () => { for (let i = 0; i < 3; i++) noise(.05, 2200, 'bandpass', .1, i * .1); tone(500, .1, 'sine', .04, .35, 800); },
+  sow:   () => { for (let i = 0; i < 5; i++) noise(.04, 3200 + rnd1() * 900, 'highpass', .05, i * .05); tone(320, .1, 'sine', .03, .08, 200); },
+  water: () => { noise(.45, 2000, 'bandpass', .1, 0, 600); [.1, .2, .3].forEach(d => tone(500 + rnd1() * 300, .09, 'sine', .035, d, 950, .2)); },
+  harvest: () => { noise(.06, 1500, 'bandpass', .08); tone(520, .1, 'triangle', .07, 0, 900, .2); tone(880, .12, 'triangle', .06, .09, 0, .25); tone(1320, .18, 'triangle', .05, .18, 0, .3); spark(.22, 4); },
+  sparkle: () => spark(0, 5),
+  // --- câu cá ---
+  cast:  () => { noise(.28, 500, 'bandpass', .09, 0, 2600); tone(300, .12, 'sine', .07, .32, 120); noise(.12, 800, 'lowpass', .07, .32, 300, .2); },
+  bite:  () => { tone(1250, .05, 'sine', .06); tone(1250, .05, 'sine', .06, .08); tone(1760, .2, 'triangle', .05, .16, 0, .35); noise(.08, 1200, 'bandpass', .05, .02); },
+  reelTick: () => { noise(.025, 3200, 'highpass', .05); tone(880 + rnd1() * 120, .02, 'square', .012); },
+  splash: () => { noise(.4, 1800, 'bandpass', .13, 0, 450, .15); [.05, .12, .2, .27].forEach(d => tone(500 + rnd1() * 500, .07, 'sine', .03, d, 1300, .2)); },
+  // --- tiền / mua bán ---
+  coin:  () => { tone(1320, .08, 'square', .03, 0, 0, .15); tone(1760, .22, 'square', .03, .07, 0, .3); },
+  coins: () => { for (let i = 0; i < 6; i++) { tone(1320 + (i % 3) * 220, .07, 'square', .026, i * .07, 0, .25); tone(1760 + (i % 2) * 330, .15, 'square', .02, i * .07 + .03, 0, .3); } },
+  buy:   () => { tone(988, .06, 'square', .03); tone(1319, .2, 'square', .03, .06, 0, .3); noise(.05, 4000, 'highpass', .04, .1); },
+  // --- giao diện ---
+  error: () => { tone(170, .22, 'sawtooth', .05, 0, 90); tone(150, .2, 'sawtooth', .04, .12, 80); },
+  ok:    () => { tone(660, .1, 'square', .04); tone(880, .16, 'square', .04, .09, 0, .2); },
+  wrong: () => { tone(160, .24, 'sawtooth', .05, 0, 100); tone(130, .24, 'sawtooth', .04, .16, 80); },
+  click: () => { tone(720, .04, 'square', .02); noise(.02, 3000, 'highpass', .02); },
+  select:() => tone(900, .06, 'triangle', .05, 0, 1200, .15),
+  page:  () => { noise(.14, 1200, 'bandpass', .07, 0, 3500); noise(.08, 2500, 'highpass', .03, .1); },
+  bag:   () => { noise(.14, 1300, 'bandpass', .08, 0, 500); noise(.1, 1600, 'bandpass', .06, .12, 600); tone(2400, .05, 'sine', .02, .05); },
+  door:  () => { noise(.25, 500, 'lowpass', .12, 0, 200); vox(180, .3, 130, .03, 0, 600, 0); tone(110, .1, 'sine', .08, .22, 70); },
+  shopbell: () => { tone(2093, .25, 'sine', .04, 0, 0, .3); tone(2637, .3, 'sine', .035, .12, 0, .3); },
+  eat:   () => { for (let i = 0; i < 3; i++) noise(.05, 2200, 'bandpass', .1, i * .1); tone(500, .1, 'sine', .04, .35, 800, .2); },
   place: () => { tone(320, .09, 'triangle', .07, 0, 200); noise(.06, 900, 'lowpass', .06); },
   chat:  () => { tone(600, .06, 'triangle', .04); tone(760, .08, 'triangle', .04, .08); },
-  levelup: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, .2, 'triangle', .06, i * .11)),
-  sleep: () => [523, 440, 392, 330].forEach((f, i) => tone(f, .5, 'sine', .05, i * .35)),
-  wake:  () => { [392, 523, 659].forEach((f, i) => tone(f, .25, 'triangle', .05, i * .13)); SND.bird(); },
-  bird:  () => { const b = 2400 + Math.random() * 1100; tone(b, .07, 'sine', .022, 0, b * 1.3); tone(b * 1.2, .08, 'sine', .022, .1, b); tone(b * 1.35, .06, 'sine', .018, .2, b * 1.1); },
-  cricket: () => [0, .1, .2].forEach(d => tone(4300, .05, 'sine', .01, d)),
-  thunder: () => { noise(.5, 260, 'lowpass', .3); noise(.5, 180, 'lowpass', .22, .35); tone(60, .7, 'sine', .14, 0, 32); },
-  cluck: () => { tone(700, .05, 'square', .03); tone(540, .06, 'square', .03, .08); tone(660, .05, 'square', .025, .16); },
-  moo:   () => tone(190, .6, 'sawtooth', .035, 0, 130),
-  baa:   () => { tone(430, .4, 'sawtooth', .03, 0, 340); tone(440, .25, 'sawtooth', .02, .22, 360); },
-  woof:  () => { tone(320, .1, 'square', .05, 0, 190); tone(300, .1, 'square', .04, .16, 180); },
-  quack: () => { tone(540, .09, 'square', .04, 0, 380); tone(520, .09, 'square', .04, .13, 360); },
-  meow:  () => tone(640, .35, 'sine', .045, 0, 920),
-  oink:  () => { tone(260, .12, 'sawtooth', .04, 0, 170); tone(240, .1, 'sawtooth', .03, .15, 160); },
-  gobble: () => { tone(420, .06, 'sawtooth', .03, 0, 320); tone(400, .06, 'sawtooth', .03, .08, 300); tone(380, .08, 'sawtooth', .03, .16, 280); }
+  // --- nhạc hiệu ---
+  levelup: () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, .22, 'triangle', .06, i * .11, 0, .35)); tone(1319, .9, 'sine', .04, .5, 0, .55); spark(.5, 5); },
+  quest: () => { [523, 659, 784].forEach((f, i) => tone(f, .16, 'triangle', .055, i * .1, 0, .3)); [784, 988, 1175].forEach(f => tone(f, .7, 'triangle', .04, .38, 0, .5)); spark(.45, 4); },
+  sleep: () => [523, 440, 392, 330].forEach((f, i) => tone(f, .55, 'sine', .05, i * .35, 0, .5)),
+  wake:  () => { [392, 523, 659].forEach((f, i) => tone(f, .25, 'triangle', .05, i * .13, 0, .35)); SND.bird(); setTimeout(() => SND.rooster(), 500); },
+  // --- thiên nhiên ---
+  bird:  () => { const b = 2400 + rnd1() * 1100; tone(b, .07, 'sine', .022, 0, b * 1.3); tone(b * 1.2, .08, 'sine', .022, .1, b); tone(b * 1.35, .06, 'sine', .018, .2, b * 1.1); },
+  bird2: () => { tone(2000, .12, 'sine', .025, 0, 2800, .2); tone(2800, .1, 'sine', .025, .14, 2000, .2); tone(2300, .09, 'sine', .02, .28, 3000, .2); tone(3100, .12, 'sine', .018, .4, 2400, .2); },
+  cricket: () => { for (let k = 0; k < 2; k++) for (let i = 0; i < 4; i++) tone(4200 + rnd1() * 200, .035, 'sine', .012, k * .38 + i * .07); },
+  owl:   () => { tone(420, .3, 'sine', .045, 0, 350, .45); tone(380, .5, 'sine', .045, .5, 290, .5); },
+  frog:  () => { for (let i = 0; i < 2; i++) { vox(140, .09, 260, .05, i * .22, 700); vox(260, .12, 170, .04, i * .22 + .1, 700); } },
+  bee:   () => vox(190, .9, 240, .012, 0, 700, 30),
+  woodpecker: () => { for (let i = 0; i < 7; i++) { noise(.03, 1200, 'bandpass', .09, i * .075); tone(900, .02, 'square', .015, i * .075); } },
+  rooster: () => { vox(520, .16, 700, .05, 0, 2400, 7); vox(680, .12, 760, .05, .2, 2400, 7); vox(620, .1, 700, .045, .36, 2400, 7); vox(900, .55, 560, .055, .5, 2600, 8); },
+  drip:  () => tone(1500 + rnd1() * 500, .06, 'sine', .02, 0, 800, .4),
+  crackle: () => { const n = 3 + Math.floor(rnd1() * 3); for (let i = 0; i < n; i++) noise(.025, 1500 + rnd1() * 2000, 'bandpass', .035 + rnd1() * .03, i * (.05 + rnd1() * .12)); },
+  bells: () => { bell(659); bell(523, .9); bell(784, 1.8); },
+  bellsDusk: () => { bell(440, 0, .045); bell(392, 1.1, .045); bell(330, 2.2, .045); },
+  thunder: () => { noise(.08, 3000, 'highpass', .12); noise(.5, 300, 'lowpass', .3, .04, 120); noise(.5, 200, 'lowpass', .24, .35, 90); noise(.6, 150, 'lowpass', .16, .75, 70); tone(60, .9, 'sine', .14, 0, 30); },
+  // --- vật nuôi ---
+  cluck: () => { [0, .09, .18].forEach((d, i) => vox([780, 640, 700][i], .06, [600, 520, 560][i], .045, d, 2200, 0, 'square')); },
+  peep:  () => { tone(2400, .05, 'sine', .04, 0, 3000); tone(2600, .05, 'sine', .035, .09, 3200); tone(2500, .04, 'sine', .03, .17, 3000); },
+  moo:   () => { vox(130, .95, 100, .07, 0, 500, 5); vox(260, .95, 200, .03, 0, 900, 5); },
+  baa:   () => { vox(400, .5, 330, .05, 0, 1400, 22); vox(420, .25, 350, .035, .3, 1300, 22); },
+  woof:  () => { [0, .2].forEach(d => { vox(300, .09, 170, .08, d, 900); noise(.05, 1500, 'bandpass', .05, d); }); },
+  quack: () => { vox(540, .1, 380, .05, 0, 1500, 0, 'square'); vox(520, .1, 360, .05, .14, 1500, 0, 'square'); },
+  meow:  () => { vox(520, .12, 760, .04, 0, 2200, 0, 'triangle'); vox(760, .38, 480, .04, .1, 1800, 6, 'triangle'); },
+  oink:  () => { vox(220, .1, 150, .06, 0, 700); vox(210, .1, 150, .05, .15, 700); noise(.08, 1200, 'bandpass', .04, .27); },
+  gobble: () => { for (let i = 0; i < 4; i++) vox(430 - i * 15, .07, 300, .035, i * .09, 1100, 25); }
 };
 const snd = n => { try { if (SND[n]) SND[n](); } catch (e) {} };
-// nhạc nền nhẹ (thang âm ngũ cung), chỉ chạy sau khi người chơi bấm / nhấn phím lần đầu
-let musicT;
-const SCALE = [262, 294, 330, 392, 440, 523, 587, 659];
-function startMusic() {
-  if (musicT) return;
-  musicT = setInterval(() => {
-    if (!AU.on || document.hidden || !AU.c) return;
-    const n = SCALE[Math.floor(Math.random() * SCALE.length)];
-    tone(n, 1.8, 'sine', .016); if (Math.random() < .4) tone(n / 2, 2.2, 'triangle', .01, .05);
-  }, 1500);
+
+// ====== ÂM THANH NỀN: gió, lá, nước chảy + tiếng sự kiện theo giờ / cảnh / thời tiết ======
+const AMB = { wind:null, leaf:null, water:null, t:0, hr:-1, roosterDay:-1 };
+function ambInit() {
+  if (AMB.wind || !AU.c || !AU.nb) return;
+  const a = AU.c, mk = (type, f, q) => { const s = a.createBufferSource(), fl = a.createBiquadFilter(), g = a.createGain();
+    s.buffer = AU.nb; s.loop = true; fl.type = type; fl.frequency.value = f; fl.Q.value = q; g.gain.value = 0; s.connect(fl); fl.connect(g); g.connect(AU.m); s.start(0, Math.random() * 2); return g; };
+  AMB.wind = mk('lowpass', 420, .8); AMB.leaf = mk('bandpass', 3200, .6); AMB.water = mk('bandpass', 700, .9);
 }
+function ambience(key, time) {
+  if (!AU.c || !AU.nb || time - AMB.t < 250) return; AMB.t = time; ambInit(); if (!AMB.wind) return;
+  const on = AU.on ? 1 : 0, out = !INDOOR(key), h = clk / 60, rain = wxNow() === 'rain', night = h >= 19.5 || h < 6;
+  const gust = .5 + .5 * Math.sin(time / 2300) * Math.sin(time / 5100 + 1);
+  const set = (g, v) => g.gain.setTargetAtTime(v * on, AU.c.currentTime, .7);
+  set(AMB.wind, out ? (rain ? .004 : .01 + gust * .014 + (key === 'Forest' ? .006 : 0) + (night ? .004 : 0)) : .002);
+  set(AMB.leaf, out && !rain ? ((key === 'Forest' || key === 'Farm') ? .003 + gust * .012 : .003) : 0);
+  set(AMB.water, !out ? 0 : key === 'Lake' ? .03 : key === 'Town' ? .012 : key === 'Farm' ? .004 : 0);
+  // chuông làng: 12:00 và 18:00 (bắt đầu hoàng hôn)
+  const hr = Math.floor(h);
+  if (hr !== AMB.hr) { if (AMB.hr >= 0 && out && (key === 'Town' || key === 'Farm')) { if (hr === 12) snd('bells'); else if (hr === 18) snd('bellsDusk'); } AMB.hr = hr; }
+}
+function ambientEvent(sc) {
+  if (open || !AU.on || !AU.c) return;
+  const key = sc.scene.key, h = clk / 60, r = Math.random(), rain = wxNow() === 'rain';
+  if (INDOOR(key)) { if (key === 'Home' && r < .5) snd('crackle'); return; }
+  if (rain) { if (key === 'Lake' && r < .3) snd('frog'); else if (r < .5) snd('drip'); return; }
+  const night = h >= 19.7 || h < 6, dusk = h >= 17 && h < 19.7, wet = key === 'Lake' || key === 'Farm';
+  if (night) { snd(r < .5 ? 'cricket' : r < .7 ? 'owl' : wet ? 'frog' : 'cricket'); return; }
+  if (dusk) { snd(r < .45 ? 'cricket' : r < .65 ? 'bird' : r < .8 && wet ? 'frog' : r < .85 ? 'owl' : 'bird2'); return; }
+  if (h < 8 && key === 'Farm' && AMB.roosterDay !== S.day) { AMB.roosterDay = S.day; snd('rooster'); return; }
+  if (key === 'Forest') return snd(r < .35 ? 'bird' : r < .6 ? 'bird2' : r < .8 ? 'woodpecker' : 'bee');
+  if (key === 'Lake') return snd(r < .35 ? 'bird' : r < .55 ? 'bird2' : r < .75 ? 'splash' : 'bee');
+  if (key === 'Farm' && sc.animals && sc.animals.length && r < .4) { const a = sc.animals[Math.floor(Math.random() * sc.animals.length)], d = ANIMALS[a.kind]; if (d && d.snd) return snd(d.snd); }
+  snd(r < .5 ? 'bird' : r < .75 ? 'bird2' : 'bee');
+}
+
+// nhạc nền nhẹ đổi theo buổi: ban ngày ấm vui (pentatonic trưởng) → hoàng hôn chậm sâu → ban đêm hộp nhạc dịu (thứ)
+let musicT, mi = 4, mn = 0;
+const PENT = [262, 294, 330, 392, 440, 523, 587, 659, 784, 880], MINOR = [220, 262, 294, 330, 392, 440, 523, 587];
+const CHORDS = { day:[[262, 330, 392], [220, 262, 330], [175, 220, 262], [196, 247, 294]], dusk:[[220, 262, 330], [175, 220, 262], [165, 196, 247], [196, 247, 294]], night:[[220, 262, 330], [196, 247, 294], [175, 220, 262], [165, 196, 247]] };
+function musicStep() {
+  const h = clk / 60, mood = h >= 20.3 || h < 6 ? 'night' : h >= 17 ? 'dusk' : 'day';
+  musicT = setTimeout(musicStep, mood === 'night' ? 1900 : mood === 'dusk' ? 1600 : 1250);
+  if (!AU.on || document.hidden || !AU.c) return;
+  const sc = mood === 'night' ? MINOR : PENT, r = Math.random();
+  mi = Math.max(0, Math.min(sc.length - 1, mi + [-2, -1, -1, 0, 1, 1, 2][Math.floor(r * 7)]));
+  const n = sc[mi];
+  if (mn % 6 === 0) CHORDS[mood][(mn / 6 | 0) % 4].forEach((f, i) => tone(f, 4.6, 'sine', .011, i * .08, 0, .5));
+  mn++;
+  if (Math.random() < .2) return;
+  if (mood === 'night') { tone(n * 2, 1.4, 'sine', .018, 0, 0, .7); tone(n * 4, .5, 'sine', .005, 0, 0, .7); }
+  else if (mood === 'dusk') { tone(n, 1.9, 'sine', .02, 0, 0, .5); tone(n * 2, .8, 'sine', .007, 0, 0, .5); }
+  else { tone(n, .9, 'triangle', .022, 0, 0, .3); if (r < .5) tone(n, .7, 'triangle', .008, .28, 0, .3); }
+}
+function startMusic() { if (!musicT) musicStep(); }
 
 function modal(title, html, btns, keep, who) {
   const card = $('.card'), top = keep ? card.scrollTop : 0;
@@ -486,7 +592,7 @@ const curCh = () => EF.Story.current();
 function storyCheck() {
   if (EF.Quest && EF.Quest.host) EF.Quest.check();
   const ch = curCh();
-  if (ch && ch.need() && S.story.nt !== S.story.ch) { S.story.nt = S.story.ch; save(); toast('📜 Xong nhiệm vụ! Hãy gặp: ' + ch.who); snd('levelup'); }
+  if (ch && ch.need() && S.story.nt !== S.story.ch) { S.story.nt = S.story.ch; save(); toast('📜 Xong nhiệm vụ! Hãy gặp: ' + ch.who); snd('quest'); }
   const b = $('#questBtn'); if (b) b.innerHTML = (SPR.ui_scroll ? spImg('ui_scroll', 20) : '📜') + ' Nhiệm vụ' + (ch ? (ch.need() ? ' ❗' : '') : ' ✔');
 }
 // bấm vào NPC / nơi nhận nhiệm vụ: nếu đủ điều kiện thì trả nhiệm vụ và trả về true (logic nằm trong systems/story_system.js)
@@ -522,7 +628,7 @@ function fishing() {
   if (open) return;
   if (!S.rod) return modal('Hồ Trăng 🎣', '<b>“You need a fishing rod!”</b><br>Bạn cần có cần câu. Hãy nói chuyện với thuyền trưởng Hải gần cầu tàu.', [{ label:'OK', fn:closeModal }]);
   if (!can(COST_FISH)) return;
-  use(COST_FISH);
+  use(COST_FISH); snd('cast');
   const tot = FISH.reduce((t, f) => t + f.w, 0); let r = Math.random() * tot, f = FISH[0];
   for (const x of FISH) { if ((r -= x.w) < 0) { f = x; break; } }
   const tok = fishing.tok = {};
@@ -530,7 +636,7 @@ function fishing() {
   setTimeout(() => { if (open && fishing.tok === tok && $('#mTitle').textContent.startsWith('🎣')) reel(f); }, 1200 + Math.random() * 2600);
 }
 function reel(f) {
-  snd('select');
+  snd('bite');
   modal('🐟 Cá cắn câu! Kéo lên!',
     '<div class="fish-wrap"><div class="fish-field"><div id="fBar"></div><div id="fFish">' + f.e + '</div></div><div class="fish-prog"><i id="fProg"></i></div></div>' +
     '<button id="fHold" type="button">⬆ Giữ để nâng vùng xanh</button><p><small>Giữ <b>Space</b> hoặc nút để nâng vùng xanh, thả ra để hạ. Giữ cá nằm trong vùng xanh để kéo cá lên!</small></p>',
@@ -538,7 +644,7 @@ function reel(f) {
   if (document.activeElement) document.activeElement.blur();
   const H = 200, bh = Math.max(38, 74 - f.diff * 10), bar = $('#fBar'), fish = $('#fFish'), prog = $('#fProg'), hold = $('#fHold');
   bar.style.height = bh + 'px';
-  let by = H - bh, bv = 0, fy = 80, ft = 0, tgt = 80, pr = 30, held = false, end = false, last = performance.now();
+  let by = H - bh, bv = 0, fy = 80, ft = 0, tgt = 80, pr = 30, tk = 0, held = false, end = false, last = performance.now();
   const dn = () => { held = true; }, up = () => { held = false; };
   hold.addEventListener('pointerdown', dn); window.addEventListener('pointerup', up);
   const kd = e => { if (e.code === 'Space') { e.preventDefault(); held = true; } }, ku = e => { if (e.code === 'Space') held = false; };
@@ -553,6 +659,7 @@ function reel(f) {
     const sp = 70 + f.diff * 45, d = tgt - fy; fy += Math.sign(d) * Math.min(Math.abs(d), sp * dt);
     const hit = fy + 12 >= by && fy + 12 <= by + bh;
     pr += (hit ? 26 : -20) * dt; pr = Math.min(100, pr);
+    tk -= dt; if (hit && tk <= 0) { tk = .2; snd('reelTick'); }
     bar.style.top = by + 'px'; fish.style.top = fy + 'px'; prog.style.height = Math.max(0, pr) + '%';
     if (pr >= 100) { stop(); return caught(f); }
     if (pr <= 0) { stop(); closeModal(); toast('Cá thoát mất rồi 😅'); snd('error'); return; }
@@ -564,7 +671,7 @@ function caught(f) {
   S.inv.fish[f.id] = (S.inv.fish[f.id] || 0) + 1;
   if (f.id !== 'boot') { S.story.cnt.fish++; EF.Quest.emit('catch', { id:f.id }); }
   const first = !S.fishDex[f.id]; S.fishDex[f.id] = (S.fishDex[f.id] || 0) + 1;
-  save(); snd('harvest');
+  save(); snd('splash'); setTimeout(() => snd('harvest'), 180);
   modal(`${f.em} You caught a ${f.en}!`, `<div class="big">${f.e}</div><b>${f.en}</b> = ${f.vi}<br>💰 ${f.price} 🪙 ${first ? '<br>📖 Loài mới! +8 EXP' : '<br>🎓 +2 EXP'}`,
     [{ label:'Câu tiếp 🎣', fn: () => { closeModal(); fishing(); } }, { label:'Đóng', fn:closeModal }]);
   gainExp(first ? 8 : 2);
@@ -577,7 +684,7 @@ function captain() {
       { who:'Captain Hai ⚓', en:'Stand near the water and press E to fish. Hold Space to catch the fish.', vi:'Đứng gần mặt nước và bấm E để câu. Giữ Space để kéo cá.' }], () => { S.rod = true; EF.Quest.emit('interact', { tag:'rod', id:'rod' }); save(); toast('🎣 Nhận được cần câu tre!'); snd('coin'); });
   }
   const got = FISH.filter(f => (S.inv.fish[f.id] || 0) > 0), total = got.reduce((t, f) => t + f.price * S.inv.fish[f.id], 0);
-  const sell = list => { let g = 0; list.forEach(f => { g += f.price * S.inv.fish[f.id]; delete S.inv.fish[f.id]; }); S.coins += g; snd('coin'); hud(); save(); toast(`Đã bán cá +${g} 🪙`); captain(); };
+  const sell = list => { let g = 0; list.forEach(f => { g += f.price * S.inv.fish[f.id]; delete S.inv.fish[f.id]; }); S.coins += g; snd('coins'); hud(); save(); toast(`Đã bán cá +${g} 🪙`); captain(); };
   const btns = got.map(f => ({ html: `${f.e} Bán ${f.en} <small>(${f.vi})</small> ×${S.inv.fish[f.id]} — ${f.price * S.inv.fish[f.id]} 🪙`, fn: () => sell([f]) }));
   if (got.length > 1) btns.push({ label:`💰 Bán tất cả — ${total} 🪙`, fn: () => sell(got) });
   btns.push({ label:'Đóng', fn:closeModal });
@@ -957,7 +1064,7 @@ class Base extends Phaser.Scene {
     const fit = () => cam.setZoom(Math.max(1, Math.min(this.scale.height / 432, this.scale.width / 640)));
     fit(); this.scale.on('resize', fit); this.events.once('shutdown', () => this.scale.off('resize', fit));
     // tiếng chim ban ngày / dế ban đêm
-    this.time.addEvent({ delay:4200, loop:true, callback: () => { if (open || !AU.on || INDOOR(this.scene.key) || Math.random() < .4) return; snd(clk >= 1080 || clk < 360 ? 'cricket' : 'bird'); } });
+    this.time.addEvent({ delay:4200, loop:true, callback: () => ambientEvent(this) });
     this.cameras.main.fadeIn(350);
     const K = Phaser.Input.Keyboard.KeyCodes;
     this.keys = this.input.keyboard.addKeys({ up:K.W, down:K.S, left:K.A, right:K.D, u2:K.UP, d2:K.DOWN, l2:K.LEFT, r2:K.RIGHT, e:K.E, sp:K.SPACE });
@@ -1058,9 +1165,17 @@ class Base extends Phaser.Scene {
     d.setDepth(d.y); this.dogSh.setPosition(d.x, d.y - 1);
   }
 
+  stepKind() {
+    const k = this.scene.key, p = this.player;
+    if (INDOOR(k)) return 'wood';
+    if (k === 'Town') return Math.random() < .6 ? 'stepStone' : 'step';
+    if (k === 'Lake' && p.x > 600 && p.y > 262) return 'wood';
+    return 'stepGrass';
+  }
+
   go(key) {
     if (this.leaving) return;
-    this.leaving = true; this.target = null; this.player.setVelocity(0); snd('door');
+    this.leaving = true; this.target = null; this.player.setVelocity(0); snd('door'); if (key === 'Workshop' || key === 'Guild') setTimeout(() => snd('shopbell'), 140);
     const cam = this.cameras.main; cam.fadeOut(300);
     cam.once('camerafadeoutcomplete', () => this.scene.start(key, { from:this.scene.key }));
   }
@@ -1084,7 +1199,7 @@ class Base extends Phaser.Scene {
 
     clk = Math.min(clk + delta * TIME_SPEED, 1500);
     const wxn = wxNow(), dim = wxn === 'rain' ? .16 : wxn === 'cloud' ? .06 : 0;
-    this.night.setAlpha(Math.min(.62, dark(clk / 60) + dim));
+    const gr = grade(clk / 60); this.night.setFillStyle(gr.color, 1).setAlpha(Math.min(.82, gr.alpha + dim));
     const tick = Math.floor(clk / 10); if (tick !== this.tick) { this.tick = tick; dayText(); }
     // mưa bắt đầu: cây đã gieo được tưới tự nhiên
     if (wxn === 'rain' && S.rainDay !== S.day) {
@@ -1099,7 +1214,7 @@ class Base extends Phaser.Scene {
     if (clk >= 1440 && !robbed) { robbed = true; this.player.setVelocity(0); robbery(); return false; }
     const moving = !!(vx || vy);
     this.stepT = moving ? (this.stepT || 0) + delta : 220;
-    if (this.stepT > 300) { this.stepT = 0; snd(INDOOR(this.scene.key) ? 'wood' : 'step'); }
+    if (this.stepT > 300) { this.stepT = 0; snd(this.stepKind()); }
     this.player.setDepth(this.player.y);
     this.animate(vx, vy, moving);
     this.shadow.setPosition(this.player.x, this.player.y + 10 * this.player.scaleY);
@@ -1196,6 +1311,7 @@ class Base extends Phaser.Scene {
 
   update(time, delta) {
     if (!this._swayed) { this._swayed = true; this.swayTrees(); }
+    ambience(this.scene.key, time);
     if (!this.move(time, delta)) return;
     this.edge();
     this.interact();
@@ -2143,8 +2259,8 @@ function uiSkin() {
   sndLabel();
   storyCheck();
 }
-$('#journalBtn').onclick = () => { if (!open) { snd('click'); EF.UI.journal(); } };
-$('#bookBtn').onclick = () => { if (!open) { snd('click'); wordBook(); } };
+$('#journalBtn').onclick = () => { if (!open) { snd('page'); EF.UI.journal(); } };
+$('#bookBtn').onclick = () => { if (!open) { snd('page'); wordBook(); } };
 $('#bagBtn').onclick = () => { if (!open) bag(); };
 $('#questBtn').onclick = () => { if (!open) questLog(); };
 $('#mapBtn').onclick = () => { if (!open) worldMap(); };
