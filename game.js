@@ -19,31 +19,43 @@ const maxSt = () => 100 + (S.lvl - 1) * 10; // stamina tối đa tăng theo cấ
 // Thêm cây mới: thêm 1 dòng ở đây + 1 mục FRAMES trong tools/pack_plants.py rồi chạy lại tool
 const CROPS = [
   // cây mở sẵn
-  { id:'carrot',      en:'CARROT',       vi:'cà rốt',        cost:0,   days:2, price:12 },
-  { id:'radish',      en:'RADISH',       vi:'củ cải',        cost:0,   days:2, price:14 },
-  // rau củ (3-4 ngày)
-  { id:'cauliflower', en:'CAULIFLOWER',  vi:'súp lơ',        cost:40,  days:3, price:26 },
-  { id:'bean',        en:'BEAN',         vi:'đậu que',       cost:60,  days:3, price:30 },
-  { id:'cucumber',    en:'CUCUMBER',     vi:'dưa chuột',     cost:80,  days:3, price:34 },
-  { id:'chili',       en:'CHILI',        vi:'ớt',            cost:100, days:3, price:40 },
-  { id:'soybean',     en:'SOYBEAN',      vi:'đậu nành',      cost:130, days:4, price:48 },
-  { id:'sunflower',   en:'SUNFLOWER',    vi:'hoa hướng dương', cost:160, days:4, price:56 },
-  { id:'wheat',       en:'WHEAT',        vi:'lúa mì',        cost:190, days:4, price:62 },
-  { id:'pumpkin',     en:'PUMPKIN',      vi:'bí ngô',        cost:220, days:4, price:72 },
-  // cây ăn quả (5 ngày)
-  { id:'pineapple',   en:'PINEAPPLE',    vi:'quả dứa',       cost:260, days:5, price:95 },
-  { id:'grape',       en:'GRAPE',        vi:'nho',           cost:300, days:5, price:105 },
-  { id:'plum',        en:'PLUM',         vi:'quả mận',       cost:340, days:5, price:118 },
-  { id:'lemon',       en:'LEMON',        vi:'chanh vàng',    cost:380, days:5, price:126 },
-  { id:'pomegranate', en:'POMEGRANATE',  vi:'quả lựu',       cost:420, days:5, price:136 },
-  { id:'banana',      en:'BANANA',       vi:'chuối',         cost:470, days:5, price:150 },
-  { id:'coconut',     en:'COCONUT',      vi:'dừa',           cost:520, days:5, price:165 }
+  { id:'carrot',      en:'CARROT',       vi:'cà rốt',         cost:0, days:2, price:12 },
+  { id:'potato',      en:'POTATO',       vi:'khoai tây',      cost:0, days:2, price:14 },
+  // rau củ (3 ngày)
+  { id:'cabbage',     en:'CABBAGE',      vi:'bắp cải',        cost:30, days:3, price:24 },
+  { id:'cauliflower', en:'CAULIFLOWER',  vi:'súp lơ',         cost:50, days:3, price:28 },
+  { id:'tomato',      en:'TOMATO',       vi:'cà chua',        cost:70, days:3, price:32 },
+  { id:'chili',       en:'CHILI',        vi:'ớt',             cost:90, days:3, price:38 },
+  // lương thực · củ quả (4 ngày)
+  { id:'corn',        en:'CORN',         vi:'bắp ngô',        cost:120, days:4, price:44 },
+  { id:'soybean',     en:'SOYBEAN',      vi:'đậu nành',       cost:150, days:4, price:50 },
+  { id:'wheat',       en:'WHEAT',        vi:'lúa mì',         cost:180, days:4, price:58 },
+  { id:'strawberry',  en:'STRAWBERRY',   vi:'dâu tây',        cost:210, days:4, price:66 },
+  { id:'sweetpotato', en:'SWEET POTATO', vi:'khoai lang',     cost:240, days:4, price:74 },
+  { id:'rice',        en:'RICE',         vi:'lúa gạo',        cost:270, days:4, price:82 },
+  { id:'mushroom',    en:'MUSHROOM',     vi:'nấm',            cost:300, days:4, price:90 },
+  // cây công nghiệp · cây ăn quả · hoa (5 ngày)
+  { id:'cotton',      en:'COTTON',       vi:'bông',           cost:330, days:5, price:98 },
+  { id:'tea',         en:'TEA',          vi:'trà',            cost:360, days:5, price:106 },
+  { id:'sugarcane',   en:'SUGARCANE',    vi:'mía',            cost:390, days:5, price:114 },
+  { id:'melon',       en:'MELON',        vi:'dưa vàng',       cost:420, days:5, price:124 },
+  { id:'pineapple',   en:'PINEAPPLE',    vi:'quả dứa',        cost:450, days:5, price:134 },
+  { id:'grape',       en:'GRAPE',        vi:'nho',            cost:480, days:5, price:144 },
+  { id:'peach',       en:'PEACH',        vi:'quả đào',        cost:510, days:5, price:154 },
+  { id:'lemon',       en:'LEMON',        vi:'chanh vàng',     cost:540, days:5, price:164 },
+  { id:'blueberry',   en:'BLUEBERRY',    vi:'việt quất',      cost:570, days:5, price:176 },
+  { id:'mangosteen',  en:'MANGOSTEEN',   vi:'măng cụt',       cost:600, days:5, price:188 },
+  { id:'banana',      en:'BANANA',       vi:'chuối',          cost:630, days:5, price:200 },
+  { id:'coconut',     en:'COCONUT',      vi:'dừa',            cost:660, days:5, price:214 },
+  { id:'coffee',      en:'COFFEE',       vi:'cà phê',         cost:690, days:5, price:230 },
+  { id:'rose',        en:'ROSE',         vi:'hoa hồng',       cost:720, days:5, price:250 },
+  { id:'jasmine',     en:'JASMINE',      vi:'hoa nhài',       cost:750, days:5, price:270 }
 ];
 // Giá hạt giống & cấp độ mở khóa: cây đắt cần Lv cao hơn → học bài với cô Emma để lên cấp
 const SEED_PRICE = c => Math.max(4, Math.round(c.price * .35));
 const REQ_LVL = c => 1 + Math.floor(c.cost / 100);
 // Hình ảnh: assets.js (icon quả = ICON) · bảng sprite 3 giai đoạn lớn (cây con → đang lớn → chín) theo thứ tự ASSET_META.crops
-const CROP_SC = [2.31, 2.4, 2.4, 1.62, 1.87, 2, 1.76, 1.76, 2.22, 1.7, 1.7, 1.62, 1, 1, 1.02, 1, 1]; // phóng mỗi cây cho vừa ô đất 64px (tính từ khung chín, tối đa 2.4x) — xem tools/pack_plants.py
+const CROP_SC = [2.21, 2.3, 1.94, 2.0, 2.07, 1.94, 1.75, 1.94, 2.0, 1.94, 2.0, 1.82, 2.07, 2.0, 2.0, 1.82, 2.07, 1.72, 2.07, 2.0, 1.82, 2.07, 1.84, 2.12, 1.88, 2.0, 1.84, 1.88]; // phóng mỗi cây cho vừa ô đất 64px (tính từ khung chín, tối đa 2.4x) — xem tools/pack_plants.py
 const CSC = id => CROP_SC[window.ASSET_META.crops.indexOf(id)] || 1.6;
 const FRAME = id => window.ASSET_META.crops.indexOf(id) * 3;
 const ICON = id => window.ASSETS.icons[id];
@@ -115,7 +127,7 @@ const placedCount = id => Object.values(S.placed).filter(x => x === id).length;
 
 // ====== LƯU TRỮ ======
 const KEY = 'englishFarmSave2'; // giữ nguyên key để không mất dữ liệu cũ; trường mới tự thêm giá trị mặc định
-const fresh = () => ({ coins:20, day:1, sel:'carrot', inv:{ seeds:{ carrot:6, radish:6 }, crops:{}, fish:{} }, learned:{},
+const fresh = () => ({ coins:20, day:1, sel:'carrot', inv:{ seeds:{ carrot:6, potato:6 }, crops:{}, fish:{} }, learned:{},
   exp:0, lvl:1, stamina:100, words:{}, phraseDay:0, dinhDay:0, mossDay:0, story:{ ch:0, intro:false, nt:-1, cnt:{ harvest:0, fish:0, forage:0 } }, rod:false, fishDex:{}, foraged:[], forageDay:0, own:{}, placed:{},
   plots: Array.from({ length:15 }, () => ({ s:0, c:null, g:0, w:false })) });
 let S, old = null;
@@ -123,12 +135,17 @@ try { old = JSON.parse(localStorage.getItem(KEY)); S = Object.assign(fresh(), ol
 S.stamina = Math.min(S.stamina, maxSt());
 // dữ liệu lưu cũ có thể còn cây không còn tồn tại (bí ngô, cà tím…) → dọn để không lỗi
 { const known = id => CROPS.some(c => c.id === id);
-  if (!S.inv || !S.inv.seeds) S.inv = { seeds:{ carrot:6, radish:6 }, crops:{} };
+  // đổi bộ cây: hạt/nông sản/ô đất của cây cũ chuyển sang cây gần giống (thay vì mất)
+  const MAP = { radish:'potato', bean:'soybean', cucumber:'cabbage', sunflower:'corn', pumpkin:'melon', plum:'blueberry', pomegranate:'peach' };
+  if (S.inv && S.inv.seeds) [S.inv.seeds, S.inv.crops || {}, (S.bin && S.bin.crops) || {}].forEach(o => Object.keys(o).forEach(id => { if (MAP[id]) { o[MAP[id]] = (o[MAP[id]] || 0) + (o[id] || 0); delete o[id]; } }));
+  if (MAP[S.sel]) S.sel = MAP[S.sel];
+  S.plots.forEach(p => { if (p.c && MAP[p.c]) p.c = MAP[p.c]; });
+  if (!S.inv || !S.inv.seeds) S.inv = { seeds:{ carrot:6, potato:6 }, crops:{} };
   if (!S.inv.crops) S.inv.crops = {};
   // save cũ (chưa có túi đồ): tặng 3 hạt cho mỗi cây đã mở khóa
   if (old && !old.inv && old.unlocked) old.unlocked.filter(known).forEach(id => { S.inv.seeds[id] = Math.max(S.inv.seeds[id] || 0, 3); });
   [S.inv.seeds, S.inv.crops].forEach(o => Object.keys(o).forEach(id => { if (!known(id) || !(o[id] > 0)) delete o[id]; }));
-  if (!Object.keys(S.inv.seeds).length) S.inv.seeds = { carrot:6, radish:6 };
+  if (!Object.keys(S.inv.seeds).length) S.inv.seeds = { carrot:6, potato:6 };
   if (!known(S.sel)) S.sel = 'carrot';
   S.plots.forEach(p => { if (p.c && !known(p.c)) { p.s = 1; p.c = null; p.g = 0; p.w = false; } }); }
 // dữ liệu lưu cũ: bổ sung các trường mới (cốt truyện, câu cá…)
@@ -163,6 +180,7 @@ function grade(h) {
   return { color: (ch(16) << 16) | (ch(8) << 8) | ch(0), alpha: a[2] + (b[2] - a[2]) * t };
 }
 const dark = h => grade(h).alpha;
+EF_ANIM.darkness = () => grade(clk / 60).alpha; EF_ANIM.hour = () => clk / 60; EF_ANIM.raining = () => wxNow() === 'rain';
 
 // ====== THỜI GIAN · THỜI TIẾT · VẬT NUÔI (mới) ======
 const TIME_SPEED = .0045;           // tốc độ đồng hồ (phút game / ms). Muốn ngày dài hơn → giảm số này
@@ -395,7 +413,7 @@ function ambience(key, time) {
   set(AMB.water, !out ? 0 : key === 'Lake' ? .03 : key === 'Town' ? .012 : key === 'Farm' ? .004 : 0);
   // chuông làng: 12:00 và 18:00 (bắt đầu hoàng hôn)
   const hr = Math.floor(h);
-  if (hr !== AMB.hr) { if (AMB.hr >= 0 && out && (key === 'Town' || key === 'Farm')) { if (hr === 12) snd('bells'); else if (hr === 18) snd('bellsDusk'); } AMB.hr = hr; }
+  if (hr !== AMB.hr) { if (AMB.hr >= 0 && out && (key === 'Town' || key === 'Farm')) { if (hr === 12) { snd('bells'); EF_ANIM.chime(activeScene()); } else if (hr === 18) { snd('bellsDusk'); EF_ANIM.chime(activeScene()); } } AMB.hr = hr; }
 }
 function ambientEvent(sc) {
   if (open || !AU.on || !AU.c) return;
@@ -449,11 +467,11 @@ function modal(title, html, btns, keep, who) {
     el.onclick = () => { snd('click'); if (b.fn) b.fn(el); };
     box.appendChild(el);
   });
-  $('#modal').hidden = false;
+  $('#modal').hidden = false; document.getElementById('farm-app').classList.add('inmodal');
   card.scrollTop = top;
   if (!keep) { const first = box.querySelector('button:not(:disabled)'); if (first) first.focus(); }
 }
-function closeModal() { open = false; $('#modal').hidden = true; }
+function closeModal() { open = false; $('#modal').hidden = true; document.getElementById('farm-app').classList.remove('inmodal'); }
 function toast(t) {
   const e = $('#toast'); e.textContent = t; e.classList.add('on');
   clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 1800);
@@ -551,18 +569,24 @@ function oldWordBook() {
 }
 
 // ====== TÚI ĐỒ: hạt giống (bấm để cầm) + nông sản ======
-function bag() {
-  snd('bag');
-  const got = CROPS.filter(c => (S.inv.crops[c.id] || 0) > 0);
-  const o = owned();
-  const crops = got.length
-    ? '<ul class="book">' + got.map(c => `<li>${ico(c.id, 22)} <b>${c.en}</b> — ${c.vi} <small>×${S.inv.crops[c.id]} · ${c.price}🪙/quả</small></li>`).join('') + '</ul>'
-    : '<p><small>Chưa có nông sản. Thu hoạch cây chín để bỏ vào túi, rồi bỏ vào 📦 thùng bán hàng ở nông trại.</small></p>';
-  const btns = o.map(id => { const c = crop(id); return { on: id === S.sel, html: `${id === S.sel ? '✋ ' : ''}${sico(id, 26)} ${c.en} <small>(${c.vi})</small> ×${seedCount(id)}`,
-    fn: () => { S.sel = id; snd('select'); hud(); save(); bag(); } }; });
-  btns.push({ label:'Đóng', fn:closeModal });
-  modal('🎒 Túi đồ', '<b>🧺 Nông sản</b>' + crops + fishList() + goodsList() + binLine() + '<b>🌱 Hạt giống</b> <small>— bấm để cầm trên tay rồi đi gieo' + (o.length ? '' : '. Chưa có hạt: mua ở Plant Workshop hoặc học bài với cô Emma') + '</small>', btns);
+function bag(keep) {
+  if (!keep) snd('bag');
+  EF.Inventory.open(keep);
 }
+
+// Dữ liệu cho túi đồ (ui/inventory_ui.js): dụng cụ · hạt giống · nông sản · cá · sản phẩm vật nuôi
+const invItems = () => {
+  const out = [], tool = (id, k, en, vi, meta, em) => out.push({ cat:'tool', id, ic: SPR[k] ? spImg(k, 32) : em, en, vi, n:0, price:0, meta });
+  tool('hoe', 'it_hoe', 'Hoe', 'Cuốc', `⚡ Xới đất: -${COST.till} thể lực`, '⛏️');
+  tool('can', 'it_can', 'Watering Can', 'Bình tưới', `⚡ Tưới cây: -${COST.water} thể lực`, '🚿');
+  if (S.rod) tool('rod', 'it_rod', 'Fishing Rod', 'Cần câu tre', `⚡ Thả câu ở hồ/sông: -${COST_FISH} thể lực`, '🎣');
+  CROPS.forEach(c => { const n = seedCount(c.id); if (n > 0) out.push({ cat:'seed', id:c.id, ic:sico(c.id, 32), en:c.en + ' Seeds', vi:'hạt ' + c.vi, n, price:SEED_PRICE(c), held:S.sel === c.id,
+    meta:`🌱 Gieo xuống ô đất đã xới · chín sau khoảng ${c.days} ngày tưới<br>${ico(c.id, 20)} Mua ở Plant Workshop: ${SEED_PRICE(c)} 🪙/hạt` }); });
+  listItems(S.inv).forEach(x => out.push({ cat: x.k === 'crops' ? 'crop' : x.k === 'fish' ? 'fish' : 'goods', id:x.id, ic:x.ic, en:x.en, vi:x.vi, n:x.n, price:x.price,
+    meta:`🪙 Bán ${x.price} 🪙/cái · cả ${x.n} cái = ${x.n * x.price} 🪙<br>📦 Bỏ vào thùng bán hàng ở nông trại, qua đêm có tiền.` }));
+  return out;
+};
+const holdSeed = id => { S.sel = id; snd('select'); hud(); save(); };
 
 // ====== CÔ EMMA: BÀI HỌC B1 / B2 ======
 function emma() { snd('chat'); EF.Review.menu(); }
@@ -619,6 +643,7 @@ const FISH = [  // e = emoji dự phòng; sau khi nạp sprite, e thành thẻ <
 ];
 FISH.forEach(f => { f.em = f.e; if (SPR['it_' + f.id]) f.e = spImg('it_' + f.id); });
 ['egg', 'milk'].forEach(k => { if (SPR['it_' + k]) GOODS[k].e = spImg('it_' + k); });
+if (SPR.inv_wool) GOODS.wool.e = spImg('inv_wool'); // cuộn len tự vẽ (tools/pack_inventory.py)
 const fishOf = id => FISH.find(f => f.id === id);
 function fishList() {
   const got = FISH.filter(f => (S.inv.fish[f.id] || 0) > 0);
@@ -628,7 +653,7 @@ function fishing() {
   if (open) return;
   if (!S.rod) return modal('Hồ Trăng 🎣', '<b>“You need a fishing rod!”</b><br>Bạn cần có cần câu. Hãy nói chuyện với thuyền trưởng Hải gần cầu tàu.', [{ label:'OK', fn:closeModal }]);
   if (!can(COST_FISH)) return;
-  use(COST_FISH); snd('cast');
+  use(COST_FISH); snd('cast'); EF_ANIM.act(activeScene(), '🎣');
   const tot = FISH.reduce((t, f) => t + f.w, 0); let r = Math.random() * tot, f = FISH[0];
   for (const x of FISH) { if ((r -= x.w) < 0) { f = x; break; } }
   const tok = fishing.tok = {};
@@ -646,10 +671,10 @@ function reel(f) {
   bar.style.height = bh + 'px';
   let by = H - bh, bv = 0, fy = 80, ft = 0, tgt = 80, pr = 30, tk = 0, held = false, end = false, last = performance.now();
   const dn = () => { held = true; }, up = () => { held = false; };
-  hold.addEventListener('pointerdown', dn); window.addEventListener('pointerup', up);
+  hold.addEventListener('pointerdown', dn); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
   const kd = e => { if (e.code === 'Space') { e.preventDefault(); held = true; } }, ku = e => { if (e.code === 'Space') held = false; };
   window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
-  const stop = () => { end = true; window.removeEventListener('pointerup', up); window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
+  const stop = () => { end = true; window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); };
   const loop = now => {
     if (end || !open) return stop();
     const dt = Math.min(.05, (now - last) / 1000); last = now;
@@ -697,6 +722,7 @@ function petAnimal(a) {
   const d = ANIMALS[a.kind];
   if (!can(COST_PET)) return;
   use(COST_PET);
+  EF_ANIM.act(activeScene(), '✋');
   if (S.petDay !== S.day) { S.petDay = S.day; S.petDone = {}; }
   const first = !S.petDone[a.id]; S.petDone[a.id] = 1;
   snd(d.snd || 'chat');
@@ -893,7 +919,7 @@ function fxLoop(now) {
   const out = !INDOOR(key) && key !== 'Boot' && !CINE.on, wx = wxNow(), hr = clk / 60, raining = out && wx === 'rain';
   rainSound(raining);
   if (raining) {
-    while (FX.drops.length < 150) FX.drops.push({ x:Math.random(), y:Math.random(), s:.8 + Math.random() * .6 });
+    while (FX.drops.length < (window.EF_TOUCH && EF_TOUCH.on ? 80 : 150)) FX.drops.push({ x:Math.random(), y:Math.random(), s:.8 + Math.random() * .6 });
     g.fillStyle = 'rgba(50,70,100,.10)'; g.fillRect(0, 0, w, h);
     g.strokeStyle = 'rgba(200,225,255,.55)'; g.lineWidth = 1.5; g.beginPath();
     FX.drops.forEach(d => { d.y += dt * 1.3 * d.s; d.x -= dt * .18 * d.s; if (d.y > 1) { d.y = -.05; d.x = Math.random() * 1.2; } if (d.x < 0) d.x += 1.2; const x = d.x * w, y = d.y * h; g.moveTo(x, y); g.lineTo(x - 5, y + 14 * d.s); });
@@ -902,7 +928,7 @@ function fxLoop(now) {
   } else { FX.nextBolt = 0; if (out && wx === 'cloud') { g.fillStyle = 'rgba(70,90,120,.05)'; g.fillRect(0, 0, w, h); } }
   if (FX.flash > 0) { g.fillStyle = 'rgba(255,255,255,' + (FX.flash * .4) + ')'; g.fillRect(0, 0, w, h); FX.flash = Math.max(0, FX.flash - dt * 2.5); }
   if (out && !raining && (hr >= 19.5 || hr < 5.5)) {
-    while (FX.ff.length < 22) FX.ff.push({ x:Math.random(), y:.2 + Math.random() * .7, p:Math.random() * 6.28, s:.4 + Math.random() * .6 });
+    while (FX.ff.length < (window.EF_TOUCH && EF_TOUCH.on ? 12 : 22)) FX.ff.push({ x:Math.random(), y:.2 + Math.random() * .7, p:Math.random() * 6.28, s:.4 + Math.random() * .6 });
     FX.ff.forEach(f => {
       f.x += Math.sin(now / 1500 * f.s + f.p) * dt * .05; f.y += Math.cos(now / 1900 * f.s + f.p) * dt * .04; f.x = (f.x + 1) % 1; f.y = Math.min(.95, Math.max(.1, f.y));
       const a = .35 + .55 * Math.abs(Math.sin(now / 500 + f.p));
@@ -1057,6 +1083,7 @@ class Base extends Phaser.Scene {
     this.player.body.setSize(16, 12).setOffset(12, 40); // chỉ va chạm ở bàn chân
     this.face = 'down';
     this.shadow = this.add.image(0, 0, 'shadow').setDepth(.5);
+    EF_ANIM.heroAttach(this);   // nhân vật chính hoạt ảnh (nhún, thở, bụi chân…)
     this.night = this.add.rectangle(-4000, -4000, 12000, 12000, 0x0a1445, 0).setOrigin(0).setScrollFactor(0).setDepth(2000);
     const cam = this.cameras.main;
     cam.setBackgroundColor('#1d2b19').startFollow(this.player, false, .12, .12).setBounds(0, 0, W, H);
@@ -1068,7 +1095,7 @@ class Base extends Phaser.Scene {
     this.cameras.main.fadeIn(350);
     const K = Phaser.Input.Keyboard.KeyCodes;
     this.keys = this.input.keyboard.addKeys({ up:K.W, down:K.S, left:K.A, right:K.D, u2:K.UP, d2:K.DOWN, l2:K.LEFT, r2:K.RIGHT, e:K.E, sp:K.SPACE });
-    this.input.on('pointerdown', p => { if (!open && !this.leaving) this.target = { x:p.worldX, y:p.worldY }; });
+    this.input.on('pointerdown', p => { const TC = window.EF_TOUCH; if (TC && TC.blocks(p.x, p.y, this.scale.width, this.scale.height)) return; if (!open && !this.leaving) this.target = { x:p.worldX, y:p.worldY }; });
     this.hintText = '';
     this.mm = { r:[], n:[], exits:[] }; this.roadCells = null; this._trees = null;
     this.animals = []; this.wet = []; this.dry = [];   // wet: vùng nước (hàm (x,y)=>bool) · dry: cầu / cầu tàu đi được trên nước
@@ -1091,6 +1118,7 @@ class Base extends Phaser.Scene {
     if (name) this.add.text(x, ty - 12, name, { fontSize:'14px', color:'#fff', backgroundColor:'#00000088', padding:{ x:4, y:1 } }).setOrigin(.5).setDepth(1500);
     this.physics.add.collider(this.player, s);
     this.mm.n.push(s);
+    EF_ANIM.npc(this, s, key, fy);   // NPC thở / chào / hoạt ảnh theo nghề
     return s;
   }
 
@@ -1111,7 +1139,7 @@ class Base extends Phaser.Scene {
     const k = 'v_' + key; if (!this.textures.exists(k)) return null;
     const s = this.add.image(x, bottom + 6, k).setOrigin(.5, 1).setDepth(bottom);
     this.block(x - s.width * solidW / 2, bottom - solidH, s.width * solidW, solidH);
-    this.mm.r.push([x - s.width / 2, bottom - s.height, s.width, s.height, col]); return s;
+    this.mm.r.push([x - s.width / 2, bottom - s.height, s.width, s.height, col]); EF_ANIM.building(this, key, s); return s;
   }
   isWet(x, y) { return this.wet.some(f => f(x, y)) && !this.dry.some(f => f(x, y)); }
   wetRect(x, y, w, h, m = 10) { this.wet.push((px, py) => px > x - m && px < x + w + m && py > y - m && py < y + h + m + 4); }
@@ -1186,6 +1214,7 @@ class Base extends Phaser.Scene {
     if (open || this.leaving) { this.player.setVelocity(0); return false; }
     const L = k.left.isDown || k.l2.isDown, R = k.right.isDown || k.r2.isDown, U = k.up.isDown || k.u2.isDown, D = k.down.isDown || k.d2.isDown;
     let vx = (R ? 1 : 0) - (L ? 1 : 0), vy = (D ? 1 : 0) - (U ? 1 : 0);
+    const TC = window.EF_TOUCH; if (TC && TC.on && (TC.x || TC.y)) { vx = TC.x; vy = TC.y; }   // joystick ảo
     if (vx || vy) this.target = null;
     else if (this.target) {
       const dx = this.target.x - this.player.x, dy = this.target.y - this.player.y;
@@ -1214,9 +1243,10 @@ class Base extends Phaser.Scene {
     if (clk >= 1440 && !robbed) { robbed = true; this.player.setVelocity(0); robbery(); return false; }
     const moving = !!(vx || vy);
     this.stepT = moving ? (this.stepT || 0) + delta : 220;
-    if (this.stepT > 300) { this.stepT = 0; snd(this.stepKind()); }
+    if (this.stepT > 300) { this.stepT = 0; const sk = this.stepKind(); snd(sk); EF_ANIM.dust(this, this.player.x, this.player.y + 11 * this.player.scaleY, sk, Math.sign(this.player.body.velocity.x)); }
     this.player.setDepth(this.player.y);
     this.animate(vx, vy, moving);
+    EF_ANIM.heroUpdate(this, delta, moving, vx, vy);
     this.shadow.setPosition(this.player.x, this.player.y + 10 * this.player.scaleY);
     return true;
   }
@@ -1275,7 +1305,7 @@ class Base extends Phaser.Scene {
     this.cur = c;
     const an = c && c.t === 'animal' ? ANIMALS[c.a.kind] : null;
     const t = an ? `E: chơi với ${an.e} ${an.en} (${an.vi}) — học 1 câu mới` : this.label(c);
-    if (t !== this.hintText) { this.hintText = t; $('#hint').textContent = t; }
+    if (t !== this.hintText) { this.hintText = t; $('#hint').textContent = t; if (window.EF_TOUCH) window.EF_TOUCH.hint(c ? t : ''); }
     const k = this.keys, J = Phaser.Input.Keyboard.JustDown;
     if (J(k.e) || J(k.sp)) this.act();
   }
@@ -1312,6 +1342,7 @@ class Base extends Phaser.Scene {
   update(time, delta) {
     if (!this._swayed) { this._swayed = true; this.swayTrees(); }
     ambience(this.scene.key, time);
+    EF_ANIM.update(this, time, delta);
     if (!this.move(time, delta)) return;
     this.edge();
     this.interact();
@@ -1403,7 +1434,7 @@ class Farm extends Base {
     const W = 1280, H = 960;
     const sp = this.from === 'Town' ? [1200, 600] : this.from === 'Forest' ? [610, 70] : this.from === 'Lake' ? [610, 890] : this.from === 'Home' ? [200, 292] : [420, 340];
     this.boot(W, H, sp[0], sp[1]);
-    this.house = this.add.image(200, 236, 'b_home').setOrigin(.5, 1).setDepth(236).setScale(1.5); // nhà người chơi (ảnh 131x144, phóng 1.5)
+    this.house = this.add.image(200, 236, 'b_home').setOrigin(.5, 1).setDepth(236).setScale(1.5); EF_ANIM.building(this, 'home', this.house); // nhà người chơi (ảnh 131x144, phóng 1.5)
     this.add.sprite(this.house.x - 98 + 3, this.house.y - 216, 'smoke').setOrigin(0).setScale(1.5).setDepth(237).play('smoke'); // khói trên ống khói
     { const z = this.add.zone(200, 211, 150, 50); this.physics.add.existing(z, true); this.house.zone = z; }
     // đường đất (ô 64px): nhà → xuống dưới → sang thị trấn (phải) + nhánh rẽ ra ruộng
@@ -1499,6 +1530,7 @@ class Farm extends Base {
   }
 
   fx(i, color, text) {
+    EF_ANIM.act(this, !text ? '⛏️' : text.includes('💧') ? '💧' : text.includes('🌱') ? '🌱' : '✋');
     const v = this.pv[i];
     const em = this.add.particles(v.x, v.y, 'spark', { speed: { min: 40, max: 120 }, lifespan: 550, scale: { start: 1.4, end: 0 }, tint: color, emitting: false }).setDepth(900);
     em.explode(14); this.time.delayedCall(700, () => em.destroy());
@@ -1618,6 +1650,7 @@ class Town extends Base {
       const nv = this.textures.exists('v_' + key), s = this.add.image(x, nv ? bottom + 6 : bottom, (nv ? 'v_' : 'b_') + key).setOrigin(.5, 1).setDepth(bottom);   // v_ = nhà Tiny Village (3x, có bóng)
       const z = this.add.zone(x, bottom - solidH / 2, s.width * solidW, solidH); this.physics.add.existing(z, true); this.physics.add.collider(this.player, z);
       this.mm.r.push([x - s.width / 2, bottom - s.height, s.width, s.height]);
+      EF_ANIM.building(this, key, s);
       return s;
     };
     this.shopB  = bldg('seedshop', 220, 320, 60, .75);   // Plant Workshop (xưởng bán cây giống)
@@ -1998,7 +2031,7 @@ class Guild extends Base {
 Guild.prototype.dinh = Town.prototype.dinh;
 
 // ====== CẢNH 4: RỪNG SƯƠNG (phía bắc nông trại) ======
-const FORAGE = ['radish', 'cucumber', 'bean', 'chili', 'cauliflower'];   // hiện ở dạng quả/củ (icon), không phải cây
+const FORAGE = ['mushroom', 'cabbage', 'tea', 'chili', 'cauliflower'];   // hiện ở dạng quả/củ (icon), không phải cây
 const FSPOTS = [[150, 130], [470, 150], [830, 100], [1110, 210], [990, 430], [250, 530], [1150, 630], [820, 600]];
 class Forest extends Base {
   constructor() { super('Forest'); }
@@ -2061,7 +2094,7 @@ class Forest extends Base {
     use(2); S.foraged.push(c.i); s.img.setVisible(false);
     const cc = crop(s.id); S.inv.crops[cc.id] = (S.inv.crops[cc.id] || 0) + 1; S.story.cnt.forage++; EF.Quest.emit('forage', { id:cc.id });
     let extra = ''; if (Math.random() < .25) { const sid = rewardSeed(); extra = ' + hạt ' + crop(sid).en; }
-    snd('harvest'); toast(`+1 ${cc.en} (${cc.vi})${extra}`); gainExp(2); save();
+    snd('harvest'); EF_ANIM.act(this, '✋'); toast(`+1 ${cc.en} (${cc.vi})${extra}`); gainExp(2); save();
   }
 
   talkMoss() {
@@ -2222,14 +2255,15 @@ class Home extends Base {
   }
 }
 
-EF.host = { S:() => S, modal, closeModal, toast, snd, gainExp, save, hud, use, talk, rewardSeed, sico, crop, maxSt, LESSON, B2_LEVEL, oldWordBook };
-['Lang', 'Quest', 'Story', 'Dialogue'].forEach(k => EF[k].init(EF.host));
+EF.host = { invItems, holdSeed, bin:() => ({ n:binCount(), v:binValue() }), S:() => S, modal, closeModal, toast, snd, gainExp, save, hud, use, talk, rewardSeed, sico, crop, maxSt, LESSON, B2_LEVEL, oldWordBook };
+['Lang', 'Quest', 'Story', 'Dialogue', 'Inventory'].forEach(k => EF[k].init(EF.host));
 let game;
 const startGame = () => { game = new Phaser.Game({
   type: Phaser.AUTO, parent: 'game-container', pixelArt: true, backgroundColor: '#1d2b19',
   render: { pixelArt: true, antialias: false, roundPixels: false },   // không làm tròn pixel → di chuyển mượt
+  input: { activePointers: 3 },
   scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' }, // lấp đầy khung, không còn viền
-  physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false, fps: 240 } }, // bước vật lý nhỏ → hết giật
+  physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false, fps: window.EF_TOUCH && EF_TOUCH.on ? 120 : 240 } }, // bước vật lý nhỏ → hết giật
   scene: [Boot, Farm, Town, Workshop, Guild, Forest, Lake, Home]
 }); };
 const loadImg = (key, src) => new Promise(r => { const i = new Image(); i.onload = () => { IMG[key] = i; r(); }; i.onerror = r; i.src = src; });
@@ -2252,7 +2286,7 @@ Promise.all(['crops', 'hero', 'shop'].map(k => loadImg(k, window.ASSETS[k]))
 function uiSkin() {
   const ms = document.querySelectorAll('#farm-app .meter > span'), put = (el, k) => { if (el && SPR[k]) el.innerHTML = spImg(k, 20); };
   put(ms[0], 'ui_bolt'); put(ms[1], 'ui_exp');
-  if (SPR.ui_bag) $('#bagBtn').innerHTML = spImg('ui_bag', 20) + ' Túi';
+  { const bi = SPR.inv_bag ? 'inv_bag' : 'ui_bag'; if (SPR[bi]) $('#bagBtn').innerHTML = spImg(bi, 20) + ' Túi'; }
   if (SPR.ui_map) $('#mapBtn').innerHTML = spImg('ui_map', 20) + ' Bản đồ';
   if (SPR.ui_book) $('#bookBtn').innerHTML = spImg('ui_book', 20) + ' Sổ từ';
   if (SPR.ui_journal) $('#journalBtn').innerHTML = spImg('ui_journal', 20) + ' Nhật ký';
@@ -2272,6 +2306,11 @@ sndLabel();
 const unlockAudio = () => { au(); startMusic(); };
 window.addEventListener('pointerdown', unlockAudio, { once:true });
 window.addEventListener('keydown', unlockAudio, { once:true });
+// iOS chỉ cho bật âm thanh sau touchend / click; và tạm dừng âm thanh khi chuyển tab để đỡ pin
+['touchend', 'click'].forEach(ev => window.addEventListener(ev, () => { au(); startMusic(); if (AU.c && AU.c.state !== 'running' && AU.on) AU.c.resume(); }, { passive:true }));
+document.addEventListener('visibilitychange', () => { if (!AU.c) return; try { document.hidden ? AU.c.suspend() : (AU.on && AU.c.resume()); } catch (e) {} });
+// nút đổi hạt giống cho cảm ứng (giống phím ])
+$('#seedBtn').onclick = () => { if (open) return; const o = owned(); if (!o.length) return; S.sel = o[(Math.max(0, o.indexOf(S.sel)) + 1) % o.length]; snd('select'); hud(); save(); };
 $('#actBtn').onclick = () => { const s = activeScene(); if (s && s.act) s.act(); };
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape' && open && !CINE.on) closeModal();
@@ -2281,7 +2320,7 @@ window.addEventListener('keydown', e => {
   if (!open && (e.key === 'm' || e.key === 'M')) MM.big = !MM.big;
   if (!open && (e.key === 'q' || e.key === 'Q')) questLog();
   if (!open && (e.key === 'j' || e.key === 'J')) EF.UI.journal();
-  if (!open && (e.key === 'b' || e.key === 'B' || e.key === 'i' || e.key === 'I')) bag();
+  if (/^[biBI]$/.test(e.key) && !e.ctrlKey && !e.metaKey) { if (open && EF.Inventory.isOpen() && !CINE.on) closeModal(); else if (!open) bag(); }
 });
 hud();
 requestAnimationFrame(fxLoop);

@@ -2,12 +2,18 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#2a1b10">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>English Farm — Pixel UI Edition</title>
 <link rel="preload" href="fonts/VT323-Regular.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="ui_skin.css">
 <link rel="stylesheet" href="ui/pixel_ui.css">
+<link rel="stylesheet" href="ui/inventory.css">
+<link rel="stylesheet" href="ui/mobile.css">
 </head>
 <body>
 <!-- Toàn bộ game nằm trong #farm-app: có thể copy khối này vào bất kỳ trang nào -->
@@ -27,14 +33,22 @@
       <span class="pxbox" id="todBox" title="Buổi trong ngày"><canvas width="16" height="16"></canvas></span>
     </div>
     <div id="seeds" aria-label="Chọn hạt giống"></div>
+    <div id="menu">
     <button id="bagBtn" type="button" title="Túi đồ (phím B)">🎒 Túi</button>
     <button id="questBtn" type="button" title="Nhiệm vụ (phím Q)">📜 Nhiệm vụ</button>
     <button id="mapBtn" type="button" title="Bản đồ thế giới">🗺️ Bản đồ</button>
     <button id="bookBtn" type="button">📖 Sổ từ</button>
     <button id="journalBtn" type="button" title="Nhật ký của Grandpa (phím J)">📔 Nhật ký</button>
     <button id="sndBtn" type="button" title="Bật / tắt âm thanh" aria-label="Bật tắt âm thanh">🔊</button>
+    <button id="fsBtn" type="button" title="Toàn màn hình">⛶ Toàn màn hình</button>
+    </div>
+    <button id="menuBtn" type="button" aria-label="Menu">☰</button>
   </header>
-  <div id="game-container"><canvas id="fx"></canvas><canvas id="minimap" width="176" height="138" title="Bản đồ nhỏ — bấm hoặc phím M để phóng to"></canvas></div>
+  <div id="game-container"><canvas id="fx"></canvas><canvas id="minimap" width="176" height="138" title="Bản đồ nhỏ — bấm hoặc phím M để phóng to"></canvas>
+    <div id="pad" hidden><div id="padBase"><i id="padKnob"></i></div></div>
+    <button id="seedBtn" type="button" aria-label="Đổi hạt giống">🌱</button>
+    <div id="actWrap" hidden><span id="actLbl"></span><div id="actRound" role="button" aria-label="Hành động">E</div></div>
+  </div>
   <footer id="bar">
     <span id="hint">WASD / phím mũi tên: đi · E hoặc Space: hành động · 1-9 hoặc [ ]: chọn hạt · B: túi đồ · Q: nhiệm vụ · M: bản đồ</span>
     <button id="actBtn" type="button">Hành động</button>
@@ -68,10 +82,12 @@
 <script src="systems/save_system.js"></script>
 <script src="ui/character_creator.js"></script>
 <script src="ui/pixel_ui.js"></script>
+<script src="ui/inventory_ui.js"></script>
 <script src="ui/dialogue_ui.js"></script>
 <script src="ui/vocabulary_book.js"></script>
 <script src="assets.js"></script>
 <script src="ui_assets.js"></script>
+<script src="inventory_assets.js"></script>
 <script src="house_assets.js"></script>
 <script src="ground_assets.js"></script>
 <script src="nature_assets.js"></script>
@@ -79,6 +95,8 @@
 <script src="town_assets.js"></script>
 <script src="village_assets.js"></script>
 <script src="guild_assets.js"></script>
+<script src="ui/mobile.js"></script>
+<script src="systems/anim_system.js"></script>
 <script src="game.js"></script>
 </body>
 </html>

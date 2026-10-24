@@ -233,8 +233,8 @@ body{margin:0}
 #farm-app button.on:active:not(:disabled),#farm-app #actBtn:active:not(:disabled){border-image-source:var(--sk-btn-gold-p)}
 #farm-app #actBtn{min-width:130px;font-size:24px}
 #farm-app button .ico{margin-right:4px;width:22px;height:22px}
-#farm-app #hud > button .ico{width:32px;height:32px;margin:-6px 4px -6px 0}   /* 64px -> 32px = đúng 2x lưới 32 của sprite */
-#farm-app #hud > #sndBtn .ico{margin:-6px 0}
+#farm-app #hud > button .ico,#farm-app #hud #menu > button .ico{width:32px;height:32px;margin:-6px 4px -6px 0}   /* 64px -> 32px = đúng 2x lưới 32 của sprite */
+#farm-app #hud #sndBtn .ico{margin:-6px 0}
 #farm-app .meter > span .ico{width:32px;height:32px;margin:-6px -2px}
 
 /* ---- thanh HUD / thanh dưới: ván gỗ ---- */
