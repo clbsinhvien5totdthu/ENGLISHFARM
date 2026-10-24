@@ -8,3 +8,5 @@
 - Giấy phép: các pack Craftpix / Pixel-Deck không được đưa lên repo công khai dưới dạng file nguồn tải lại được — cân nhắc để `img/craftpix/` và `img/village/` ngoài repo (chỉ giữ các file `*_assets.js` đã đóng gói).
 
 pack_ui.py   vẽ icon UI + khung 9-slice bằng code -> ui_assets.js, ui_skin.css (không cần PNG nguồn)
+
+- pack_crops.py: 28 cây (img/plants/crops_evolution.png) → bảng sprite, icon quả, CROP_SC. pack_seedbags.py: túi hạt giống (img/plants/seed_bags.png) → seedIcons. Hai tool này thay phần cây trồng của pack_plants.py.
