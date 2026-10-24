@@ -2189,6 +2189,15 @@ class TramChim extends Base {
     const rt = this.add.renderTexture(0, 0, W, H).setOrigin(0).setDepth(-.5), VAR = { deep:2, shal:2, wmud:2, dmud:2, grass:3, sedge:2, reed:2, wood:2, lotus:2, plank:1 };
     rt.beginDraw();
     for (let y = 0; y < TCH; y++) for (let x = 0; x < TCW; x++) { const k = t[y][x], v = Math.floor(rnd() * VAR[k]); rt.batchDraw('tc_' + (k === 'reed' ? 'reedbed' : k) + (k === 'plank' ? '' : v), x * TS, y * TS); }
+    // viền bờ: ô nước sát đất liền được phủ bóng bờ (trên/trái) và vệt bọt sáng (dưới/phải)
+    const isWater = k => k === 'deep' || k === 'shal' || k === 'lotus', isLand = k => k !== 'plank' && !isWater(k);
+    if (this.textures.exists('tc_shoreN')) for (let y = 0; y < TCH; y++) for (let x = 0; x < TCW; x++) if (isWater(t[y][x])) {
+      const ox = x * TS, oy = y * TS;
+      if (isLand(at(x, y - 1))) rt.batchDraw('tc_shoreN', ox, oy);
+      if (isLand(at(x - 1, y))) rt.batchDraw('tc_shoreW', ox, oy);
+      if (isLand(at(x, y + 1))) rt.batchDraw('tc_shoreS', ox, oy);
+      if (isLand(at(x + 1, y))) rt.batchDraw('tc_shoreE', ox, oy);
+    }
     rt.endDraw();
     // nước sâu chặn đường (gộp theo hàng cho nhẹ)
     const blk = this.physics.add.staticGroup(), wall = (x, y, w, h) => blk.add(this.add.zone(x, y, w, h));
