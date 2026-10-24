@@ -191,8 +191,8 @@ const CINE = { on:false };          // đang chiếu cut scene / màn tổng k�
 // thời tiết của 1 ngày: { k:'sun'|'cloud'|'rain', a:giờ bắt đầu mưa, b:giờ tạnh }
 const rollWx = () => {
   const r = Math.random();
-  if (r < .24) { const a = 7 + Math.floor(Math.random() * 5); return { k:'rain', a, b:Math.min(23, a + 4 + Math.floor(Math.random() * 6)) }; }
-  return r < .42 ? { k:'cloud' } : { k:'sun' };
+  if (r < .15) { const a = 7 + Math.floor(Math.random() * 5); return { k:'rain', a, b:Math.min(23, a + 4 + Math.floor(Math.random() * 6)) }; }
+  return r < .33 ? { k:'cloud' } : { k:'sun' };
 };
 if (!S.wx) S.wx = { k:'sun' };
 if (!S.nextWx) S.nextWx = rollWx();
@@ -1435,7 +1435,7 @@ class Farm extends Base {
     const sp = this.from === 'Town' ? [1200, 600] : this.from === 'Forest' ? [610, 70] : this.from === 'Lake' ? [610, 890] : this.from === 'Home' ? [200, 292] : [420, 340];
     this.boot(W, H, sp[0], sp[1]);
     this.house = this.add.image(200, 236, 'b_home').setOrigin(.5, 1).setDepth(236).setScale(1.5); EF_ANIM.building(this, 'home', this.house); // nhà người chơi (ảnh 131x144, phóng 1.5)
-    this.add.sprite(this.house.x - 98 + 3, this.house.y - 216, 'smoke').setOrigin(0).setScale(1.5).setDepth(237).play('smoke'); // khói trên ống khói
+    // khói ống khói nhà chính: do EF_ANIM.building (SPEC.home.smoke) tạo — hạt khói chuyển động, không dùng sprite tĩnh nữa
     { const z = this.add.zone(200, 211, 150, 50); this.physics.add.existing(z, true); this.house.zone = z; }
     // đường đất (ô 64px): nhà → xuống dưới → sang thị trấn (phải) + nhánh rẽ ra ruộng
     const cells = new Set(), road = (x0, y0, x1, y1) => { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) cells.add(x + ',' + y); };
