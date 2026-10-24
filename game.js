@@ -1216,7 +1216,7 @@ class Base extends Phaser.Scene {
   // trả về false khi đang mở hộp thoại / đang chuyển cảnh
   move(time, delta) {
     const k = this.keys;
-    if (open || this.leaving) { this.player.setVelocity(0); return false; }
+    if (open || this.leaving) { this.player.setVelocity(0); this.animate(0, 0, false); return false; }   // bị khóa: dừng anim đúng nhịp, không kẹt ở khung đang bước
     const L = k.left.isDown || k.l2.isDown, R = k.right.isDown || k.r2.isDown, U = k.up.isDown || k.u2.isDown, D = k.down.isDown || k.d2.isDown;
     let vx = (R ? 1 : 0) - (L ? 1 : 0), vy = (D ? 1 : 0) - (U ? 1 : 0);
     const TC = window.EF_TOUCH; if (TC && TC.on && (TC.x || TC.y)) { vx = TC.x; vy = TC.y; }   // joystick ảo
@@ -1247,25 +1247,39 @@ class Base extends Phaser.Scene {
     else if (clk >= 1410 && warn < 3) { warn = 3; toast('🚨 23:30! Chạy về nhà ngủ ngay!'); snd('error'); }
     if (clk >= 1440 && !robbed) { robbed = true; this.player.setVelocity(0); robbery(); return false; }
     const moving = !!(vx || vy);
-    this.stepT = moving ? (this.stepT || 0) + delta : 220;
+    const real = Math.hypot(b.velocity.x, b.velocity.y);   // vận tốc thật của thân (đang tăng/giảm tốc vẫn tính là đang đi)
+    const walking = moving || real > 12;                    // dùng chung cho anim + nhún/nghiêng → chân và thân dừng cùng lúc
+    this.stepT = walking ? (this.stepT || 0) + delta : 220;
     if (this.stepT > 300) { this.stepT = 0; const sk = this.stepKind(); snd(sk); EF_ANIM.dust(this, this.player.x, this.player.y + 11 * this.player.scaleY, sk, Math.sign(this.player.body.velocity.x)); }
     this.player.setDepth(this.player.y);
     this.animate(vx, vy, moving);
-    EF_ANIM.heroUpdate(this, delta, moving, vx, vy);
+    EF_ANIM.heroUpdate(this, delta, walking, b.velocity.x / SPEED, b.velocity.y / SPEED);   // nghiêng người theo vận tốc thật, không theo phím
     this.shadow.setPosition(this.player.x, this.player.y + 10 * this.player.scaleY);
     return true;
   }
 
   // hoạt ảnh đi bộ: xuống / lên / ngang (đi trái = lật ảnh đi phải)
   animate(vx, vy, moving) {
-    const p = this.player;
+    const p = this.player, b = p.body, real = Math.hypot(b.velocity.x, b.velocity.y);
+    if (!this.face) this.face = 'down';
     if (moving) {
-      if (Math.abs(vx) > Math.abs(vy)) { this.face = 'side'; p.setFlipX(vx > 0); }
-      else this.face = vy > 0 ? 'down' : 'up';
+      // độ trễ khi đổi hướng: đi chéo giữ hướng cũ, chỉ đổi khi một trục trội hơn trục kia ~30% (hết nhấp nháy side ↔ lên/xuống)
+      const ax = Math.abs(vx), ay = Math.abs(vy), H = 1.3;
+      if (this.face === 'side') { if (ay > ax * H) this.face = vy > 0 ? 'down' : 'up'; }
+      else if (ax > ay * H) this.face = 'side';
+      else if (ay > 0) this.face = vy > 0 ? 'down' : 'up';
+      if (this.face === 'side') p.setFlipX(vx > 0);
     }
     if (this.face !== 'side') p.setFlipX(false);
-    if (moving) p.anims.play('walk-' + this.face, true);
-    else { p.anims.stop(); p.setFrame({ down:0, up:4, side:8 }[this.face]); }
+    const idle = { down:0, up:4, side:8 }[this.face];
+    if (moving || real > 12) {
+      p.anims.play('walk-' + this.face, true);
+      p.anims.timeScale = Math.max(.55, Math.min(1.15, real / SPEED));   // nhịp chân bám theo vận tốc thật
+    } else if (p.anims.isPlaying) {
+      // vừa dừng: để chân bước nốt tới khung "đứng thẳng" (khung 1 hoặc 3 của chu kỳ) rồi mới về dáng đứng → không giật khung
+      const ci = p.anims.currentFrame ? p.anims.currentFrame.index : 1;
+      if (ci === 1 || ci === 3) { p.anims.stop(); p.anims.timeScale = 1; p.setFrame(idle); }
+    } else p.setFrame(idle);
   }
 
   // nền: cỏ ngẫu nhiên + đường đất tự ghép góc / ngã ba / ngã tư theo các ô lân cận (ô 64px)
