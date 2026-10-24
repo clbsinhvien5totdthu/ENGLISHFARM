@@ -1,0 +1,70 @@
+/* ====== Túi đồ kiểu Stardew — nạp SAU pixel_ui.css (dùng chung biến --pw, --pap…) ====== */
+#farm-app .card.inv{width:min(800px,100%)}
+#farm-app .card.inv #mBtns{margin-top:8px}
+.iv{display:flex;flex-direction:column;gap:8px}
+
+/* đầu bảng: ba lô + tên + các tab (tab đang chọn bung chữ ra) */
+.iv-head{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.iv-title{display:flex;align-items:center;gap:8px;font-size:30px;line-height:1;color:#6b4420}
+.iv-title b{font-weight:400}
+.iv-title .ico{width:40px;height:40px;image-rendering:pixelated}
+.iv-tabs{display:flex;gap:3px;align-items:flex-end}
+#farm-app .iv .iv-tab{display:flex;align-items:center;gap:6px;min-height:0;height:40px;padding:0 8px !important;margin:0;
+  background:#c99a52 !important;border:3px solid var(--pw-d) !important;border-bottom:0 !important;border-image:none !important;border-radius:0 !important;
+  box-shadow:inset 0 0 0 2px #e0b878;color:#fff3cf;font-size:21px;line-height:1;transform:none;filter:none;text-shadow:1px 1px 0 var(--pw-d)}
+#farm-app .iv .iv-tab .ico{width:28px;height:28px;margin:0;image-rendering:pixelated}
+#farm-app .iv .iv-tab:hover{background:#dcae66 !important;transform:none}
+#farm-app .iv .iv-tab.on{height:46px;background:#f4d79a !important;box-shadow:inset 0 0 0 2px #fff0c4;color:#3a2412;text-shadow:none;margin-bottom:-3px;position:relative;z-index:1}
+
+/* lưới ô */
+.iv-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:3px;padding:6px;background:#e2bd78;border:4px solid var(--pw);
+  box-shadow:inset 0 0 0 2px #f4d79a,inset 0 4px 0 rgba(90,58,28,.25);margin-top:-1px}
+.iv-slot{position:relative;aspect-ratio:1;min-width:0;display:flex;align-items:center;justify-content:center;font-size:28px;line-height:1;
+  background:#f1d79c;border:2px solid #b8873f;box-shadow:inset 2px 2px 0 rgba(120,76,30,.28);padding:0 !important;border-radius:0 !important}
+#farm-app .iv button.iv-slot{min-height:0;margin:0;cursor:pointer;color:inherit;background:#f6dea6 !important;border-image:none !important;box-shadow:inset 0 0 0 2px #fff0c4;transform:none;filter:none}
+#farm-app .iv button.iv-slot:hover{background:#ffeab8 !important;border-color:var(--red) !important}
+#farm-app .iv .iv-slot .ico{width:82%;height:82%;margin:0;image-rendering:pixelated}
+.iv-slot b{pointer-events:none;position:absolute;right:2px;bottom:-1px;font-size:19px;font-weight:400;line-height:1;color:#fff;
+  text-shadow:1px 1px 0 #2a1d10,-1px 1px 0 #2a1d10,1px -1px 0 #2a1d10,-1px -1px 0 #2a1d10}
+.iv-slot.sel{border-color:var(--red) !important;box-shadow:0 0 0 2px var(--red),inset 0 0 0 2px #fff0c4 !important;z-index:1}
+.iv-slot.held{background:#c8ecaa !important}
+.iv-hand{position:absolute;left:-3px;top:-4px;pointer-events:none;line-height:0}
+.iv-hand .ico{width:20px !important;height:20px !important}
+
+/* bảng thông tin món đang chọn */
+.iv-info{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:10px;align-items:center;min-height:84px;padding:8px 10px;
+  background:var(--pap);border:4px solid var(--pw);box-shadow:inset 0 0 0 2px #e8cf94}
+.iv-pic{display:flex;align-items:center;justify-content:center;width:64px;height:64px;font-size:42px;background:#f1d79c;border:3px solid #b8873f}
+#farm-app .iv .iv-pic .ico{width:52px;height:52px;margin:0;image-rendering:pixelated}
+.iv-txt{min-width:0;line-height:1.05}
+.iv-txt b{display:block;font-weight:400;font-size:27px;color:#2a1d10}
+.iv-txt small{display:block;font-size:19px;color:#7a5a35;margin-top:1px}
+.iv-txt p{margin:5px 0 0 !important;font-size:19px !important;line-height:1.1 !important;color:#4a331c}
+#farm-app .iv .iv-txt p .ico{width:20px;height:20px;margin:0 2px}
+.iv-act{display:flex;align-items:center;justify-content:flex-end}
+#farm-app .iv .iv-hold{min-height:0;white-space:nowrap;font-size:22px;padding:6px 12px}
+.iv-on{white-space:nowrap;font-size:21px;color:#1f6b3a;padding:4px 8px;background:#d6f0bc;border:3px solid #52b04a}
+
+/* chân bảng: tiền · thùng bán hàng · sắp xếp */
+.iv-foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.iv-coins{display:flex;align-items:center;gap:6px;padding:3px 8px;background:#5a3a1c;color:#ffe9a8;border:3px solid var(--pw-d);box-shadow:inset 0 0 0 2px #8b5d2b;font-size:26px;line-height:1}
+.iv-coins img{image-rendering:pixelated}
+.iv-coins b{font-weight:400}
+.iv-coins small{font-size:17px;color:#d9b97a}
+.iv-bin{flex:1;min-width:140px;font-size:18px;line-height:1.05;color:#7a5a35}
+#farm-app .iv .iv-sort{display:flex;align-items:center;gap:6px;min-height:0;padding:4px 10px;font-size:20px;
+  background:#e2bd78 !important;border:3px solid var(--pw-d) !important;border-image:none !important;border-radius:0 !important;box-shadow:inset 0 0 0 2px #f4d79a;color:#3a2412;text-shadow:none;transform:none}
+#farm-app .iv .iv-sort .ico{width:24px;height:24px;margin:0}
+#farm-app .iv .iv-sort:hover{background:#f1d79c !important}
+
+@media(max-width:640px){
+  .iv-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}
+  .iv-slot{font-size:30px}
+  .iv-title{font-size:26px}
+  .iv-info{grid-template-columns:56px minmax(0,1fr);}
+  .iv-pic{width:56px;height:56px}
+  .iv-act{grid-column:1 / -1;justify-content:stretch}
+  #farm-app .iv .iv-hold{width:100%}
+  .iv-on{width:100%;text-align:center}
+  .iv-tabs{width:100%;justify-content:space-between}
+}

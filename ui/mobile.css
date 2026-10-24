@@ -1,0 +1,75 @@
+/* English Farm — tối ưu điện thoại. Nạp SAU ui_skin.css / pixel_ui.css. */
+html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
+#farm-app{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#farm-app textarea,#farm-app input{-webkit-user-select:text;user-select:text}
+#farm-app button,#farm-app .sw{touch-action:manipulation}
+#farm-app #game-container{touch-action:none;position:relative}
+
+/* mặc định (máy tính): menu trải phẳng như cũ, ẩn các nút cảm ứng */
+#farm-app #menu{display:contents}
+#farm-app #menuBtn,#farm-app #fsBtn,#farm-app #seedBtn{display:none}
+#farm-app #pad,#farm-app #actWrap{display:none}
+
+/* ---- joystick + nút hành động (chỉ khi thiết bị cảm ứng) ---- */
+#farm-app.touch #pad:not([hidden]){display:block;position:absolute;z-index:4;pointer-events:none;
+  left:calc(env(safe-area-inset-left,0px) + 76px);bottom:76px;width:0;height:0;opacity:.45;transition:opacity .12s}
+#farm-app.touch #pad.active{opacity:.9;bottom:auto;transition:none}
+#farm-app #padBase{position:absolute;left:-56px;top:-56px;width:112px;height:112px;border-radius:50%;
+  background:rgba(42,27,16,.4);border:5px solid rgba(255,241,201,.6);box-shadow:inset 0 0 0 3px rgba(42,27,16,.45)}
+#farm-app #padKnob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;
+  background:#f2b632;border:5px solid #2a1b10;box-shadow:inset 0 -5px 0 rgba(0,0,0,.25),0 3px 0 rgba(0,0,0,.4)}
+#farm-app.touch #actWrap:not([hidden]){display:flex;flex-direction:column;align-items:flex-end;gap:8px;position:absolute;z-index:4;
+  right:calc(env(safe-area-inset-right,0px) + 16px);bottom:20px}
+#farm-app #actLbl{max-width:58vw;padding:2px 10px;background:#4a3320;color:#fff1c9;border:3px solid #2a1b10;font-size:20px;line-height:1.1;
+  text-align:right;text-shadow:2px 2px 0 #2a1b10;display:none}
+#farm-app #actWrap.has #actLbl{display:block}
+#farm-app #actRound{width:86px;height:86px;border-radius:50%;border:6px solid #2a1b10;background:#f2b632;color:#2a1b10;font-size:30px;line-height:1;
+  display:flex;align-items:center;justify-content:center;box-shadow:inset 0 -8px 0 rgba(0,0,0,.22),0 4px 0 rgba(0,0,0,.45);opacity:.6;touch-action:none;cursor:pointer}
+#farm-app #actWrap.has #actRound{opacity:1}
+#farm-app #actRound:active{transform:translateY(3px);box-shadow:inset 0 -3px 0 rgba(0,0,0,.22),0 1px 0 rgba(0,0,0,.45)}
+#farm-app.touch #seedBtn{display:flex;position:absolute;z-index:4;right:calc(env(safe-area-inset-right,0px) + 112px);bottom:20px;
+  width:56px;height:56px;border-radius:50%;padding:0;align-items:center;justify-content:center;font-size:26px;border:5px solid #2a1b10;background:#7a5a35;color:#fff;border-image:none;opacity:.85}
+#farm-app.touch.inmodal #pad,#farm-app.touch.inmodal #actWrap,#farm-app.touch.inmodal #seedBtn{display:none}
+#farm-app.touch #bar{display:none}                   /* thanh dưới đã có nút tròn thay thế */
+#farm-app.touch #fsBtn{display:inline-flex}
+
+/* ---- HUD gọn: điện thoại dọc / màn hình nhỏ ---- */
+@media (max-width:760px), (pointer:coarse) and (max-height:480px){
+  #farm-app #hud{position:relative;flex-wrap:wrap;gap:4px;padding:4px 6px;padding-top:max(4px,env(safe-area-inset-top,0px));
+    padding-left:max(6px,env(safe-area-inset-left,0px));padding-right:max(6px,env(safe-area-inset-right,0px));justify-content:flex-start}
+  #farm-app #stats{font-size:18px;gap:3px;flex:0 1 auto}
+  #farm-app #meters{gap:6px;flex:1 1 auto}
+  #farm-app .meter{font-size:18px;gap:2px}
+  #farm-app .meter .track{width:56px;height:16px}
+  #farm-app .meter b{min-width:0;font-size:16px}
+  #farm-app .pxbox{width:28px;height:28px}
+  #farm-app #seeds{order:5;flex:1 0 100%}
+  #farm-app #menuBtn{display:inline-flex;align-items:center;justify-content:center;margin-left:auto;min-width:46px;min-height:40px;font-size:26px}
+  #farm-app #menu{display:none;position:absolute;top:100%;right:6px;z-index:7;grid-template-columns:1fr 1fr;gap:6px;padding:8px;
+    background:var(--sk-plank) repeat 0 0 / 48px 40px;border:4px solid #2a1b10;box-shadow:4px 4px 0 rgba(0,0,0,.45)}
+  #farm-app #menu.open{display:grid}
+  #farm-app #menu button{min-height:44px;white-space:nowrap}
+  #farm-app #minimap{max-width:32%;top:6px;right:6px}
+  #farm-app #toast{top:96px;max-width:92%}
+}
+/* điện thoại nằm ngang: HUD một hàng, nhường tối đa chiều cao cho khung game */
+@media (pointer:coarse) and (max-height:480px) and (orientation:landscape){
+  #farm-app #hud{flex-wrap:nowrap;align-items:center}
+  #farm-app #seeds{order:0;flex:1 1 0;min-width:0}
+  #farm-app #meters{flex:0 0 auto}
+  #farm-app #skybox{display:none}
+  #farm-app #toast{top:60px}
+}
+
+/* ---- hộp thoại dễ bấm trên cảm ứng ---- */
+@media (pointer:coarse){
+  #farm-app #mBtns button{min-height:46px}
+  #farm-app #seeds button{min-height:38px}
+}
+@media (max-width:640px){
+  #farm-app .card{max-height:94%}
+  #farm-app .card h2{font-size:26px}
+  #farm-app .card p{font-size:21px}
+  #farm-app .book{columns:1}
+}
+@media (max-height:480px){ #farm-app #modal{padding:6px} #farm-app .card{max-height:98%} }
