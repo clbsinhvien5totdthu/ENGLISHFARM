@@ -194,7 +194,7 @@
   // win: [x0,y0,x1,y1,màu?]  glow: [x,y,bán kính,màu,luôn sáng?]  smoke: [x,y]  ...
   const WARM = 0xffc864, PURPLE = 0xb58cff;
   const SPEC = {
-    home:   { tex: 'b_home', win: [[36, 73, 47, 84], [57, 73, 68, 84], [14, 104, 25, 115], [41, 104, 52, 115], [67, 104, 78, 115]] },
+    home:   { tex: 'b_home', smoke: [[24, 31]], win: [[36, 73, 47, 84], [57, 73, 68, 84], [14, 104, 25, 115], [41, 104, 52, 115], [67, 104, 78, 115]] },
     seedshop: { tex: 'b_seedshop', smoke: [[134, 6]], win: [[154, 106, 184, 116], [120, 180, 142, 202], [196, 180, 218, 202], [108, 240, 130, 262], [206, 240, 228, 262]] },
     homes:  { tex: 'v_homes', smoke: [[114, 22]], win: [[69, 68, 85, 86], [67, 116, 89, 138], [259, 72, 283, 94], [304, 122, 338, 152]] },
     food:   { tex: 'v_food', fire: [[130, 160, 20, 12], [128, 190, 22, 7]], glow: [[176, 200, 16, WARM]], steam: [[190, 168]] },
@@ -228,8 +228,7 @@
     (sp.glint || []).forEach(g => { const cx = X(g[0]), cy = Y(g[1]);
       lights.push({ kind: 'glint', o: [halo(cx, cy, 9 * sxs, 0xffffff, 0)], ph: rnd(0, 9), a: [.9] }); });
 
-    (sp.smoke || []).forEach(m => sc.add.particles(X(m[0]), Y(m[1]), 'efpuff', { lifespan: 3200, frequency: 560, quantity: 1, speedY: { min: -22, max: -12 }, speedX: { min: 5, max: 12 },
-      accelerationX: 3, scale: { start: .22, end: .95 }, alpha: { start: .5, end: 0 }, tint: [0xeeeeee, 0xcfcfcf] }).setDepth(dep + 1));
+    (sp.smoke || []).forEach(m => A.chimney(sc, X(m[0]), Y(m[1]), dep + 1, sxs));   // khói ống khói bốc lên, uốn lượn theo gió
     (sp.steam || []).forEach(m => sc.add.particles(X(m[0]), Y(m[1]), 'efpuff', { lifespan: 1700, frequency: 480, speedY: { min: -16, max: -8 }, speedX: { min: -4, max: 4 },
       scale: { start: .12, end: .45 }, alpha: { start: .4, end: 0 }, tint: 0xffffff }).setDepth(dep + 1));
     if (sp.incense) sc.add.particles(X(sp.incense[0]), Y(sp.incense[1]), 'efpuff', { lifespan: 2800, frequency: 260, speedY: { min: -22, max: -14 }, speedX: { min: -3, max: 5 },
@@ -251,6 +250,21 @@
       for (let i = 0; i < 16; i++) dots.push(sc.add.rectangle(0, 0, 3, 3, i % 2 ? 0xe6d1a2 : 0x6b4a2a, .75).setDepth(dep - .5));
       lights.push({ kind: 'wheel', dots, cx: X(cx), cy: Y(cy), R: R * sxs, ph: 0 }); }
     if (sp.bell) { (sc.efBells = sc.efBells || []).push({ img, x: X(sp.bell[0]), y: Y(sp.bell[1]), dep }); }
+  };
+
+  // khói ống khói: từng cụm khói nhỏ bốc lên, nở dần, trôi theo gió (nghiêng nhiều hơn khi mưa) rồi tan; ban đêm hơi xám tối
+  A.chimney = function (sc, x, y, dep, k) {
+    k = k || 1;
+    const spawn = () => {
+      const night = A.darkness() > .45, cols = night ? [0xb9bcc6, 0xa4a8b4, 0x9094a0] : [0xffffff, 0xeeeeee, 0xdcdcdc];
+      const puff = sc.add.image(x + rnd(-1.5, 1.5) * k, y, 'efpuff').setDepth(dep).setTint(cols[Math.floor(Math.random() * cols.length)]).setScale(.16 * k).setAlpha(0);
+      const rise = rnd(48, 72) * k, wind = (A.raining() ? 5 : 11) + rnd(-3, 5), ph = rnd(0, 6.28), amp = rnd(2, 4) * k, t = { v: 0 };
+      sc.tweens.add({ targets: t, v: 1, duration: rnd(3200, 4400), ease: 'Linear',
+        onUpdate: () => { const e = t.v; puff.setPosition(x + wind * k * e * e * 4.5 + Math.sin(ph + e * 5.5) * amp * e, y - rise * Math.sqrt(e));
+          puff.setScale((.16 + .72 * e) * k).setAlpha(Math.min(1, e * 7) * .7 * (1 - e)); },
+        onComplete: () => puff.destroy() });
+    };
+    sc.time.addEvent({ delay: 430, loop: true, startAt: rnd(0, 400), callback: spawn });
   };
 
   A._ring = function (sc, x, y, col, dep, grow) {
