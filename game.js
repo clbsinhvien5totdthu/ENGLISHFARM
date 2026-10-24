@@ -420,11 +420,12 @@ function ambientEvent(sc) {
   const key = sc.scene.key, h = clk / 60, r = Math.random(), rain = wxNow() === 'rain';
   if (INDOOR(key)) { if (key === 'Home' && r < .5) snd('crackle'); return; }
   if (rain) { if (key === 'Lake' && r < .3) snd('frog'); else if (r < .5) snd('drip'); return; }
-  const night = h >= 19.7 || h < 6, dusk = h >= 17 && h < 19.7, wet = key === 'Lake' || key === 'Farm';
+  const night = h >= 19.7 || h < 6, dusk = h >= 17 && h < 19.7, wet = key === 'Lake' || key === 'Farm' || key === 'TramChim';
   if (night) { snd(r < .5 ? 'cricket' : r < .7 ? 'owl' : wet ? 'frog' : 'cricket'); return; }
   if (dusk) { snd(r < .45 ? 'cricket' : r < .65 ? 'bird' : r < .8 && wet ? 'frog' : r < .85 ? 'owl' : 'bird2'); return; }
   if (h < 8 && key === 'Farm' && AMB.roosterDay !== S.day) { AMB.roosterDay = S.day; snd('rooster'); return; }
   if (key === 'Forest') return snd(r < .35 ? 'bird' : r < .6 ? 'bird2' : r < .8 ? 'woodpecker' : 'bee');
+  if (key === 'TramChim') return snd(r < .4 ? 'bird' : r < .7 ? 'bird2' : r < .85 ? 'frog' : 'splash');
   if (key === 'Lake') return snd(r < .35 ? 'bird' : r < .55 ? 'bird2' : r < .75 ? 'splash' : 'bee');
   if (key === 'Farm' && sc.animals && sc.animals.length && r < .4) { const a = sc.animals[Math.floor(Math.random() * sc.animals.length)], d = ANIMALS[a.kind]; if (d && d.snd) return snd(d.snd); }
   snd(r < .5 ? 'bird' : r < .75 ? 'bird2' : 'bee');
@@ -599,8 +600,12 @@ function rewardSeed() {
 
 // ====== TEXTURE (vẽ bằng code, chỉ tạo 1 lần cho mọi cảnh) ======
 // ====== CỐT TRUYỆN · CÂU CÁ · BẢN ĐỒ NHỎ ======
-const SCENE_NAME = { Farm:'🌾 Nông trại', Town:'🏘️ Thị trấn Sunny', Forest:'🌲 Rừng Sương', Lake:'🎣 Hồ Trăng', Home:'🏠 Nhà', Workshop:'🌱 Plant Workshop', Guild:'🏛️ Đình làng' };
+const SCENE_NAME = { Farm:'🌾 Nông trại', Town:'🏘️ Thị trấn Sunny', Forest:'🌲 Rừng Sương', TramChim:'🦢 Tràm Chim', Lake:'🎣 Hồ Trăng', Home:'🏠 Nhà', Workshop:'🌱 Plant Workshop', Guild:'🏛️ Đình làng' };
 const MM = { big:false };
+// điều kiện mở khu Tràm Chim (phía bắc Rừng Sương): đủ cấp + đã nhặt đồ rừng + đã câu cá; mở rồi thì mở luôn (S.tcOpen)
+const TC_NEED = { lvl:5, forage:10, fish:3 };
+const tcReady = () => !!S.tcOpen || (S.lvl >= TC_NEED.lvl && S.story.cnt.forage >= TC_NEED.forage && S.story.cnt.fish >= TC_NEED.fish);
+const tcNeedText = () => `Lv ${Math.min(S.lvl, TC_NEED.lvl)}/${TC_NEED.lvl} · nhặt ${Math.min(S.story.cnt.forage, TC_NEED.forage)}/${TC_NEED.forage} món trong rừng · câu ${Math.min(S.story.cnt.fish, TC_NEED.fish)}/${TC_NEED.fish} con cá`;
 const COST_FISH = 5;
 
 // hội thoại nhiều trang: pages = [{who,en,vi}], fin chạy sau trang cuối
@@ -625,7 +630,7 @@ function questLog() { EF.UI.questLog(); }
 function worldMap() {
   snd('click');
   const here = activeScene() ? activeScene().scene.key : '', mk = k => (here === k ? '📍' : '') + SCENE_NAME[k];
-  modal('🗺️ Bản đồ', `<pre style="font:inherit;line-height:1.7;margin:0 0 8px;text-align:center">${mk('Forest')}\n↕\n${mk('Farm')} ↔ ${mk('Town')}\n↕\n${mk('Lake')}</pre><small>Rừng: đi lên phía trên nông trại · Hồ: đi xuống phía dưới · Thị trấn: đi sang phải. Phím M: phóng to / thu nhỏ bản đồ nhỏ.</small>`, [{ label:'Đóng', fn:closeModal }]);
+  modal('🗺️ Bản đồ', `<pre style="font:inherit;line-height:1.7;margin:0 0 8px;text-align:center">${mk('TramChim')}${tcReady() ? '' : ' 🔒'}\n↕\n${mk('Forest')}\n↕\n${mk('Farm')} ↔ ${mk('Town')}\n↕\n${mk('Lake')}</pre><small>Rừng: đi lên phía trên nông trại · Hồ: đi xuống phía dưới · Thị trấn: đi sang phải. Phím M: phóng to / thu nhỏ bản đồ nhỏ.</small>`, [{ label:'Đóng', fn:closeModal }]);
 }
 
 // ====== CÂU CÁ ======
@@ -1358,6 +1363,7 @@ const GROUND_BASE = GR.base, GROUND_TUFTS = GR.tufts;
 const TW = window.TOWN || { npc:{} };            // town_assets.js (tools/pack_town.py): cầu, cầu tàu, Đình làng, NPC Craftpix
 const GROUND_SCALE = 2;                         // phóng cụm cỏ 16px lên 2x (=32px). Tăng lên 3 nếu muốn cụm cỏ to hơn
 const GS = 16 * GROUND_SCALE;                   // kích thước 1 cụm cỏ sau khi phóng
+const TC = window.TRAMCHIM || { tiles:{}, objs:{} };   // tramchim_assets.js (tools/pack_tramchim.py): ô nền + vật thể Vườn quốc gia Tràm Chim
 const VIL = window.VILLAGE || {};                 // village_assets.js (tools/pack_village.py): nhà Tiny Top-Down Village (mill, school, observatory, fisher, stable, wizard)
 const GLD = window.GUILD || null;                // guild_assets.js (tools/pack_guild.py): phòng trong Đình làng
 const NAT = window.NATURE || { trees:{}, decor:{} }; // nature_assets.js (tools/pack_nature.py): cây có hoạt ảnh + bụi/đá/nấm...
@@ -1391,6 +1397,7 @@ class Boot extends Phaser.Scene {
     Object.keys(window.ASSETS.bld || {}).forEach(k => { if (IMG['b_' + k]) T.addImage('b_' + k, IMG['b_' + k]); }); // công trình pixel-art
     Object.keys(VIL).forEach(k => { if (IMG['v_' + k]) T.addImage('v_' + k, IMG['v_' + k]); });   // nhà Tiny Village
     if (IMG.guildroom) T.addImage('guildroom', IMG.guildroom);
+    ['tiles', 'objs'].forEach(g => Object.keys(TC[g]).forEach(k => { if (IMG['tc_' + k]) T.addImage('tc_' + k, IMG['tc_' + k]); }));   // Tràm Chim
     // sprite trùng tên texture vẽ-bằng-code → thay thế luôn (makeTextures bỏ qua key đã có)
     Object.keys(SPR).forEach(k => { if (IMG['s_' + k] && !/^(ui|it)_/.test(k) && !T.exists(k)) T.addImage(k, IMG['s_' + k]); });
     T.addImage('room', IMG.room); T.addSpriteSheet('smoke', IMG.smoke, { frameWidth:48, frameHeight:48 }); // trong nhà + khói ống khói (6 khung)
@@ -2038,9 +2045,9 @@ class Forest extends Base {
 
   create() {
     const W = 1280, H = 800;
-    this.boot(W, H, 640, 735);
+    const back = this.from === 'TramChim'; this.boot(W, H, back ? 736 : 640, back ? 70 : 735);
     const cells = new Set(), road = (x0, y0, x1, y1) => { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) cells.add(x + ',' + y); };
-    road(9, 8, 10, 12); road(4, 8, 10, 8); road(4, 3, 5, 8); road(3, 2, 6, 3);
+    road(9, 8, 10, 12); road(4, 8, 10, 8); road(4, 3, 5, 8); road(3, 2, 6, 3); road(11, 0, 11, 8);   // nhánh cuối đi lên Tràm Chim
     this.paintGround(cells);
     this.add.rectangle(0, 0, W, H, 0x0b3d1a, .17).setOrigin(0).setDepth(1990);
     if (S.forageDay !== S.day) { S.forageDay = S.day; S.foraged = []; save(); }
@@ -2048,7 +2055,7 @@ class Forest extends Base {
     const rnd = this.rng(11);
     for (let i = 0, n = 0; n < 95 && i < 600; i++) {
       const x = 30 + rnd() * (W - 60), y = 50 + rnd() * (H - 80);
-      if (near(x, y) || !this.clearOfRoad(cells, x, y) || (x > 420 && x < 670 && y < 270) || FSPOTS.some(p => Math.hypot(p[0] - x, p[1] - y) < 56)) continue;
+      if (near(x, y) || !this.clearOfRoad(cells, x, y) || (x > 420 && x < 670 && y < 270) || (x > 680 && x < 790 && y < 130) || FSPOTS.some(p => Math.hypot(p[0] - x, p[1] - y) < 56)) continue;
       const t = this.solids.create(x, y, Math.random() < .5 ? 'pine' : 'tree'); t.setDepth(y + 28); n++;
     }
     this.solids.refresh();
@@ -2064,13 +2071,21 @@ class Forest extends Base {
     for (let i = 0; i < 3; i++) this.addAnimal(i === 1 ? 'piglet' : 'rooster', 300 + i * 220, 400 + i * 40, [80, 250, 1100, 450]);
     this.add.text(640, 770, '↓ Nông trại', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
     this.add.text(330, 150, '🌲 Rừng Sương', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
-    this.mm.exits.push([520, H - 8, 240, 8]);
+    this.add.text(736, 34, tcReady() ? '🦢 Tràm Chim ↑' : '🔒 Tràm Chim ↑', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
+    this.mm.exits.push([520, H - 8, 240, 8], [704, 0, 64, 8]);
     this.mm.spots = this.spots;
     hud();
     this.time.delayedCall(450, () => toast('Mist Forest 🌲 — nhặt nấm, quả mọng, thảo dược!'));
   }
 
-  edge() { if (this.player.y > this.H - 14 && this.player.x > 520 && this.player.x < 760) this.go('Farm'); }
+  edge() {
+    const p = this.player;
+    if (p.y > this.H - 14 && p.x > 520 && p.x < 760) this.go('Farm');
+    else if (p.y < 14 && p.x > 690 && p.x < 780) {
+      if (tcReady()) { if (!S.tcOpen) { S.tcOpen = true; save(); toast('🦢 Cổng Tràm Chim đã mở!'); } this.go('TramChim'); }
+      else { p.setVelocity(0); p.y = 34; toast('🔒 Tràm Chim chưa mở — cần: ' + tcNeedText()); }
+    }
+  }
 
   look() {
     const px = this.player.x, py = this.player.y;
@@ -2108,6 +2123,135 @@ class Forest extends Base {
     const p = PHRASES[(S.day * 3) % PHRASES.length]; S.mossDay = S.day; save();
     modal('Elder Moss 🧙', `<b>“${p.en}”</b><br>${p.vi}<br><small>💡 ${p.tip}</small><br>🎓 +5 EXP`, [{ label:'Thank you! 🙏', fn:closeModal }]);
     gainExp(5);
+  }
+}
+
+// ===== BẢN ĐỒ TRÀM CHIM: sinh tile bằng nhiễu giá trị (seed cố định → mỗi lần chơi giống nhau) =====
+const TCW = 50, TCH = 40;
+function tcMap() {
+  const hash = (x, y, s) => { let h = (x * 374761393 + y * 668265263 + s * 69069) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; };
+  const vn = (x, y, s) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    const a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; };
+  const t = [];
+  for (let y = 0; y < TCH; y++) { t[y] = []; for (let x = 0; x < TCW; x++) {
+    const e = .62 * vn(x / 9, y / 9, 1) + .38 * vn(x / 4, y / 4, 2);
+    t[y][x] = e < .35 ? 'deep' : e < .42 ? 'shal' : e < .455 ? 'wmud' : e < .485 ? 'dmud' : vn(x / 5, y / 5, 5) > .69 ? 'wood' : vn(x / 6, y / 6, 9) > .6 ? 'sedge' : 'grass';
+    if (t[y][x] === 'shal' && vn(x / 2.6, y / 2.6, 7) > .68) t[y][x] = 'lotus';
+  } }
+  const cy = x => 17 + Math.round(vn(x / 14, 3, 4) * 2), cx = y => 35 + Math.round(vn(7, y / 14, 5) * 2), set = (x, y, k) => { if (t[y] && t[y][x]) t[y][x] = k; };
+  for (let x = 0; x < TCW; x++) { const r = cy(x); set(x, r - 1, 'shal'); set(x, r, 'deep'); set(x, r + 1, 'deep'); set(x, r + 2, 'shal'); }
+  for (let y = 0; y < 17; y++) { const c = cx(y); set(c - 1, y, 'shal'); set(c, y, 'deep'); set(c + 1, y, 'deep'); set(c + 2, y, 'shal'); }
+  const land = k => k === 'grass' || k === 'sedge' || k === 'wood' || k === 'dmud';
+  for (let y = 10; y < TCH; y++) for (let x = 21; x <= 25; x++) if (!land(t[y][x]) && !(y >= 16 && y <= 20)) t[y][x] = 'grass';   // hành lang từ cổng vào
+  for (let y = 32; y < TCH; y++) for (let x = 18; x <= 28; x++) t[y][x] = vn(x / 5, y / 5, 9) > .6 ? 'sedge' : 'grass';
+  for (let x = 21; x <= 25; x++) for (let y = 15; y <= 20; y++) if (t[y][x] === 'deep' || t[y][x] === 'shal') t[y][x] = 'plank';   // cầu qua kênh ngang
+  for (let y = 7; y <= 9; y++) for (let x = cx(y) - 1; x <= cx(y) + 2; x++) t[y][x] = 'plank';                                      // cầu qua kênh dọc
+  for (let y = 1; y < TCH - 1; y++) for (let x = 1; x < TCW - 1; x++) if ((t[y][x] === 'wmud' || t[y][x] === 'shal') && vn(x / 2, y / 2, 11) > .42 &&   // lau sậy mọc dọc mép nước
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].some(d => land(t[y + d[1]][x + d[0]]))) t[y][x] = 'reed';
+  return t;
+}
+
+// ====== CẢNH 6: VƯỜN QUỐC GIA TRÀM CHIM (phía bắc Rừng Sương; mở khi đạt TC_NEED) ======
+const WET = [
+  { en:'Wetland', vi:'Vùng đất ngập nước', tip:'A wetland is land covered by shallow water for much of the year.' },
+  { en:'Melaleuca trees grow in flooded soil.', vi:'Cây tràm mọc được trên đất ngập nước.', tip:'melaleuca = cây tràm' },
+  { en:'The sarus crane is the tallest flying bird in the world.', vi:'Sếu đầu đỏ là loài chim bay cao nhất thế giới.', tip:'tallest = cao nhất' },
+  { en:'A floodplain is flat land that floods in the rainy season.', vi:'Đồng bằng ngập lũ là vùng đất bằng bị ngập vào mùa mưa.', tip:'flood = lũ / ngập' },
+  { en:'Sedge looks like grass, but it grows in wet places.', vi:'Cỏ năn trông như cỏ nhưng mọc ở nơi ẩm ướt.', tip:'sedge = cỏ năn · reed = cây sậy' },
+  { en:'Water lilies float on still water.', vi:'Hoa súng nổi trên mặt nước tĩnh.', tip:'float = nổi · still = yên tĩnh' }
+];
+class TramChim extends Base {
+  constructor() { super('TramChim'); }
+
+  create() {
+    const TS = 32, W = TCW * TS, H = TCH * TS, t = tcMap(), rnd = this.rng(77);
+    this.boot(W, H, 23 * TS + 16, H - 60);
+    const land = k => k === 'grass' || k === 'sedge' || k === 'wood' || k === 'dmud', at = (x, y) => (t[y] && t[y][x]) || 'deep';
+    // bến thuyền nhỏ: cầu gỗ nhô ra mặt nước + 1 chiếc xuồng
+    let boat = null;
+    for (let y = 24; y < 35 && !boat; y++) for (let x = 6; x < 30 && !boat; x++)
+      if (land(at(x, y)) && [1, 2, 3, 4].every(i => ['shal', 'deep', 'lotus'].includes(at(x - i, y)))) { for (let i = 1; i <= 3; i++) t[y][x - i] = 'plank'; boat = [x - 4, y]; }
+    // nền: nướng toàn bộ ô 32px vào 1 ảnh
+    const rt = this.add.renderTexture(0, 0, W, H).setOrigin(0).setDepth(-.5), VAR = { deep:2, shal:2, wmud:2, dmud:2, grass:3, sedge:2, reed:2, wood:2, lotus:2, plank:1 };
+    rt.beginDraw();
+    for (let y = 0; y < TCH; y++) for (let x = 0; x < TCW; x++) { const k = t[y][x], v = Math.floor(rnd() * VAR[k]); rt.batchDraw('tc_' + (k === 'reed' ? 'reedbed' : k) + (k === 'plank' ? '' : v), x * TS, y * TS); }
+    rt.endDraw();
+    // nước sâu chặn đường (gộp theo hàng cho nhẹ)
+    const blk = this.physics.add.staticGroup(), wall = (x, y, w, h) => blk.add(this.add.zone(x, y, w, h));
+    for (let y = 0; y < TCH; y++) for (let x = 0; x < TCW; x++) if (t[y][x] === 'deep') { let n = 1; while (x + n < TCW && t[y][x + n] === 'deep') n++; wall(x * TS + n * TS / 2, y * TS + TS / 2, n * TS, TS); x += n - 1; }
+    // chỉ đặt chòi / sếu ở nơi đi tới được từ cổng vào
+    const seen = new Set(['23,38']), q = [[23, 38]];
+    while (q.length) { const [x, y] = q.pop(); [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(d => { const a = x + d[0], b = y + d[1]; if (a >= 0 && b >= 0 && a < TCW && b < TCH && at(a, b) !== 'deep' && !seen.has(a + ',' + b)) { seen.add(a + ',' + b); q.push([a, b]); } }); }
+    const open = (x, y, r) => { for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) { const k = at(x + i, y + j); if (!land(k) || k === 'wood' || !seen.has((x + i) + ',' + (y + j))) return false; } return true; };
+    const obj = (k, x, y, d, o = [.5, .5]) => this.add.image(x, y, 'tc_' + k).setOrigin(o[0], o[1]).setDepth(d);
+    // chòi quan sát: bãi cỏ thoáng gần lối chính
+    let sh = null;
+    for (let r = 0; r < 20 && !sh; r++) for (let y = 12 - r; y <= 12 + r && !sh; y++) for (let x = 28 - r; x <= 28 + r && !sh; x++) if (open(x, y, 2)) sh = [x * TS + 16, y * TS + 48];
+    if (sh) { obj('shelter', sh[0], sh[1], sh[1], [.5, 1]); wall(sh[0], sh[1] - 26, 80, 44); this.shelter = { x:sh[0], y:sh[1] }; } else this.shelter = null;
+    if (boat) obj('boat', boat[0] * TS + 16, boat[1] * TS + 16, .35).setAngle(rnd() < .5 ? 0 : 180);
+    // cây tràm: mảng thưa, không đều · lau sậy chỉ ở mép nước · cỏ năn rải · lục bình trôi · cành gãy + dấu chân trên bùn
+    let nBr = 0, nPr = 0;
+    for (let y = 0; y < TCH; y++) for (let x = 0; x < TCW; x++) {
+      const k = t[y][x], cx = x * TS + 16, cy = y * TS + 16, jx = (rnd() - .5) * 18, jy = (rnd() - .5) * 18;
+      if (k === 'wood' && rnd() < .5) { const tr = obj('tree' + Math.floor(rnd() * 3), cx + jx, cy + jy, cy + jy + 16); wall(tr.x, tr.y + 4, 14, 14); }
+      else if (k === 'reed') { const n = 1 + (rnd() < .45 ? 1 : 0); for (let i = 0; i < n; i++) obj('reed' + (i % 2), cx + (rnd() - .5) * 20, cy + (rnd() - .5) * 20 + 10, cy + 10 + i, [.5, 1]); }
+      else if (k === 'sedge' && rnd() < .3) obj('sedgep' + Math.floor(rnd() * 2), cx + jx, cy + jy + 8, cy + jy + 8, [.5, 1]);
+      else if (k === 'grass' && rnd() < .015) obj('sapling', cx, cy + 8, cy + 8, [.5, 1]);
+      else if (k === 'shal' && rnd() < .06) { const h = obj('hyacinth', cx + jx, cy + jy, .3); this.tweens.add({ targets: h, y: h.y + 2, yoyo: true, repeat: -1, duration: 1800 + rnd() * 1200, ease: 'Sine.InOut' }); }
+      else if ((k === 'wmud' || k === 'dmud') && rnd() < .3) { const ang = [0, 90, 180, 270][Math.floor(rnd() * 4)];
+        if (rnd() < .5 && nBr < 12) { nBr++; obj('branch', cx + jx, cy + jy, .6).setAngle(ang); } else if (nPr < 12) { nPr++; obj('prints', cx, cy, .6).setAlpha(.85).setAngle(ang); } }
+    }
+    blk.refresh(); this.physics.add.collider(this.player, blk);
+    // sếu đầu đỏ: đi lang thang trên bãi cỏ, lùi xa khi người chơi lại gần; E để quan sát
+    this.cranes = [];
+    for (let i = 0, tries = 0; i < 6 && tries < 400; tries++) {
+      const x = 2 + Math.floor(rnd() * (TCW - 4)), y = 2 + Math.floor(rnd() * (TCH - 12));
+      if (!open(x, y, 1)) continue;
+      const s = obj('crane', x * TS + 16, y * TS + 16, 0).setAngle(90 * Math.floor(rnd() * 4)); s.setDepth(s.y); this.cranes.push(s); i++;
+    }
+    const roam = s => {
+      if (!s.active) return; const p = this.player, near = Phaser.Math.Distance.Between(p.x, p.y, s.x, s.y) < 80;
+      const a = near ? Math.atan2(s.y - p.y, s.x - p.x) : rnd() * 6.283, d = near ? 70 : 20 + rnd() * 50;
+      let nx = s.x + Math.cos(a) * d, ny = s.y + Math.sin(a) * d; const k = at(Math.floor(nx / TS), Math.floor(ny / TS));
+      if (!land(k) || k === 'wood') { nx = s.x; ny = s.y; }
+      else s.setAngle(Math.round(Phaser.Math.RadToDeg(Math.atan2(ny - s.y, nx - s.x)) / 90) * 90 + 90);
+      this.tweens.add({ targets: s, x: nx, y: ny, duration: near ? 650 : 1800 + rnd() * 1500, onUpdate: () => s.setDepth(s.y), onComplete: () => this.time.delayedCall(near ? 100 : 800 + rnd() * 2500, () => roam(s)) });
+    };
+    this.cranes.forEach(s => this.time.delayedCall(rnd() * 2500, () => roam(s)));
+    // đàn chim bay ngang bầu trời
+    for (let i = 0; i < 4; i++) {
+      const b = this.add.image(-40, 60 + rnd() * (H - 200), 'tc_bird0').setDepth(1800).setAlpha(.95);
+      this.tweens.add({ targets: b, x: W + 40, y: b.y + (rnd() - .5) * 160, duration: 16000 + rnd() * 9000, delay: i * 4500, repeat: -1, repeatDelay: 2500 });
+      this.time.addEvent({ delay: 190, loop: true, callback: () => b.setTexture(b.texture.key === 'tc_bird0' ? 'tc_bird1' : 'tc_bird0') });
+    }
+    const sg = (x, y, s) => this.add.text(x, y, s, { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
+    sg(23 * TS + 16, H - 24, '↓ Rừng Sương'); sg(23 * TS + 16, H - 130, '🦢 Vườn quốc gia Tràm Chim');
+    this.mm.exits.push([18 * TS, H - 8, 11 * TS, 8]);
+    if (this.shelter) this.mm.r.push([this.shelter.x - 48, this.shelter.y - 96, 96, 96, '#a18f52']);
+    hud();
+    this.time.delayedCall(450, () => toast('Tràm Chim 🦢 — đồng cỏ ngập nước, rừng tràm và sếu đầu đỏ!'));
+  }
+
+  edge() { if (this.player.y > this.H - 14 && this.player.x > 560 && this.player.x < 930) this.go('Forest'); }
+
+  look() {
+    const p = this.player; let best = null, d = 56;
+    if (this.shelter && Phaser.Math.Distance.Between(p.x, p.y, this.shelter.x, this.shelter.y + 8) < 78) return { t:'shelter' };
+    this.cranes.forEach((s, i) => { const dd = Phaser.Math.Distance.Between(p.x, p.y, s.x, s.y); if (dd < d) { d = dd; best = { t:'crane', i }; } });
+    return best;
+  }
+
+  label(c) {
+    if (!c) return 'WASD / phím mũi tên: đi · đến chòi quan sát hoặc lại gần sếu rồi bấm E · nước sâu không đi qua được · đi xuống: về Rừng Sương';
+    return c.t === 'shelter' ? 'E: lên chòi quan sát 🔭' : 'E: quan sát sếu đầu đỏ 🦩 (nhẹ nhàng, sếu dễ giật mình)';
+  }
+
+  doAct(c) {
+    if (S.tcDay !== S.day) { S.tcDay = S.day; S.tcSeen = []; }
+    const key = c.t === 'shelter' ? 's' : 'c' + c.i, p = WET[(S.day + (c.t === 'shelter' ? 0 : c.i + 1)) % WET.length], exp = c.t === 'shelter' ? 10 : 4;
+    snd('chat');
+    modal(c.t === 'shelter' ? 'Chòi quan sát 🔭' : 'Sếu đầu đỏ 🦩', `<b>“${p.en}”</b><br>${p.vi}<br><small>💡 ${p.tip}</small>${S.tcSeen.includes(key) ? '' : '<br>🎓 +' + exp + ' EXP'}`, [{ label:'OK 👍', fn:closeModal }]);
+    if (!S.tcSeen.includes(key)) { S.tcSeen.push(key); gainExp(exp); save(); }
   }
 }
 
@@ -2264,7 +2408,7 @@ const startGame = () => { game = new Phaser.Game({
   input: { activePointers: 3 },
   scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' }, // lấp đầy khung, không còn viền
   physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false, fps: window.EF_TOUCH && EF_TOUCH.on ? 120 : 240 } }, // bước vật lý nhỏ → hết giật
-  scene: [Boot, Farm, Town, Workshop, Guild, Forest, Lake, Home]
+  scene: [Boot, Farm, Town, Workshop, Guild, Forest, TramChim, Lake, Home]
 }); };
 const loadImg = (key, src) => new Promise(r => { const i = new Image(); i.onload = () => { IMG[key] = i; r(); }; i.onerror = r; i.src = src; });
 Promise.all(['crops', 'hero', 'shop'].map(k => loadImg(k, window.ASSETS[k]))
@@ -2275,6 +2419,7 @@ Promise.all(['crops', 'hero', 'shop'].map(k => loadImg(k, window.ASSETS[k]))
   .concat(Object.keys(SPR).map(k => loadImg('s_' + k, SPR[k])))
   .concat([loadImg('road', GR.road)]).concat(GR.road2 ? [loadImg('road2', GR.road2)] : [])
   .concat(Object.keys(VIL).map(k => loadImg('v_' + k, VIL[k].src))).concat(GLD ? [loadImg('guildroom', GLD.room)] : [])
+  .concat(['tiles', 'objs'].reduce((a, g) => a.concat(Object.keys(TC[g]).map(k => loadImg('tc_' + k, TC[g][k]))), []))
   .concat(['bridge', 'pier'].filter(k => TW[k]).map(k => loadImg('t_' + k, TW[k])))
   .concat(Object.keys(TW.npc).map(k => loadImg('n_' + k, TW.npc[k]))).concat(GR.det ? [loadImg('gdet', GR.det)] : [])
   .concat(Object.keys(NAT.trees).map(k => loadImg('tr_' + k, NAT.trees[k].src)))
