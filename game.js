@@ -1377,7 +1377,8 @@ const GROUND_BASE = GR.base, GROUND_TUFTS = GR.tufts;
 const TW = window.TOWN || { npc:{} };            // town_assets.js (tools/pack_town.py): cầu, cầu tàu, Đình làng, NPC Craftpix
 const GROUND_SCALE = 2;                         // phóng cụm cỏ 16px lên 2x (=32px). Tăng lên 3 nếu muốn cụm cỏ to hơn
 const GS = 16 * GROUND_SCALE;                   // kích thước 1 cụm cỏ sau khi phóng
-const TC = window.TRAMCHIM || { tiles:{}, objs:{} };   // tramchim_assets.js (tools/pack_tramchim.py): ô nền + vật thể Vườn quốc gia Tràm Chim
+const TC = window.TRAMCHIM || { tiles:{}, objs:{}, chars:{} };
+if (window.EF && EF.Pixel && TC.chars && TC.chars.guide_portrait) EF.Pixel.custom.guide = TC.chars.guide_portrait;   // Chú Tư: chân dung trong hộp thoại   // tramchim_assets.js (tools/pack_tramchim.py): ô nền + vật thể Vườn quốc gia Tràm Chim
 const VIL = window.VILLAGE || {};                 // village_assets.js (tools/pack_village.py): nhà Tiny Top-Down Village (mill, school, observatory, fisher, stable, wizard)
 const GLD = window.GUILD || null;                // guild_assets.js (tools/pack_guild.py): phòng trong Đình làng
 const NAT = window.NATURE || { trees:{}, decor:{} }; // nature_assets.js (tools/pack_nature.py): cây có hoạt ảnh + bụi/đá/nấm...
@@ -1411,7 +1412,7 @@ class Boot extends Phaser.Scene {
     Object.keys(window.ASSETS.bld || {}).forEach(k => { if (IMG['b_' + k]) T.addImage('b_' + k, IMG['b_' + k]); }); // công trình pixel-art
     Object.keys(VIL).forEach(k => { if (IMG['v_' + k]) T.addImage('v_' + k, IMG['v_' + k]); });   // nhà Tiny Village
     if (IMG.guildroom) T.addImage('guildroom', IMG.guildroom);
-    ['tiles', 'objs'].forEach(g => Object.keys(TC[g]).forEach(k => { if (IMG['tc_' + k]) T.addImage('tc_' + k, IMG['tc_' + k]); }));   // Tràm Chim
+    ['tiles', 'objs', 'chars'].forEach(g => Object.keys(TC[g] || {}).forEach(k => { if (IMG['tc_' + k]) T.addImage('tc_' + k, IMG['tc_' + k]); }));   // Tràm Chim
     // sprite trùng tên texture vẽ-bằng-code → thay thế luôn (makeTextures bỏ qua key đã có)
     Object.keys(SPR).forEach(k => { if (IMG['s_' + k] && !/^(ui|it)_/.test(k) && !T.exists(k)) T.addImage(k, IMG['s_' + k]); });
     T.addImage('room', IMG.room); T.addSpriteSheet('smoke', IMG.smoke, { frameWidth:48, frameHeight:48 }); // trong nhà + khói ống khói (6 khung)
@@ -1820,6 +1821,13 @@ class Town extends Base {
     const h = clk / 60, dim = dark(h) > .12 || wxNow() === 'rain';
     this.lamps.forEach((l, i) => l.glow.setAlpha(dim ? .3 + Math.sin(time / 300 + i) * .04 : 0));
     const fly = h >= 7 && h < 18 && wxNow() !== 'rain'; this.bfly.forEach(b => b.setVisible(fly));
+    const pb = this.player.body;                                                  // lội nước: gợn sóng quanh chân
+    if (pb && pb.speed > 20 && time > (this.wadeT || 0)) {
+      const k = this.rows[Math.floor((this.player.y + 20) / 32)]?.[Math.floor(this.player.x / 32)];
+      if (k === '-' || k === 'o') { this.wadeT = time + 260; const r = this.add.image(this.player.x, this.player.y + 22, 'tc_ripple1').setDepth(.56).setAlpha(.9).setScale(.5);
+        this.tweens.add({ targets: r, scale: 1.7, alpha: 0, duration: 950, ease: 'Sine.Out', onComplete: () => r.destroy() }); }
+    }
+    if (this.guide) this.guide.bub.setAlpha(S.tcTalk === S.day ? 0 : 1);
     super.update(time, delta);
   }
 
@@ -2140,30 +2148,9 @@ class Forest extends Base {
   }
 }
 
-// ===== BẢN ĐỒ TRÀM CHIM: sinh tile bằng nhiễu giá trị (seed cố định → mỗi lần chơi giống nhau) =====
+// ===== TRÀM CHIM: bản đồ thiết kế sẵn (tools/gen_tramchim_map.js) + nền vẽ bằng pxl, nhìn 3/4 =====
+// Ký tự ô: ~ nước sâu (chặn) · - nông · o nông có sen · m/r bùn · d bùn khô · g cỏ · s cỏ năn · w rừng tràm · p lối đất · = ván gỗ
 const TCW = 50, TCH = 40;
-function tcMap() {
-  const hash = (x, y, s) => { let h = (x * 374761393 + y * 668265263 + s * 69069) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; };
-  const vn = (x, y, s) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
-    const a = hash(xi, yi, s), b = hash(xi + 1, yi, s), c = hash(xi, yi + 1, s), d = hash(xi + 1, yi + 1, s); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; };
-  const t = [];
-  for (let y = 0; y < TCH; y++) { t[y] = []; for (let x = 0; x < TCW; x++) {
-    const e = .62 * vn(x / 9, y / 9, 1) + .38 * vn(x / 4, y / 4, 2);
-    t[y][x] = e < .35 ? 'deep' : e < .42 ? 'shal' : e < .455 ? 'wmud' : e < .485 ? 'dmud' : vn(x / 5, y / 5, 5) > .69 ? 'wood' : vn(x / 6, y / 6, 9) > .6 ? 'sedge' : 'grass';
-    if (t[y][x] === 'shal' && vn(x / 2.6, y / 2.6, 7) > .68) t[y][x] = 'lotus';
-  } }
-  const cy = x => 17 + Math.round(vn(x / 14, 3, 4) * 2), cx = y => 35 + Math.round(vn(7, y / 14, 5) * 2), set = (x, y, k) => { if (t[y] && t[y][x]) t[y][x] = k; };
-  for (let x = 0; x < TCW; x++) { const r = cy(x); set(x, r - 1, 'shal'); set(x, r, 'deep'); set(x, r + 1, 'deep'); set(x, r + 2, 'shal'); }
-  for (let y = 0; y < 17; y++) { const c = cx(y); set(c - 1, y, 'shal'); set(c, y, 'deep'); set(c + 1, y, 'deep'); set(c + 2, y, 'shal'); }
-  const land = k => k === 'grass' || k === 'sedge' || k === 'wood' || k === 'dmud';
-  for (let y = 10; y < TCH; y++) for (let x = 21; x <= 25; x++) if (!land(t[y][x]) && !(y >= 16 && y <= 20)) t[y][x] = 'grass';   // hành lang từ cổng vào
-  for (let y = 32; y < TCH; y++) for (let x = 18; x <= 28; x++) t[y][x] = vn(x / 5, y / 5, 9) > .6 ? 'sedge' : 'grass';
-  for (let x = 21; x <= 25; x++) for (let y = 15; y <= 20; y++) if (t[y][x] === 'deep' || t[y][x] === 'shal') t[y][x] = 'plank';   // cầu qua kênh ngang
-  for (let y = 7; y <= 9; y++) for (let x = cx(y) - 1; x <= cx(y) + 2; x++) t[y][x] = 'plank';                                      // cầu qua kênh dọc
-  for (let y = 1; y < TCH - 1; y++) for (let x = 1; x < TCW - 1; x++) if ((t[y][x] === 'wmud' || t[y][x] === 'shal') && vn(x / 2, y / 2, 11) > .42 &&   // lau sậy mọc dọc mép nước
-    [[1, 0], [-1, 0], [0, 1], [0, -1]].some(d => land(t[y + d[1]][x + d[0]]))) t[y][x] = 'reed';
-  return t;
-}
 
 // ====== CẢNH 6: VƯỜN QUỐC GIA TRÀM CHIM (phía bắc Rừng Sương; mở khi đạt TC_NEED) ======
 const WET = [
@@ -2174,107 +2161,286 @@ const WET = [
   { en:'Sedge looks like grass, but it grows in wet places.', vi:'Cỏ năn trông như cỏ nhưng mọc ở nơi ẩm ướt.', tip:'sedge = cỏ năn · reed = cây sậy' },
   { en:'Water lilies float on still water.', vi:'Hoa súng nổi trên mặt nước tĩnh.', tip:'float = nổi · still = yên tĩnh' }
 ];
+// ===== Chú Tư kể chuyện Tràm Chim: mỗi trang có lời kể (VI) + một câu tiếng Anh để học =====
+// Mốc lịch sử/số liệu theo Ban quản lý VQG Tràm Chim, VietnamPlus, VnExpress, SGGP (đối chiếu 10/2026)
+const TC_TOUR = [
+  { id:'history', icon:'📜', title:'Lịch sử Tràm Chim', pages:[
+    { vi:'Ngày xưa, nơi này là một phần của <b>Đồng Tháp Mười</b> — vùng đất trũng mênh mông, mùa lũ nước ngập trắng đồng, đầy cỏ năn, rừng tràm và chim muông. Cái tên “Tràm Chim” nghe là hiểu liền: rừng tràm và những đàn chim!', en:'Tram Chim is a small piece of the old Đồng Tháp Mười.', envi:'Tràm Chim là một mảnh nhỏ của Đồng Tháp Mười xưa.', tip:'piece = mảnh · old = xưa, cũ' },
+    { vi:'Năm <b>1985</b>, tỉnh Đồng Tháp lập Nông Lâm Ngư trường Tràm Chim — lúc đầu để trồng tràm, khai thác thủy sản, và giữ lại một phần hình ảnh Đồng Tháp Mười xưa. Năm <b>1986</b>, loài sếu đầu đỏ được tái phát hiện ở đây.', en:'In 1985, people planted melaleuca trees here.', envi:'Năm 1985, người ta trồng cây tràm ở đây.', tip:'melaleuca = cây tràm · plant = trồng' },
+    { vi:'Năm <b>1991</b>, nơi này trở thành Khu bảo tồn thiên nhiên cấp tỉnh. Mục tiêu lớn nhất: bảo vệ loài sếu đầu đỏ.', en:'A nature reserve protects wild animals and plants.', envi:'Khu bảo tồn thiên nhiên bảo vệ động vật và thực vật hoang dã.', tip:'reserve = khu bảo tồn · protect = bảo vệ' },
+    { vi:'Ngày <b>29/12/1998</b>, Thủ tướng ký Quyết định 253/1998/QĐ-TTg: Tràm Chim chính thức trở thành <b>Vườn quốc gia</b>.', en:'In 1998, Tram Chim became a national park.', envi:'Năm 1998, Tràm Chim trở thành vườn quốc gia.', tip:'national park = vườn quốc gia · became = đã trở thành' },
+    { vi:'Ngày <b>22/5/2012</b>, Tràm Chim được công nhận là khu <b>Ramsar thứ 2.000</b> của thế giới — thứ tư của Việt Nam và là khu Ramsar đầu tiên của miền Tây. “Ramsar” là danh hiệu cho những vùng đất ngập nước quan trọng toàn cầu.', en:'A Ramsar site is a wetland of international importance.', envi:'Khu Ramsar là vùng đất ngập nước có tầm quan trọng quốc tế.', tip:'wetland = đất ngập nước · international = quốc tế' }
+  ] },
+  { id:'crane', icon:'🦩', title:'Sếu đầu đỏ', pages:[
+    { vi:'Sếu đầu đỏ (<i>Grus antigone</i>) là loài lớn nhất trong họ Hạc, và là loài cao nhất trong các loài chim biết bay. Đầu và cổ có mảng da đỏ rực nên mới có tên như vậy.', en:'The sarus crane is the tallest flying bird in the world.', envi:'Sếu đầu đỏ là loài chim biết bay cao nhất thế giới.', tip:'sarus crane = sếu đầu đỏ · tallest = cao nhất' },
+    { vi:'Sếu về Tràm Chim vào <b>mùa khô</b>, khoảng từ tháng 12 đến tháng 4 năm sau, để kiếm ăn trên đồng cỏ năn. Các tháng 2–5 là lúc dễ ngắm sếu nhất.', en:'The cranes come here in the dry season.', envi:'Sếu về đây vào mùa khô.', tip:'dry season = mùa khô · rainy season = mùa mưa' },
+    { vi:'Năm 1998, có tới <b>1.052</b> con sếu về Tràm Chim. Đến năm 2017 chỉ còn <b>9</b> con; năm 2018 và 2019 mỗi năm 11 con. Năm 2020, lần đầu tiên không có con sếu nào về.', en:'There were 1,052 cranes in 1998, but only nine in 2017.', envi:'Năm 1998 có 1.052 con sếu, nhưng năm 2017 chỉ còn chín con.', tip:'only = chỉ · but = nhưng' },
+    { vi:'Vì sao? Hệ sinh thái đất ngập nước ở đây không còn được giữ như thuở đầu — mực nước và đồng cỏ năn thay đổi, sếu mất chỗ kiếm ăn. Tháng 4 năm 2021, một <b>gia đình sếu 3 con</b> đã quay lại phân khu A4. Ai cũng mừng!', en:'A crane family came back in 2021.', envi:'Một gia đình sếu đã quay về vào năm 2021.', tip:'family = gia đình · came back = quay lại' },
+    { vi:'Hôm nay, Đồng Tháp đang phục hồi sinh cảnh và triển khai dự án bảo tồn, phát triển sếu đầu đỏ cùng các tổ chức quốc tế để gầy dựng lại đàn sếu. Mình giúp được bằng cách <b>đi nhẹ, nói khẽ, không xả rác</b>.', en:'Please be quiet near the cranes.', envi:'Xin hãy giữ yên lặng khi ở gần đàn sếu.', tip:'quiet = yên lặng · near = gần' }
+  ] },
+  { id:'eco', icon:'🌿', title:'Đồng Tháp Mười thu nhỏ', pages:[
+    { vi:'Tràm Chim rộng hơn <b>7.000 héc-ta</b>, với gần <b>150 loài chim</b>. Người ta gọi đây là “Đồng Tháp Mười thu nhỏ” vì còn giữ được cảnh đồng ngập nước thuở xưa.', en:'Tram Chim is a wetland with nearly 150 kinds of birds.', envi:'Tràm Chim là vùng đất ngập nước với gần 150 loài chim.', tip:'nearly = gần như · kinds of = các loại' },
+    { vi:'Cây <b>tràm</b> mọc được trong đất ngập nước, tán nhẹ như lông vũ. <b>Cỏ năn</b> vàng óng là nơi sếu tìm củ ăn; sen, súng, lục bình phủ kín mặt hồ.', en:'Melaleuca trees grow in flooded soil.', envi:'Cây tràm mọc được trên đất ngập nước.', tip:'flooded = bị ngập · soil = đất' },
+    { vi:'<b>Mùa nước nổi</b> (khoảng tháng 9 đến tháng 12 dương lịch), rừng tràm như nổi giữa biển nước. Chèo xuồng ba lá len giữa rừng tràm là trải nghiệm khó quên!', en:'In the flood season, we travel by boat.', envi:'Vào mùa nước nổi, chúng ta đi lại bằng xuồng.', tip:'flood season = mùa nước nổi · boat = thuyền, xuồng' },
+    { vi:'Người dân vùng đệm làm <b>lúa sinh thái</b>, nuôi cá tự nhiên mùa lũ và đón khách du lịch trải nghiệm — vừa có thu nhập, vừa giữ rừng, giữ chim.', en:'Tourism can help people and nature together.', envi:'Du lịch có thể giúp cả con người và thiên nhiên.', tip:'tourism = du lịch · nature = thiên nhiên' }
+  ] }
+];
+const TC_QUIZ = [
+  { q:'Tràm Chim chính thức trở thành Vườn quốc gia vào năm nào?', a:['1985', '1998', '2012'], ok:1, why:'Ngày 29/12/1998 (Quyết định 253/1998/QĐ-TTg).' },
+  { q:'Tràm Chim là khu Ramsar thứ mấy của thế giới?', a:['Thứ 100', 'Thứ 1.000', 'Thứ 2.000'], ok:2, why:'Được công nhận ngày 22/5/2012 — khu Ramsar thứ 2.000 của thế giới.' },
+  { q:'Năm 1998 có khoảng bao nhiêu con sếu đầu đỏ về Tràm Chim?', a:['52 con', '1.052 con', '10.052 con'], ok:1, why:'1.052 con — nhưng đến năm 2017 chỉ còn 9 con.' },
+  { q:'“Sếu đầu đỏ” trong tiếng Anh là gì?', a:['red duck', 'sarus crane', 'sedge bird'], ok:1, why:'Sarus crane — loài chim biết bay cao nhất thế giới.' },
+  { q:'“Wetland” nghĩa là gì?', a:['đất ngập nước', 'đất khô cằn', 'sa mạc'], ok:0, why:'Wetland = vùng đất ngập nước, như Tràm Chim.' }
+];
+const TC_BOARDS = [
+  { title:'Ramsar là gì?', vi:'Công ước Ramsar bảo vệ những vùng đất ngập nước quan trọng của thế giới. Tràm Chim được công nhận ngày 22/5/2012 — khu Ramsar thứ 2.000.', en:'A wetland is land covered by water.', envi:'Đất ngập nước là vùng đất được nước bao phủ.', tip:'covered = được bao phủ' },
+  { title:'Sếu về, sếu đi', vi:'Năm 1998: 1.052 con. Năm 2017: 9 con. Mỗi con sếu quay lại đều là một tin vui cho cả vùng đất ngập nước.', en:'Every crane is precious.', envi:'Mỗi con sếu đều quý giá.', tip:'precious = quý giá' },
+  { title:'Quy tắc cho du khách', vi:'Đi nhẹ, nói khẽ, không xả rác, không đuổi chim và giữ khoảng cách với sếu nhé!', en:'Walk softly and do not litter.', envi:'Hãy đi nhẹ nhàng và đừng xả rác.', tip:'softly = nhẹ nhàng · litter = xả rác' }
+];
+// vùng va chạm của từng vật thể (px game, quanh chân: [rộng, cao]); không có = đi xuyên (cỏ, lau sậy, bụi nhỏ)
+const TC_SOLID = { tram0:[16, 12], tram1:[14, 10], tram2:[18, 12], sapling:[8, 8], tram_dead0:[10, 10], tram_dead1:[10, 10], rock0:[24, 14], rock1:[30, 16], rock2:[18, 12], stump:[22, 12], log:[40, 12], netrack:[64, 14], bench:[44, 12], birdbox:[10, 8], haystack:[48, 22], lampost:[10, 8], sign:[16, 8], bush0:[30, 12], bush1:[30, 12], kiosk:[76, 16], infoboard:[18, 8] };
 class TramChim extends Base {
   constructor() { super('TramChim'); }
 
   create() {
-    const TS = 32, W = TCW * TS, H = TCH * TS, t = tcMap(), rnd = this.rng(77);
-    this.boot(W, H, 23 * TS + 16, H - 60);
-    const land = k => k === 'grass' || k === 'sedge' || k === 'wood' || k === 'dmud', at = (x, y) => (t[y] && t[y][x]) || 'deep';
-    // bến thuyền nhỏ: cầu gỗ nhô ra mặt nước + 1 chiếc xuồng
-    let boat = null;
-    for (let y = 24; y < 35 && !boat; y++) for (let x = 6; x < 30 && !boat; x++)
-      if (land(at(x, y)) && [1, 2, 3, 4].every(i => ['shal', 'deep', 'lotus'].includes(at(x - i, y)))) { for (let i = 1; i <= 3; i++) t[y][x - i] = 'plank'; boat = [x - 4, y]; }
-    // nền: nướng toàn bộ ô 32px vào 1 ảnh
-    const rt = this.add.renderTexture(0, 0, W, H).setOrigin(0).setDepth(-.5), VAR = { deep:2, shal:2, wmud:2, dmud:2, grass:3, sedge:2, reed:2, wood:2, lotus:2, plank:1 };
-    rt.beginDraw();
-    for (let y = 0; y < TCH; y++) for (let x = 0; x < TCW; x++) { const k = t[y][x], v = Math.floor(rnd() * VAR[k]); rt.batchDraw('tc_' + (k === 'reed' ? 'reedbed' : k) + (k === 'plank' ? '' : v), x * TS, y * TS); }
-    // viền bờ: ô nước sát đất liền được phủ bóng bờ (trên/trái) và vệt bọt sáng (dưới/phải)
-    const isWater = k => k === 'deep' || k === 'shal' || k === 'lotus', isLand = k => k !== 'plank' && !isWater(k);
-    if (this.textures.exists('tc_shoreN')) for (let y = 0; y < TCH; y++) for (let x = 0; x < TCW; x++) if (isWater(t[y][x])) {
-      const ox = x * TS, oy = y * TS;
-      if (isLand(at(x, y - 1))) rt.batchDraw('tc_shoreN', ox, oy);
-      if (isLand(at(x - 1, y))) rt.batchDraw('tc_shoreW', ox, oy);
-      if (isLand(at(x, y + 1))) rt.batchDraw('tc_shoreS', ox, oy);
-      if (isLand(at(x + 1, y))) rt.batchDraw('tc_shoreE', ox, oy);
-    }
-    rt.endDraw();
-    // nước sâu chặn đường (gộp theo hàng cho nhẹ)
+    const L = TC.layout, TS = 32, W = TCW * TS, H = TCH * TS, rnd = this.rng(77), rows = L.rows;
+    this.boot(W, H, L.spawn[0], L.spawn[1]);
+    const at = (x, y) => (rows[y] && rows[y][x]) || '~', land = k => 'gswdmrp'.includes(k), waterK = k => k === '~' || k === '-' || k === 'o';
+    // nước: 2 lớp cuộn chậm bên dưới, nền (đất, bờ, ván — chỗ nước để trống) vẽ đè lên
+    this.wA = this.add.tileSprite(0, 0, W, H, 'tc_water_a').setOrigin(0).setDepth(-.9);
+    this.wB = this.add.tileSprite(0, 0, W, H, 'tc_water_b').setOrigin(0).setDepth(-.8).setAlpha(.8);
+    this.add.image(0, 0, 'tc_ground').setOrigin(0).setDepth(-.5);
+    // nước sâu chặn đường (gộp theo hàng), thụt vào 3px cho khớp bờ cong
     const blk = this.physics.add.staticGroup(), wall = (x, y, w, h) => blk.add(this.add.zone(x, y, w, h));
-    for (let y = 0; y < TCH; y++) for (let x = 0; x < TCW; x++) if (t[y][x] === 'deep') { let n = 1; while (x + n < TCW && t[y][x + n] === 'deep') n++; wall(x * TS + n * TS / 2, y * TS + TS / 2, n * TS, TS); x += n - 1; }
-    // chỉ đặt chòi / sếu ở nơi đi tới được từ cổng vào
-    const seen = new Set(['23,38']), q = [[23, 38]];
-    while (q.length) { const [x, y] = q.pop(); [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(d => { const a = x + d[0], b = y + d[1]; if (a >= 0 && b >= 0 && a < TCW && b < TCH && at(a, b) !== 'deep' && !seen.has(a + ',' + b)) { seen.add(a + ',' + b); q.push([a, b]); } }); }
-    const open = (x, y, r) => { for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) { const k = at(x + i, y + j); if (!land(k) || k === 'wood' || !seen.has((x + i) + ',' + (y + j))) return false; } return true; };
-    const obj = (k, x, y, d, o = [.5, .5]) => this.add.image(x, y, 'tc_' + k).setOrigin(o[0], o[1]).setDepth(d);
-    // chòi quan sát: bãi cỏ thoáng gần lối chính
-    let sh = null;
-    for (let r = 0; r < 20 && !sh; r++) for (let y = 12 - r; y <= 12 + r && !sh; y++) for (let x = 28 - r; x <= 28 + r && !sh; x++) if (open(x, y, 2)) sh = [x * TS + 16, y * TS + 48];
-    if (sh) { obj('shelter', sh[0], sh[1], sh[1], [.5, 1]); wall(sh[0], sh[1] - 26, 80, 44); this.shelter = { x:sh[0], y:sh[1] }; } else this.shelter = null;
-    if (boat) obj('boat', boat[0] * TS + 16, boat[1] * TS + 16, .35).setAngle(rnd() < .5 ? 0 : 180);
-    // cây tràm: mảng thưa, không đều · lau sậy chỉ ở mép nước · cỏ năn rải · lục bình trôi · cành gãy + dấu chân trên bùn
-    let nBr = 0, nPr = 0;
-    for (let y = 0; y < TCH; y++) for (let x = 0; x < TCW; x++) {
-      const k = t[y][x], cx = x * TS + 16, cy = y * TS + 16, jx = (rnd() - .5) * 18, jy = (rnd() - .5) * 18;
-      if (k === 'wood' && rnd() < .5) { const tr = obj('tree' + Math.floor(rnd() * 3), cx + jx, cy + jy, cy + jy + 16); wall(tr.x, tr.y + 4, 14, 14); }
-      else if (k === 'reed') { const n = 1 + (rnd() < .45 ? 1 : 0); for (let i = 0; i < n; i++) obj('reed' + (i % 2), cx + (rnd() - .5) * 20, cy + (rnd() - .5) * 20 + 10, cy + 10 + i, [.5, 1]); }
-      else if (k === 'sedge' && rnd() < .3) obj('sedgep' + Math.floor(rnd() * 2), cx + jx, cy + jy + 8, cy + jy + 8, [.5, 1]);
-      else if (k === 'grass' && rnd() < .015) obj('sapling', cx, cy + 8, cy + 8, [.5, 1]);
-      else if (k === 'shal' && rnd() < .06) { const h = obj('hyacinth', cx + jx, cy + jy, .3); this.tweens.add({ targets: h, y: h.y + 2, yoyo: true, repeat: -1, duration: 1800 + rnd() * 1200, ease: 'Sine.InOut' }); }
-      else if ((k === 'wmud' || k === 'dmud') && rnd() < .3) { const ang = [0, 90, 180, 270][Math.floor(rnd() * 4)];
-        if (rnd() < .5 && nBr < 12) { nBr++; obj('branch', cx + jx, cy + jy, .6).setAngle(ang); } else if (nPr < 12) { nPr++; obj('prints', cx, cy, .6).setAlpha(.85).setAngle(ang); } }
+    for (let y = 0; y < TCH; y++) for (let x = 0; x < TCW; x++) if (rows[y][x] === '~') { let n = 1; while (x + n < TCW && rows[y][x + n] === '~') n++; wall(x * TS + n * TS / 2, y * TS + TS / 2, n * TS - 6, TS - 6); x += n - 1; }
+    // ---- vật thể (cây, lau sậy, đồ vật…) theo bố cục ----
+    const mk = (k, x, y, d, o) => this.add.image(x, y, 'tc_' + k).setOrigin(o ? o[0] : .5, o ? o[1] : 1).setDepth(d === undefined ? y : d);
+    this.lampFx = []; this.boards = []; this.rows = rows;
+    // bóng phản chiếu dưới mặt nước (vẽ giữa lớp nước và lớp nền → chỉ lộ ra ở chỗ nước, đất tự che)
+    const wetBelow = (x, y) => { const cx = Math.floor(x / TS); for (const dy of [10, 34, 58]) if (waterK(at(cx, Math.floor((y + dy) / TS)))) return true; return false; };
+    const reflect = (k, x, y, a, sc) => { const r = this.add.image(x, y + 1, 'tc_' + k).setOrigin(.5, 0).setFlipY(true).setScale(1, sc || .5).setAlpha(a || .2).setTint(0x1b5a68).setDepth(-.6);
+      if (rnd() < .6) this.tweens.add({ targets: r, x: x + 1.5, scaleX: 1.02, yoyo: true, repeat: -1, duration: 1800 + rnd() * 1600, ease: 'Sine.InOut' }); return r; };
+    for (const o of L.objs) {
+      if (!this.textures.exists('tc_' + o.k)) continue;
+      let s;
+      if (o.k === 'boat') { s = mk('boat', o.x, o.y, .4, [.5, .5]); this.tweens.add({ targets: s, y: s.y + 2, angle: 1.2, yoyo: true, repeat: -1, duration: 2300, ease: 'Sine.InOut' }); continue; }
+      s = mk(o.k, o.x, o.y);
+      if (o.k === 'kiosk') s.setScale(.75); else if (o.k === 'infoboard') { s.setScale(.8); this.boards.push(o); }
+      if (/^(tram[012]|tram_dead[01]|sapling)$/.test(o.k) && (o.w || wetBelow(o.x, o.y))) reflect(o.k, o.x, o.y, .22);
+      else if ((o.k === 'post' || o.k === 'lampost') && wetBelow(o.x, o.y)) reflect(o.k, o.x, o.y, .26, .6);
+      if (o.k === 'post' && o.lamp) { mk('lantern', o.x, o.y - 22, o.y + 1, [.5, 0]); }
+      if (o.k === 'sign') this.add.text(o.x, o.y - 40, o.text || '', { fontFamily:'VT323, monospace', fontSize:'17px', color:'#4a3320' }).setOrigin(.5).setDepth(o.y + 1);
+      if (/^(reed|cattail|sedgep|gtall|fern)/.test(o.k) && rnd() < .5) this.tweens.add({ targets: s, angle: rnd() < .5 ? 1.6 : -1.6, yoyo: true, repeat: -1, duration: 1600 + rnd() * 1800, ease: 'Sine.InOut', delay: rnd() * 1500 }).targets[0].setOrigin(.5, 1);
+      if (/^tram[012]$/.test(o.k) && rnd() < .6) this.tweens.add({ targets: s, angle: 0.8, yoyo: true, repeat: -1, duration: 2600 + rnd() * 2400, ease: 'Sine.InOut', delay: rnd() * 2000 }).targets[0].setOrigin(.5, .97);
+      const sd = TC_SOLID[o.k]; if (sd) wall(o.x, o.y - sd[1] / 2, sd[0], sd[1]);
+    }
+    // chòi quan sát trên đảo
+    const hut = L.hut; mk('hut', hut.x, hut.y); wall(hut.x, hut.y - 16, 124, 32);
+    reflect('hut', hut.x, hut.y, .2, .42);
+    this.shelter = { x: hut.x, y: hut.y };
+    // sen, súng, lục bình trôi, sen cao
+    for (const p of L.pads) {
+      const s = this.add.image(p.x, p.y, 'tc_' + p.k).setDepth(.3);
+      if (p.drift) this.tweens.add({ targets: s, x: s.x + 8 + rnd() * 8, y: s.y + (rnd() - .5) * 6, yoyo: true, repeat: -1, duration: 3500 + rnd() * 2500, ease: 'Sine.InOut' });
+      else if (rnd() < .28) this.tweens.add({ targets: s, y: s.y + 1.5, yoyo: true, repeat: -1, duration: 1600 + rnd() * 1600, ease: 'Sine.InOut', delay: rnd() * 1600 });
+    }
+    for (const p of L.bigLotus) { const s = mk(p.k, p.x, p.y).setOrigin(.5, .92); if (rnd() < .6) this.tweens.add({ targets: s, angle: 2, yoyo: true, repeat: -1, duration: 2200 + rnd() * 1800, ease: 'Sine.InOut', delay: rnd() * 2000 }); }
+    // ---- Chú Tư: hướng dẫn viên ở cổng — đi dạo quanh quầy, quay mặt về phía người chơi khi lại gần ----
+    {
+      const gp = L.guide, seq = [1, 0, 2, 0], gd = this.physics.add.sprite(gp.x, gp.y, 'tc_guide_s0').setOrigin(.5, 1).setImmovable(true).setDepth(gp.y);
+      gd.body.setSize(22, 14).setOffset(14, 54); gd.dir = 's'; gd.walking = false; gd.step = 0; this.guide = gd;
+      this.add.image(gp.x, gp.y - 1, 'shadow').setDepth(.5).setScale(1.1);
+      gd.lbl = this.add.text(gp.x, gp.y - 82, 'Chú Tư · Hướng dẫn viên', { fontSize:'14px', color:'#fff', backgroundColor:'#00000088', padding:{ x:4, y:1 } }).setOrigin(.5).setDepth(1500);
+      gd.bub = this.add.text(gp.x, gp.y - 104, '💬', { fontSize:'20px' }).setOrigin(.5).setDepth(1500);
+      this.tweens.add({ targets: gd.bub, y: '-=5', yoyo: true, repeat: -1, duration: 700, ease: 'Sine.InOut' });
+      this.physics.add.collider(this.player, gd); this.mm.n.push(gd);
+      const pose = () => gd.setTexture('tc_guide_' + gd.dir + (gd.walking ? seq[gd.step] : 0));
+      const face = (dx, dy) => { gd.dir = Math.abs(dx) > Math.abs(dy) * 1.1 ? (dx < 0 ? 'l' : 'r') : (dy < 0 ? 'n' : 's'); pose(); };
+      this.time.addEvent({ delay: 165, loop: true, callback: () => { if (gd.walking) { gd.step = (gd.step + 1) % 4; pose(); } } });
+      const follow = () => { gd.setDepth(gd.y); gd.body.updateFromGameObject(); gd.lbl.setPosition(gd.x, gd.y - 82); gd.bub.x = gd.x; };
+      const patrol = () => {
+        const p = this.player, d = Phaser.Math.Distance.Between(p.x, p.y, gd.x, gd.y);
+        if (open || d < 120) { if (d < 120) face(p.x - gd.x, p.y - gd.y); this.time.delayedCall(600, patrol); return; }
+        const tx = gp.x + (rnd() - .5) * 120, ty = gp.y + (rnd() - .5) * 28, k = at(Math.floor(tx / TS), Math.floor(ty / TS));
+        if (!'gsp'.includes(k) || Math.abs(tx - gd.x) < 14) { this.time.delayedCall(1200, patrol); return; }
+        face(tx - gd.x, ty - gd.y); gd.walking = true; gd.step = 0; pose();
+        this.tweens.add({ targets: gd, x: tx, y: ty, duration: Phaser.Math.Distance.Between(gd.x, gd.y, tx, ty) / 38 * 1000, onUpdate: follow,
+          onComplete: () => { gd.walking = false; face(0, 1); follow(); this.time.delayedCall(2200 + rnd() * 3600, patrol); } });
+      };
+      this.time.delayedCall(1500, patrol);
     }
     blk.refresh(); this.physics.add.collider(this.player, blk);
-    // sếu đầu đỏ: đi lang thang trên bãi cỏ, lùi xa khi người chơi lại gần; E để quan sát
+    // đạo dạo trên bản đồ nhỏ: mặt nước + chòi
+    for (let y = 0; y < TCH; y++) for (let x = 0; x < TCW; x++) if (waterK(rows[y][x])) { let n = 1; while (x + n < TCW && waterK(rows[y][x + n])) n++; this.mm.r.push([x * TS, y * TS, n * TS, TS, '#3a8f9a']); x += n - 1; }
+    this.mm.r.push([hut.x - 60, hut.y - 60, 120, 60, '#a18f52']);
+    // ---- sếu đầu đỏ: đi lang thang trên đất liền, lùi xa khi người chơi lại gần; E để quan sát ----
     this.cranes = [];
-    for (let i = 0, tries = 0; i < 6 && tries < 400; tries++) {
-      const x = 2 + Math.floor(rnd() * (TCW - 4)), y = 2 + Math.floor(rnd() * (TCH - 12));
-      if (!open(x, y, 1)) continue;
-      const s = obj('crane', x * TS + 16, y * TS + 16, 0).setAngle(90 * Math.floor(rnd() * 4)); s.setDepth(s.y); this.cranes.push(s); i++;
-    }
+    L.cranes.forEach(c => { const s = this.add.image(c[0], c[1], 'tc_crane_s0').setOrigin(.5, .95).setDepth(c[1]); s.dir = 's'; s.st = 0; this.cranes.push(s); });
+    const face = (s, dx, dy) => { s.dir = Math.abs(dx) > Math.abs(dy) ? 'e' : dy > 0 ? 's' : 'n'; s.setFlipX(dx < 0 && s.dir === 'e'); };
+    const pose = s => s.setTexture('tc_' + (s.kind || 'crane') + '_' + s.dir + s.st);
     const roam = s => {
-      if (!s.active) return; const p = this.player, near = Phaser.Math.Distance.Between(p.x, p.y, s.x, s.y) < 80;
-      const a = near ? Math.atan2(s.y - p.y, s.x - p.x) : rnd() * 6.283, d = near ? 70 : 20 + rnd() * 50;
+      if (!s.active) return; const p = this.player, near = Phaser.Math.Distance.Between(p.x, p.y, s.x, s.y) < 90;
+      const a = near ? Math.atan2(s.y - p.y, s.x - p.x) : rnd() * 6.283, d = near ? 80 : 24 + rnd() * 60;
       let nx = s.x + Math.cos(a) * d, ny = s.y + Math.sin(a) * d; const k = at(Math.floor(nx / TS), Math.floor(ny / TS));
-      if (!land(k) || k === 'wood') { nx = s.x; ny = s.y; }
-      else s.setAngle(Math.round(Phaser.Math.RadToDeg(Math.atan2(ny - s.y, nx - s.x)) / 90) * 90 + 90);
-      this.tweens.add({ targets: s, x: nx, y: ny, duration: near ? 650 : 1800 + rnd() * 1500, onUpdate: () => s.setDepth(s.y), onComplete: () => this.time.delayedCall(near ? 100 : 800 + rnd() * 2500, () => roam(s)) });
+      if (!land(k) || k === 'w') { nx = s.x; ny = s.y; this.time.delayedCall(900 + rnd() * 1800, () => roam(s)); return; }
+      face(s, nx - s.x, ny - s.y);
+      const step = this.time.addEvent({ delay: 230, loop: true, callback: () => { s.st ^= 1; pose(s); } });
+      this.tweens.add({ targets: s, x: nx, y: ny, duration: near ? 650 : 2200 + rnd() * 1800, onUpdate: () => s.setDepth(s.y), onComplete: () => { step.remove(); s.st = 0; pose(s); this.time.delayedCall(near ? 100 : 1200 + rnd() * 3200, () => roam(s)); } });
     };
     this.cranes.forEach(s => this.time.delayedCall(rnd() * 2500, () => roam(s)));
-    // đàn chim bay ngang bầu trời
-    for (let i = 0; i < 4; i++) {
-      const b = this.add.image(-40, 60 + rnd() * (H - 200), 'tc_bird0').setDepth(1800).setAlpha(.95);
-      this.tweens.add({ targets: b, x: W + 40, y: b.y + (rnd() - .5) * 160, duration: 16000 + rnd() * 9000, delay: i * 4500, repeat: -1, repeatDelay: 2500 });
-      this.time.addEvent({ delay: 190, loop: true, callback: () => b.setTexture(b.texture.key === 'tc_bird0' ? 'tc_bird1' : 'tc_bird0') });
+    // cò trắng đứng im trong nước nông (trang trí, thỉnh thoảng cúi mổ)
+    for (let i = 0, n = 0; n < 9 && i < 600; i++) {
+      const x = 1 + Math.floor(rnd() * (TCW - 2)), y = 1 + Math.floor(rnd() * (TCH - 8));
+      if (at(x, y) !== '-' || !['g', 's', 'm', 'r', 'w'].some(k => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(d => at(x + d[0], y + d[1]) === k))) continue;
+      const e = mk('egret_' + (rnd() < .5 ? 'e0' : 's0'), x * TS + 16, y * TS + 26).setFlipX(rnd() < .5); n++;
+      this.tweens.add({ targets: e, scaleY: .96, yoyo: true, repeat: -1, duration: 2500 + rnd() * 2500, delay: rnd() * 3000, hold: rnd() * 2500, ease: 'Sine.InOut' }).targets[0].setOrigin(.5, 1);
     }
+    // ---- đàn sếu bay ngang bầu trời, có bóng lướt trên nền ----
+    for (let i = 0; i < 4; i++) {
+      const y0 = 100 + rnd() * (H - 300), b = this.add.image(-60, y0, 'tc_bird0').setDepth(1800), sh = this.add.image(-60, y0 + 110, 'tc_bird0').setDepth(1.5).setTintFill(0x0a2a2a).setAlpha(.17).setScale(.75);
+      const dx = W + 120, dur = 22000 + rnd() * 9000, ty = y0 + (rnd() - .5) * 200;
+      this.tweens.add({ targets: b, x: dx, y: ty, duration: dur, delay: i * 5200, repeat: -1, repeatDelay: 3000, onUpdate: () => { sh.x = b.x - 14; sh.y = b.y + 100; } });
+      let fr = 0; this.time.addEvent({ delay: 170, loop: true, callback: () => { fr = (fr + 1) % 4; const t = 'tc_bird' + (fr === 3 ? 1 : fr); b.setTexture(t); sh.setTexture(t); } });
+    }
+    this.mkAtmosphere(L, rnd, at, W, H);
     const sg = (x, y, s) => this.add.text(x, y, s, { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
-    sg(23 * TS + 16, H - 24, '↓ Rừng Sương'); sg(23 * TS + 16, H - 130, '🦢 Vườn quốc gia Tràm Chim');
+    sg(23 * TS + 16, H - 24, '↓ Rừng Sương'); sg(23 * TS + 16, H - 150, '🦢 Vườn quốc gia Tràm Chim');
     this.mm.exits.push([18 * TS, H - 8, 11 * TS, 8]);
-    if (this.shelter) this.mm.r.push([this.shelter.x - 48, this.shelter.y - 96, 96, 96, '#a18f52']);
     hud();
-    this.time.delayedCall(450, () => toast('Tràm Chim 🦢 — đồng cỏ ngập nước, rừng tràm và sếu đầu đỏ!'));
+    this.time.delayedCall(450, () => toast('Tràm Chim 🦢 — hồ sen, rừng tràm và sếu đầu đỏ. Theo ván gỗ ra chòi quan sát nhé!'));
+  }
+
+  // không khí: lấp lánh mặt nước, gợn sóng, sương, tia nắng, cánh hoa, chuồn chuồn, đom đóm + đèn lồng khi tối
+  mkAtmosphere(L, rnd, at, W, H) {
+    const TS = 32, rows = L.rows, wet = [], dry = [];
+    for (let y = 0; y < TCH; y++) for (let x = 0; x < TCW; x++) { const k = rows[y][x]; if (k === '~' || k === '-' || k === 'o') wet.push([x, y]); else if (k !== '=') dry.push([x, y]); }
+    const pickW = () => { const c = wet[Math.floor(rnd() * wet.length)]; return [c[0] * TS + rnd() * TS, c[1] * TS + rnd() * TS]; };
+    // lấp lánh (nhấp nháy, đổi chỗ mỗi lần tắt)
+    for (let i = 0; i < 130; i++) {
+      const [x, y] = pickW(), g = this.add.image(x, y, 'tc_glint' + (i % 4)).setDepth(.6).setAlpha(0).setScale(1 + (i % 3 === 0 ? .5 : 0));
+      this.tweens.add({ targets: g, alpha: .95, yoyo: true, repeat: -1, duration: 500 + rnd() * 900, delay: rnd() * 4000, repeatDelay: 600 + rnd() * 3000, onRepeat: () => { const p = pickW(); g.setPosition(p[0], p[1]); } });
+    }
+    // gợn sóng loang ra
+    this.time.addEvent({ delay: 650, loop: true, callback: () => {
+      const cam = this.cameras.main, w = cam.worldView; let p = null;
+      for (let t = 0; t < 12 && !p; t++) { const q = pickW(); if (q[0] > w.x - 40 && q[0] < w.right + 40 && q[1] > w.y - 40 && q[1] < w.bottom + 40) p = q; }
+      if (!p) return; const r = this.add.image(p[0], p[1], 'tc_ripple2').setDepth(.55).setAlpha(.8).setScale(.45);
+      this.tweens.add({ targets: r, scale: 1.7, alpha: 0, duration: 2200, ease: 'Sine.Out', onComplete: () => r.destroy() });
+    } });
+    // sương trôi trên hồ (đậm hơn lúc sáng sớm / hoàng hôn)
+    this.mist = [];
+    for (let i = 0; i < 9; i++) { const c = wet[Math.floor(rnd() * wet.length)], m = this.add.image(c[0] * TS, c[1] * TS, 'tc_mist').setDepth(1900).setScale(3 + rnd() * 2.2).setAlpha(.2);
+      this.tweens.add({ targets: m, x: m.x + 140 + rnd() * 120, y: m.y + (rnd() - .5) * 50, yoyo: true, repeat: -1, duration: 16000 + rnd() * 12000, ease: 'Sine.InOut' }); this.mist.push(m); }
+    // tia nắng xuyên rừng tràm (chỉ ban ngày)
+    this.shafts = [];
+    const wood = dry.filter(c => rows[c[1]][c[0]] === 'w');
+    for (let i = 0; i < 7 && wood.length; i++) { const c = wood[Math.floor(rnd() * wood.length)], s = this.add.image(c[0] * TS, c[1] * TS - 60, 'tc_shaft').setOrigin(.3, 0).setDepth(1950).setBlendMode(Phaser.BlendModes.ADD).setScale(1.5 + rnd(), 1.7 + rnd() * .8).setAlpha(0);
+      s.ph = rnd() * 6.28; this.shafts.push(s); }
+    // cánh hoa / lá bay
+    for (let i = 0; i < 22; i++) {
+      const s = this.add.image(rnd() * W, rnd() * H, 'tc_petal' + (i % 3 === 0 ? 1 : 0)).setDepth(1850).setScale(1.2 + rnd() * .5).setAlpha(.9);
+      const go = () => { s.setPosition(rnd() * W * .8, rnd() * H * .8); this.tweens.add({ targets: s, x: s.x + 260 + rnd() * 160, y: s.y + 100 + rnd() * 120, angle: 360 * (rnd() < .5 ? 1 : -1), duration: 14000 + rnd() * 10000, onComplete: go }); };
+      this.time.delayedCall(rnd() * 8000, go);
+    }
+    // chuồn chuồn lượn trên sen
+    this.flies = [];
+    for (let i = 0; i < 7; i++) {
+      const c = L.pads[Math.floor(rnd() * L.pads.length)], d = this.add.image(c.x, c.y - 16, 'tc_dragonfly0').setDepth(1700); let fr = 0;
+      this.time.addEvent({ delay: 70, loop: true, callback: () => { fr ^= 1; d.setTexture('tc_dragonfly' + fr); } });
+      const hop = () => { const nx = c.x + (rnd() - .5) * 150, ny = c.y - 12 - rnd() * 24; d.setFlipX(nx < d.x); this.tweens.add({ targets: d, x: nx, y: ny, duration: 500 + rnd() * 900, ease: 'Sine.InOut', onComplete: () => this.time.delayedCall(300 + rnd() * 1200, hop) }); };
+      this.time.delayedCall(rnd() * 2000, hop);
+    }
+    // đom đóm (tối) + quầng sáng đèn lồng
+    this.ffs = [];
+    for (let i = 0; i < 46; i++) {
+      const c = dry.concat(wet)[Math.floor(rnd() * (dry.length + wet.length))], f = this.add.image(c[0] * TS + rnd() * TS, c[1] * TS + rnd() * TS, 'tc_firefly').setDepth(1960).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0).setScale(1.3); f.ph = rnd() * 6.28; this.ffs.push(f);
+      const wander = () => this.tweens.add({ targets: f, x: f.x + (rnd() - .5) * 90, y: f.y + (rnd() - .5) * 60, duration: 2200 + rnd() * 2600, ease: 'Sine.InOut', onComplete: wander }); wander();
+    }
+    this.glows = L.lamps.map(p => this.add.image(p[0], p[1], 'efglow').setTint(0xffc860).setDepth(1990).setBlendMode(Phaser.BlendModes.ADD).setScale(1.7).setAlpha(0));
+  }
+
+  update(time, delta) {
+    this.wA.tilePositionX += delta * .006; this.wA.tilePositionY += delta * .002;
+    this.wB.tilePositionX -= delta * .011; this.wB.tilePositionY += delta * .004;
+    const dk = Phaser.Math.Clamp(EF_ANIM.darkness(), 0, 1), h = EF_ANIM.hour(), day = h >= 6.5 && h < 17.5 ? 1 : 0, t = time / 1000;
+    if (this.mist) { const a = (h < 9 || h >= 16.5 ? .34 : .13) * (1 - dk * .5); this.mist.forEach(m => m.setAlpha(m.alpha + (a - m.alpha) * .02)); }
+    if (this.shafts) this.shafts.forEach(s => s.setAlpha(day * (.2 + .1 * Math.sin(t * .5 + s.ph)) * (EF_ANIM.raining() ? .3 : 1)));
+    if (this.ffs) this.ffs.forEach(f => f.setAlpha(Math.max(0, dk - .2) * 1.25 * (.45 + .55 * Math.sin(t * 2.2 + f.ph))));
+    if (this.glows) this.glows.forEach((g, i) => g.setAlpha(Math.min(.85, dk * 1.3) * (.85 + .15 * Math.sin(t * 3 + i))));
+    super.update(time, delta);
   }
 
   edge() { if (this.player.y > this.H - 14 && this.player.x > 560 && this.player.x < 930) this.go('Forest'); }
 
   look() {
     const p = this.player; let best = null, d = 56;
-    if (this.shelter && Phaser.Math.Distance.Between(p.x, p.y, this.shelter.x, this.shelter.y + 8) < 78) return { t:'shelter' };
-    this.cranes.forEach((s, i) => { const dd = Phaser.Math.Distance.Between(p.x, p.y, s.x, s.y); if (dd < d) { d = dd; best = { t:'crane', i }; } });
+    const D = (x, y) => Phaser.Math.Distance.Between(p.x, p.y, x, y);
+    if (this.guide && D(this.guide.x, this.guide.y - 20) < 84) return { t:'guide' };
+    const bi = this.boards.findIndex(b => D(b.x, b.y - 10) < 62); if (bi >= 0) return { t:'board', i:this.boards[bi].id };
+    if (this.shelter && D(this.shelter.x, this.shelter.y + 8) < 78) return { t:'shelter' };
+    this.cranes.forEach((s, i) => { const dd = D(s.x, s.y); if (dd < d) { d = dd; best = { t:'crane', i }; } });
     return best;
   }
 
   label(c) {
-    if (!c) return 'WASD / phím mũi tên: đi · đến chòi quan sát hoặc lại gần sếu rồi bấm E · nước sâu không đi qua được · đi xuống: về Rừng Sương';
+    if (!c) return 'WASD / phím mũi tên: đi · gặp Chú Tư ở cổng để nghe kể chuyện Tràm Chim · đến chòi quan sát hoặc lại gần sếu rồi bấm E · nước sâu không đi qua được · đi xuống: về Rừng Sương';
+    if (c.t === 'guide') return 'E: nói chuyện với Chú Tư — nghe kể về lịch sử Tràm Chim 🎙️';
+    if (c.t === 'board') return 'E: đọc bảng thông tin 📋';
     return c.t === 'shelter' ? 'E: lên chòi quan sát 🔭' : 'E: quan sát sếu đầu đỏ 🦩 (nhẹ nhàng, sếu dễ giật mình)';
   }
 
   doAct(c) {
+    if (c.t === 'guide') return this.tour();
+    if (c.t === 'board') return this.board(c.i);
     if (S.tcDay !== S.day) { S.tcDay = S.day; S.tcSeen = []; }
     const key = c.t === 'shelter' ? 's' : 'c' + c.i, p = WET[(S.day + (c.t === 'shelter' ? 0 : c.i + 1)) % WET.length], exp = c.t === 'shelter' ? 10 : 4;
     snd('chat');
     modal(c.t === 'shelter' ? 'Chòi quan sát 🔭' : 'Sếu đầu đỏ 🦩', `<b>“${p.en}”</b><br>${p.vi}<br><small>💡 ${p.tip}</small>${S.tcSeen.includes(key) ? '' : '<br>🎓 +' + exp + ' EXP'}`, [{ label:'OK 👍', fn:closeModal }]);
     if (!S.tcSeen.includes(key)) { S.tcSeen.push(key); gainExp(exp); save(); }
+  }
+
+  // bảng thông tin dọc đường: một sự thật ngắn + một câu tiếng Anh
+  board(i) {
+    const b = TC_BOARDS[i % TC_BOARDS.length]; S.tcBoards = S.tcBoards || {}; const first = !S.tcBoards[i];
+    snd('page');
+    modal('Bảng thông tin 📋', `<b>${b.title}</b><br>${b.vi}<br><br><b>“${b.en}”</b><br>${b.envi}<br><small>💡 ${b.tip}</small>${first ? '<br>🎓 +4 EXP' : ''}`, [{ label:'OK 👍', fn:closeModal }], false, '-');
+    if (first) { S.tcBoards[i] = 1; gainExp(4); save(); }
+  }
+
+  // Chú Tư: menu chủ đề → từng trang lời kể → đố vui
+  tour() {
+    S.tcTour = S.tcTour || {}; S.tcTalk = S.day; snd('chat');
+    const n = TC_TOUR.filter(t => S.tcTour[t.id]).length;
+    const btns = TC_TOUR.map(t => ({ label:(S.tcTour[t.id] ? '✔ ' : '') + t.icon + ' ' + t.title, fn:() => this.tourPage(t, 0) }));
+    btns.push({ label:'❓ Đố vui cùng Chú Tư', fn:() => this.quiz(0, 0) }, { label:'Đóng', fn:closeModal });
+    modal('Chú Tư · Hướng dẫn viên', `<b>“Welcome to Tram Chim National Park!”</b><br>(Chào mừng đến Vườn quốc gia Tràm Chim!)<br>Chú là Tư, hướng dẫn viên ở đây. Cháu muốn nghe chú kể chuyện gì nào?<br><small>📖 Đã nghe ${n}/${TC_TOUR.length} câu chuyện · nghe xong lần đầu mỗi câu chuyện được +8 EXP</small>`, btns, false, 'guide');
+  }
+
+  tourPage(t, i) {
+    const p = t.pages[i], last = i === t.pages.length - 1; snd('page');
+    const btns = [];
+    if (i > 0) btns.push({ label:'◀ Trước', fn:() => this.tourPage(t, i - 1) });
+    btns.push(last ? { label:'Xong ✔', fn:() => { if (!S.tcTour[t.id]) { S.tcTour[t.id] = 1; gainExp(8); save(); toast('🎓 +8 EXP — ' + t.title); } this.tour(); } } : { label:'Tiếp ▶', fn:() => this.tourPage(t, i + 1) });
+    btns.push({ label:'Đóng', fn:closeModal });
+    modal('Chú Tư · ' + t.title, `${p.vi}<br><br><b>“${p.en}”</b><br>${p.envi}<br><small>💡 ${p.tip}</small><br><small>Trang ${i + 1}/${t.pages.length}</small>`, btns, false, 'guide');
+  }
+
+  quiz(i, sc) {
+    const Q = TC_QUIZ;
+    if (i >= Q.length) {
+      const first = S.tcQuizDay !== S.day, exp = 3 * sc;
+      if (first) { S.tcQuizDay = S.day; if (exp) gainExp(exp); save(); }
+      snd(sc >= 4 ? 'levelup' : 'ok');
+      return modal('Chú Tư · Đố vui', `<div class="big">${sc >= 4 ? '🏆' : sc >= 2 ? '👍' : '📚'}</div><b>${sc}/${Q.length} câu đúng!</b><br>${sc >= 4 ? 'Giỏi quá — cháu hiểu Tràm Chim rồi đó!' : 'Nghe thêm chuyện của chú rồi thử lại nhé!'}<br>${first ? (exp ? '🎓 +' + exp + ' EXP' : '') : '<small>Hôm nay cháu đã nhận thưởng đố vui rồi.</small>'}`,
+        [{ label:'Chơi lại', fn:() => this.quiz(0, 0) }, { label:'↩ Về menu', fn:() => this.tour() }, { label:'Đóng', fn:closeModal }], false, 'guide');
+    }
+    const q = Q[i], rot = (S.day + i) % q.a.length, order = q.a.map((_, k) => (k + rot) % q.a.length);
+    snd('page');
+    modal('Chú Tư · Đố vui', `<small>Câu ${i + 1}/${Q.length}</small><br><b>${q.q}</b>`,
+      order.map(k => ({ label:q.a[k], fn:() => {
+        const ok = k === q.ok; snd(ok ? 'ok' : 'wrong');
+        modal('Chú Tư · Đố vui', `<b>${ok ? '✅ Chính xác!' : '❌ Chưa đúng rồi!'}</b><br>${q.why}`, [{ label:i + 1 >= Q.length ? 'Xem kết quả ▶' : 'Tiếp ▶', fn:() => this.quiz(i + 1, sc + (ok ? 1 : 0)) }], false, 'guide');
+      } })), false, 'guide');
   }
 }
 
@@ -2442,7 +2608,7 @@ Promise.all(['crops', 'hero', 'shop'].map(k => loadImg(k, window.ASSETS[k]))
   .concat(Object.keys(SPR).map(k => loadImg('s_' + k, SPR[k])))
   .concat([loadImg('road', GR.road)]).concat(GR.road2 ? [loadImg('road2', GR.road2)] : [])
   .concat(Object.keys(VIL).map(k => loadImg('v_' + k, VIL[k].src))).concat(GLD ? [loadImg('guildroom', GLD.room)] : [])
-  .concat(['tiles', 'objs'].reduce((a, g) => a.concat(Object.keys(TC[g]).map(k => loadImg('tc_' + k, TC[g][k]))), []))
+  .concat(['tiles', 'objs', 'chars'].reduce((a, g) => a.concat(Object.keys(TC[g] || {}).map(k => loadImg('tc_' + k, TC[g][k]))), []))
   .concat(['bridge', 'pier'].filter(k => TW[k]).map(k => loadImg('t_' + k, TW[k])))
   .concat(Object.keys(TW.npc).map(k => loadImg('n_' + k, TW.npc[k]))).concat(GR.det ? [loadImg('gdet', GR.det)] : [])
   .concat(Object.keys(NAT.trees).map(k => loadImg('tr_' + k, NAT.trees[k].src)))

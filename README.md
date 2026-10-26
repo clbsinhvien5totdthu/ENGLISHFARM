@@ -51,3 +51,21 @@ ui/        character_creator · dialogue_ui · vocabulary_book (Sổ Vườn T�
 - **Sprite UI vẽ bằng code**: `python tools/pack_ui.py` ghi `ui_assets.js` (13 icon 64x64 gộp vào `ASSETS.spr`: ui_book, ui_journal, ui_sound, ui_mute, ui_gear, ui_trophy, ui_pick, ui_seed, ui_close, ui_check, ui_star, ui_arrow_l, ui_arrow_r) và `ui_skin.css` (khung 9-slice: panel, panel_dark, tab, slot, nút btn/ok/no/gold/wood + bản nhấn `_p`, ván gỗ HUD, 3 ô đổ thanh chỉ số). Đổi màu/hình: sửa tools/pack_ui.py rồi chạy lại.
 - **Thứ tự nạp** trong index.html: `assets.js` -> `ui_assets.js` -> ... -> `game.js`; CSS: `style.css` -> `ui_skin.css`.
 - Nút trong hộp thoại tự đổi màu theo nhãn: Xác nhận/Tiếp/Xong/Gửi/Bắt đầu/Nhận/Mua → xanh; Hủy/Thoát/Không/Bỏ → đỏ; Quay lại/Đóng → gỗ. Ép màu bằng `cls:'ok'|'no'|'back'|'on'` trong mảng nút của `modal()`.
+
+
+---
+## Từ 24/10/2026 — Tràm Chim vẽ lại kiểu top-down 3/4 (pxl)
+- **Bản đồ thiết kế sẵn** (không còn nhiễu ngẫu nhiên): hồ sen ở giữa, ván gỗ ra chòi quan sát trên đảo, rừng tràm ngập nước + tràm chết đứng ở phía bắc/đông, bến thuyền ở vịnh tây-nam, bãi bồi và đồng cỏ năn cho sếu. `node tools/gen_tramchim_map.js` sinh `tools/tramchim_layout.json` (game dùng) + `tools/tramchim_layout.px.js` (pxl dùng) — một nguồn dữ liệu duy nhất cho nền, bóng cây và vị trí vật thể.
+- **Nền** (`tools/tc_ground.px.js`): scene 800x640 → ảnh `tc_ground` 1600x1280. Bờ cong tự nhiên, bờ phía bắc có vách đất nhìn thấy, mép cỏ rủ ở bờ nam, bóng đổ xuống dưới-phải, ván gỗ đóng khe/đinh, lối đất, bùn nứt, hoa dại. Chỗ mặt nước **trong suốt**: game đặt 2 lớp nước cuộn chậm (`tc_water_a/b`) bên dưới.
+- **Vật thể** (`tc_nature.px.js`, `tc_things.px.js`): tràm 3 cỡ (thân trắng bong vỏ, tán rủ), tràm chết, lau sậy, bồn bồn, cỏ năn, bụi hoa, sen cao, hoa súng, lục bình; sếu đầu đỏ + cò trắng 3 hướng x 2 dáng bước, sếu bay; chòi cao cẳng mái lá, xuồng ba lá, đèn lồng, biển, lưới phơi, đụn rơm…
+- **Không khí** (`TramChim.mkAtmosphere` trong game.js): lấp lánh + gợn sóng, sương (đậm sáng sớm/chiều), tia nắng xuyên rừng, cánh hoa bay, chuồn chuồn, đom đóm + quầng đèn lồng khi tối, bóng đàn sếu bay lướt trên nền.
+- Dựng lại: `node tools/gen_tramchim_map.js && node <pxl>/bin/pxl.js build tools/tramchim.px.js --out img/tramchim_build --no-preview && python3 tools/pack_tramchim_pxl.py`
+- Lưu ý: chưa chạy thử trên trình duyệt thật (chỉ kiểm tra cú pháp + ghép ảnh xem trước); nếu đi lệch chỗ va chạm, chỉnh `TC_SOLID` ở đầu lớp `TramChim` trong game.js.
+
+---
+## Chú Tư — hướng dẫn viên Tràm Chim (25/10/2026)
+- Nhân vật từ bảng sprite người dùng gửi (`img/guide/sheet.png`: 4 hướng x [đứng + 3 dáng bước]). `python3 tools/slice_guide.py` cắt thành `img/guide/frames/*.png` (50x68, tỉ lệ 1:1 với nhân vật chính) + `portrait.png` (chân dung hộp thoại); `pack_tramchim_pxl.py` đóng gói vào nhóm `chars`.
+- Trong game (`TramChim`): đi dạo quanh quầy hướng dẫn ở cổng, quay mặt về phía người chơi khi lại gần, có bong bóng 💬 (ẩn sau khi đã nói chuyện trong ngày). Bấm E để nghe 3 câu chuyện (Lịch sử Tràm Chim · Sếu đầu đỏ · Đồng Tháp Mười thu nhỏ), mỗi trang có thêm một câu tiếng Anh; xong lần đầu +8 EXP/câu chuyện. Có "Đố vui" 5 câu (+3 EXP/câu đúng, nhận một lần mỗi ngày). Nội dung ở `TC_TOUR`, `TC_QUIZ`, `TC_BOARDS` trong game.js.
+- 3 bảng thông tin dọc đường (E: đọc, +4 EXP lần đầu). Quầy hướng dẫn + bảng vẽ bằng pxl (`kiosk`, `infoboard` trong tc_things.px.js).
+- Đồ hoạ thêm: bóng phản chiếu cây/chòi/cọc trên mặt nước, gợn sóng khi lội, dây thừng lan can dọc ván gỗ, bãi bùn khô nứt mịn hơn, vườn hoa dại ở cổng.
+- Số liệu lịch sử (1985, 1986, 1991, 29/12/1998 QĐ 253/1998/QĐ-TTg, Ramsar 22/5/2012, số sếu 1.052 → 9 → 0) lấy từ báo/ban quản lý VQG; nếu có số mới hơn, sửa trong `TC_TOUR`.
