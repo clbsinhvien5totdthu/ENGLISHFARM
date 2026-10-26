@@ -32,6 +32,7 @@ const NPC = {
   emma:  { name:'Emma', role:'The Mentor', bg:'#e8d8f0', skin:'pale', hair:'#a0522d', style:'bun', glasses:1, top:'#3a8a8a', acc:'#ffffff', outfit:'collar', blush:1 },
   dinh:  { name:'Cụ Đình trưởng', role:'Đình làng', bg:'#e8d0a0', skin:'tan', hair:'#d8d4cc', style:'none', hat:{ t:'khan', c:'#2c2a34', c2:'#d9a63a' }, beard:{ t:'long', c:'#e6e2da' }, top:'#7a4a2a', acc:'#d9a63a', outfit:'robe' },
   grandpa:{ name:'Grandpa', role:'The Mystery', bg:'#e8e0c8', skin:'light', hair:'#d0d0d0', style:'short', glasses:1, beard:{ t:'stache', c:'#d0d0d0' }, top:'#8a6a4a', acc:'#f1e3c0', outfit:'vest' },
+  guide: { name:'Chú Tư', role:'Hướng dẫn viên Tràm Chim', bg:'#cfe6c8', skin:'tan', hair:'#2a2438', style:'short', top:'#2c3050', acc:'#e8e0d0', outfit:'collar' },
   guest: { name:'Khách', role:'Visitor', bg:'#d8d8e8', skin:'light', hair:'#6a4a30', style:'short', top:'#7a5ab0', acc:'#f1e3c0', outfit:'collar' }
 };
 
@@ -144,7 +145,8 @@ const toURL = (px, w) => {
   px.forEach((c, i) => { if (c) { ctx.fillStyle = c; ctx.fillRect(i % w, (i / w) | 0, 1, 1); } });
   return cv.toDataURL();
 };
-P.portrait = id => cache[id] || (cache[id] = toURL(draw(NPC[id] || NPC.guest), W));
+P.custom = {};                                   // chân dung ảnh có sẵn (id → data URL), ví dụ Chú Tư ở Tràm Chim
+P.portrait = id => P.custom[id] || cache[id] || (cache[id] = toURL(draw(NPC[id] || NPC.guest), W));
 P.bg = id => (NPC[id] || NPC.guest).bg;
 
 // đồng xu pixel 10x10
