@@ -78,14 +78,15 @@ C.play = (sc, opt = {}) => {
         return [lerp(470, 880, e), lerp(560, 500, e), lerp(1.35, 1.5, e)];
       } },
     { at: (u) => { const e = ease(u); return [736, lerp(730, 470, e), lerp(1.45, 1.85, e)]; } },
-    { at: (u) => { const e = ease(u); return [lerp(736, hero.x, e), lerp(470, hero.y - 30, e), lerp(1.85, 1.12, e)]; } }
+    { at: (u) => { const e = ease(u); return [lerp(736, hero.x, e), lerp(470, hero.y - 30, e), lerp(1.85, 1, e)]; } }
   ];
 
   // ---- đổi phụ đề có hiệu ứng mờ ----
   const setCap = i => { capEl.classList.remove('on'); setTimeout(() => { if (ended) return; capB.textContent = CAP[i][0]; capS.textContent = CAP[i][1]; capEl.classList.add('on'); }, 350); };
 
   // ---- vòng cập nhật theo thời gian thực ----
-  const tick = () => {
+  const tick = () => { try { tickBody(); } catch (err) { console.error('[TC_CINE] lỗi khi chiếu, tự thoát cutscene:', err); finish(true); } };
+  const tickBody = () => {
     if (ended) return;
     const t = (performance.now() - t0) / 1000;
     let i = TM.findIndex((s, k) => t >= s && t < TM[k + 1]); if (i < 0) i = SHOTS.length - 1;
@@ -99,6 +100,7 @@ C.play = (sc, opt = {}) => {
     // cắt "mờ về đen" ở cuối mỗi cảnh (trừ cảnh E → F là một cú máy liền)
     if (!fadedOut && shot < 4 && t > TM[shot + 1] - .34) { fadedOut = true; cam.fadeOut(320, 0, 0, 0); }
     const u = clamp01((t - TM[shot]) / (TM[shot + 1] - TM[shot])), p = SHOTS[shot].at(u);
+    if (sc.night) { sc.cinK = (sc.cinK == null ? 1 : sc.cinK); sc.cinK += (.1 - sc.cinK) * .06; sc.night.setAlpha((sc.nightBase || 0) * sc.cinK); }   // lớp tối ngày/đêm của game đứng yên khi bị khoá → làm sáng cho cảnh phim
     const sway = Math.sin(t * .9) * 1.6, sway2 = Math.cos(t * .7) * 1.1;          // rung nhẹ như máy cầm tay
     cam.setZoom(fitZ() * p[2]); cam.centerOn(p[0] + sway / p[2], p[1] + sway2 / p[2]);
   };
@@ -106,10 +108,11 @@ C.play = (sc, opt = {}) => {
 
   // ---- bỏ qua / kết thúc ----
   const onKey = e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || /^F\d+$/.test(e.code)) return;
     if (!ended && (e.code === 'Space' || e.code === 'Escape' || e.code === 'Enter' || e.code === 'KeyE') && !e.repeat) finish(true);
     e.stopImmediatePropagation(); e.preventDefault();      // chặn mọi phím khác (B, Q, M…) trong lúc chiếu
   };
-  const onKeyUp = e => { e.stopImmediatePropagation(); };
+  const onKeyUp = e => { if (e.ctrlKey || e.metaKey || e.altKey || /^F\d+$/.test(e.code)) return; e.stopImmediatePropagation(); };
   window.addEventListener('keydown', onKey, true); window.addEventListener('keyup', onKeyUp, true);
   el.querySelector('.tc-skip').addEventListener('click', e => { e.stopPropagation(); finish(true); });
   sc.events.once('shutdown', () => finish(true));
@@ -119,6 +122,8 @@ C.play = (sc, opt = {}) => {
     sc.events.off('update', tick); window.removeEventListener('keydown', onKey, true); setTimeout(() => window.removeEventListener('keyup', onKeyUp, true), 400);
     if (AUD) { if (skipped) AUD.stop(700); else { AUD.busy = false; AUD.stop(2500); } }
     extras.forEach(o => { try { o.destroy(); } catch (e) {} });
+    const back = () => { if (sc.cinK == null) { sc.events.off('update', back); return; } sc.cinK += (1 - sc.cinK) * .05; if (sc.night) sc.night.setAlpha((sc.nightBase || 0) * sc.cinK); if (sc.cinK > .995) { sc.cinK = 1; sc.events.off('update', back); } };
+    sc.events.on('update', back);   // trả độ tối ngày/đêm về từ từ
     cam.fadeIn(skipped ? 350 : 1, 0, 0, 0);
     // trả camera về người chơi
     cam.setZoom(fitZ()); cam.centerOn(hero.x, hero.y - 30); cam.startFollow(hero, false, .12, .12);
@@ -130,7 +135,7 @@ C.play = (sc, opt = {}) => {
   C.skip = () => finish(true);
 
   // âm thanh cho cảnh phim
-  if (AUD) AUD.score(mood, snd);
+  try { if (AUD) AUD.score(mood, snd); } catch (err) { console.error('[TC_CINE] âm thanh:', err); }
   return true;
 };
 })();
