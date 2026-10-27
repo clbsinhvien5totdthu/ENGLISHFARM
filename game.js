@@ -1240,7 +1240,7 @@ class Base extends Phaser.Scene {
 
     clk = Math.min(clk + delta * TIME_SPEED, 1500);
     const wxn = wxNow(), dim = wxn === 'rain' ? .16 : wxn === 'cloud' ? .06 : 0;
-    const gr = grade(clk / 60); this.night.setFillStyle(gr.color, 1).setAlpha(Math.min(.82, gr.alpha + dim));
+    const gr = grade(clk / 60); this.nightBase = Math.min(.82, gr.alpha + dim); this.night.setFillStyle(gr.color, 1).setAlpha(this.nightBase * (this.cinK == null ? 1 : this.cinK));   // cinK: cutscene làm sáng cảnh (xem systems/tramchim_cine.js)
     const tick = Math.floor(clk / 10); if (tick !== this.tick) { this.tick = tick; dayText(); }
     // mưa bắt đầu: cây đã gieo được tưới tự nhiên
     if (wxn === 'rain' && S.rainDay !== S.day) {
@@ -2326,7 +2326,9 @@ class TramChim extends Base {
     if (!window.TC_CINE || TC_CINE.on) return;
     if (AU.on) au();
     open = true; this.player.setVelocity(0); this.target = null; this.animate(0, 0, false);
-    const ok = TC_CINE.play(this, { mood: moodNow(), snd, onEnd: () => { open = false; if (after) this.time.delayedCall(600, after); } });
+    let ok = false;
+    try { ok = TC_CINE.play(this, { mood: moodNow(), snd, onEnd: () => { open = false; if (after) this.time.delayedCall(600, after); } }); }
+    catch (err) { console.error('[TC_CINE] không chiếu được:', err); if (TC_CINE.skip) TC_CINE.skip(); TC_CINE.on = false; document.getElementById('farm-app').classList.remove('tc-cine'); const e = document.getElementById('tcCine'); if (e) e.remove(); this.cameras.main.setZoom(Math.max(1, Math.min(this.scale.height / 432, this.scale.width / 640))); this.cameras.main.startFollow(this.player, false, .12, .12); open = false; if (after) this.time.delayedCall(600, after); }
     if (!ok) open = false;
   }
 
