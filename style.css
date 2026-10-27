@@ -295,3 +295,24 @@ body{margin:0}
   #farm-app .card{border-width:12px;border-image-width:12px}
 }
 @media(prefers-reduced-motion:reduce){#farm-app .card{animation:none}}
+
+/* ===== Cutscene Vườn quốc gia Tràm Chim (systems/tramchim_cine.js) ===== */
+#farm-app.tc-cine #hud,#farm-app.tc-cine #bar,#farm-app.tc-cine #minimap,#farm-app.tc-cine #pad,#farm-app.tc-cine #seedBtn,#farm-app.tc-cine #actWrap,#farm-app.tc-cine #toast{opacity:0!important;pointer-events:none!important;transition:opacity .5s}
+#farm-app #tcCine{position:absolute;inset:0;z-index:7;pointer-events:none;overflow:hidden}
+#tcCine .tc-bar{position:absolute;left:0;right:0;height:0;background:#000;z-index:3;transition:height 1.1s cubic-bezier(.3,.6,.2,1)}
+#tcCine .tc-bar.top{top:0}#tcCine .tc-bar.bot{bottom:0}
+#tcCine.in .tc-bar{height:12%}
+#tcCine.out .tc-bar{height:0;transition-duration:.9s}
+#tcCine .tc-vig{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 52%,rgba(8,18,14,.62) 100%);opacity:0;transition:opacity 1.4s;z-index:1}
+#tcCine.in .tc-vig{opacity:1}#tcCine.out .tc-vig{opacity:0;transition-duration:.6s}
+#tcCine .tc-cap{position:absolute;left:50%;bottom:14.5%;transform:translate(-50%,6px);width:min(640px,90%);text-align:center;color:#fff;font-size:clamp(15px,2.6vw,21px);font-weight:700;line-height:1.35;text-shadow:0 2px 0 #000,0 0 10px rgba(0,0,0,.7);z-index:4;opacity:0;transition:opacity .6s,transform .6s}
+#tcCine .tc-cap.on{opacity:1;transform:translate(-50%,0)}
+#tcCine .tc-cap b{display:block}
+#tcCine .tc-cap small{display:block;margin-top:3px;font-weight:500;font-style:italic;color:#ffe9a8;font-size:.82em}
+#tcCine .tc-title{position:absolute;left:0;right:0;top:20%;text-align:center;z-index:4;opacity:0;transform:scale(1.06);transition:opacity 1.6s ease,transform 3s ease-out;padding:0 4%}
+#tcCine .tc-title.on{opacity:1;transform:scale(1)}
+#tcCine .tc-title .t1{font-family:'VT323',monospace;font-size:clamp(30px,7.2vw,66px);letter-spacing:.07em;color:#fff4c8;text-shadow:0 3px 0 #3a2a12,0 0 22px rgba(255,214,130,.55),0 0 2px #000}
+#tcCine .tc-title .t2{font-size:clamp(12px,2.3vw,19px);letter-spacing:.32em;color:#e6f7ff;margin-top:4px;text-shadow:0 2px 0 #000}
+#tcCine .tc-title .t3{font-size:clamp(11px,1.9vw,15px);color:#ffe9a8;margin-top:10px;text-shadow:0 2px 0 #000}
+#tcCine .tc-skip{position:absolute;right:12px;top:calc(12% + 8px);z-index:5;pointer-events:auto;font-size:14px;padding:4px 12px;opacity:.85}
+@media (prefers-reduced-motion:reduce){#tcCine .tc-cap,#tcCine .tc-title,#tcCine .tc-bar,#tcCine .tc-vig{transition:none}}

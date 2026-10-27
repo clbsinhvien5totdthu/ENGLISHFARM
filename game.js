@@ -394,6 +394,9 @@ const SND = {
   gobble: () => { for (let i = 0; i < 4; i++) vox(430 - i * 15, .07, 300, .035, i * .09, 1100, 25); }
 };
 const snd = n => { try { if (SND[n]) SND[n](); } catch (e) {} };
+// âm thanh khu Tràm Chim (systems/tramchim_audio.js): tiếng nước, chim, sếu, nhạc sáo trúc + đàn tranh
+if (window.TC_AUDIO) { TC_AUDIO.init({ AU, au }); TC_AUDIO.register(SND); }
+const moodNow = () => { const h = clk / 60; return h >= 19.7 || h < 6 ? 'night' : h >= 17 ? 'dusk' : 'day'; };
 
 // ====== ÂM THANH NỀN: gió, lá, nước chảy + tiếng sự kiện theo giờ / cảnh / thời tiết ======
 const AMB = { wind:null, leaf:null, water:null, t:0, hr:-1, roosterDay:-1 };
@@ -409,8 +412,9 @@ function ambience(key, time) {
   const gust = .5 + .5 * Math.sin(time / 2300) * Math.sin(time / 5100 + 1);
   const set = (g, v) => g.gain.setTargetAtTime(v * on, AU.c.currentTime, .7);
   set(AMB.wind, out ? (rain ? .004 : .01 + gust * .014 + (key === 'Forest' ? .006 : 0) + (night ? .004 : 0)) : .002);
-  set(AMB.leaf, out && !rain ? ((key === 'Forest' || key === 'Farm') ? .003 + gust * .012 : .003) : 0);
-  set(AMB.water, !out ? 0 : key === 'Lake' ? .03 : key === 'Town' ? .012 : key === 'Farm' ? .004 : 0);
+  set(AMB.leaf, out && !rain ? ((key === 'Forest' || key === 'Farm') ? .003 + gust * .012 : key === 'TramChim' ? (.004 + gust * .01) * tcb : .003) : 0);   // TramChim: gió xào xạc qua lau sậy, lá tràm
+  const tcb = key === 'TramChim' ? (window.TC_AUDIO && TC_AUDIO.busy ? 1.7 : 1) : 1;   // đang chiếu cutscene: nước và gió rõ hơn
+  set(AMB.water, !out ? 0 : key === 'Lake' ? .03 : key === 'TramChim' ? .017 * tcb : key === 'Town' ? .012 : key === 'Farm' ? .004 : 0);
   // chuông làng: 12:00 và 18:00 (bắt đầu hoàng hôn)
   const hr = Math.floor(h);
   if (hr !== AMB.hr) { if (AMB.hr >= 0 && out && (key === 'Town' || key === 'Farm')) { if (hr === 12) { snd('bells'); EF_ANIM.chime(activeScene()); } else if (hr === 18) { snd('bellsDusk'); EF_ANIM.chime(activeScene()); } } AMB.hr = hr; }
@@ -419,6 +423,7 @@ function ambientEvent(sc) {
   if (open || !AU.on || !AU.c) return;
   const key = sc.scene.key, h = clk / 60, r = Math.random(), rain = wxNow() === 'rain';
   if (INDOOR(key)) { if (key === 'Home' && r < .5) snd('crackle'); return; }
+  if (key === 'TramChim' && window.TC_AUDIO && TC_AUDIO.ready) { if (!TC_AUDIO.busy) TC_AUDIO.event(moodNow(), rain, snd); return; }
   if (rain) { if (key === 'Lake' && r < .3) snd('frog'); else if (r < .5) snd('drip'); return; }
   const night = h >= 19.7 || h < 6, dusk = h >= 17 && h < 19.7, wet = key === 'Lake' || key === 'Farm' || key === 'TramChim';
   if (night) { snd(r < .5 ? 'cricket' : r < .7 ? 'owl' : wet ? 'frog' : 'cricket'); return; }
@@ -437,8 +442,10 @@ const PENT = [262, 294, 330, 392, 440, 523, 587, 659, 784, 880], MINOR = [220, 2
 const CHORDS = { day:[[262, 330, 392], [220, 262, 330], [175, 220, 262], [196, 247, 294]], dusk:[[220, 262, 330], [175, 220, 262], [165, 196, 247], [196, 247, 294]], night:[[220, 262, 330], [196, 247, 294], [175, 220, 262], [165, 196, 247]] };
 function musicStep() {
   const h = clk / 60, mood = h >= 20.3 || h < 6 ? 'night' : h >= 17 ? 'dusk' : 'day';
-  musicT = setTimeout(musicStep, mood === 'night' ? 1900 : mood === 'dusk' ? 1600 : 1250);
+  const sc0 = activeScene(), inTC = !!(sc0 && sc0.scene.key === 'TramChim' && window.TC_AUDIO && TC_AUDIO.ready);
+  musicT = setTimeout(musicStep, inTC ? 3300 : mood === 'night' ? 1900 : mood === 'dusk' ? 1600 : 1250);
   if (!AU.on || document.hidden || !AU.c) return;
+  if (inTC) { clearTimeout(musicT); musicT = setTimeout(musicStep, TC_AUDIO.musicStep(mood)); return; }   // sáo trúc + đàn tranh du dương
   const sc = mood === 'night' ? MINOR : PENT, r = Math.random();
   mi = Math.max(0, Math.min(sc.length - 1, mi + [-2, -1, -1, 0, 1, 1, 2][Math.floor(r * 7)]));
   const n = sc[mi];
@@ -2307,7 +2314,20 @@ class TramChim extends Base {
     sg(23 * TS + 16, H - 24, '↓ Rừng Sương'); sg(23 * TS + 16, H - 150, '🦢 Vườn quốc gia Tràm Chim');
     this.mm.exits.push([18 * TS, H - 8, 11 * TS, 8]);
     hud();
-    this.time.delayedCall(450, () => toast('Tràm Chim 🦢 — hồ sen, rừng tràm và sếu đầu đỏ. Theo ván gỗ ra chòi quan sát nhé!'));
+    // nước vỗ bờ, giọt nước: lớp âm thanh dày hơn tiếng ngẫu nhiên chung của game
+    this.time.addEvent({ delay:3100, loop:true, callback: () => { if (open || !AU.on || !AU.c || !window.TC_AUDIO || TC_AUDIO.busy) return; if (Math.random() < .6) (Math.random() < .55 ? TC_AUDIO.fx.lap : TC_AUDIO.fx.drop)(0, .8); } });
+    const hint = () => toast('Tràm Chim 🦢 — hồ sen, rừng tràm và sếu đầu đỏ. Theo ván gỗ ra chòi quan sát nhé!');
+    if (!S.tcIntro && window.TC_CINE) this.time.delayedCall(700, () => { S.tcIntro = 1; save(); this.cutscene(hint); });
+    else this.time.delayedCall(450, hint);
+  }
+
+  // phim giới thiệu Vườn quốc gia Tràm Chim: khoá điều khiển trong lúc chiếu, trả lại camera khi xong
+  cutscene(after) {
+    if (!window.TC_CINE || TC_CINE.on) return;
+    if (AU.on) au();
+    open = true; this.player.setVelocity(0); this.target = null; this.animate(0, 0, false);
+    const ok = TC_CINE.play(this, { mood: moodNow(), snd, onEnd: () => { open = false; if (after) this.time.delayedCall(600, after); } });
+    if (!ok) open = false;
   }
 
   // không khí: lấp lánh mặt nước, gợn sóng, sương, tia nắng, cánh hoa, chuồn chuồn, đom đóm + đèn lồng khi tối
@@ -2394,7 +2414,7 @@ class TramChim extends Base {
     if (c.t === 'board') return this.board(c.i);
     if (S.tcDay !== S.day) { S.tcDay = S.day; S.tcSeen = []; }
     const key = c.t === 'shelter' ? 's' : 'c' + c.i, p = WET[(S.day + (c.t === 'shelter' ? 0 : c.i + 1)) % WET.length], exp = c.t === 'shelter' ? 10 : 4;
-    snd('chat');
+    if (c.t === 'crane' && window.TC_AUDIO && TC_AUDIO.ready) TC_AUDIO.fx.crane(0, .9); else snd('chat');
     modal(c.t === 'shelter' ? 'Chòi quan sát 🔭' : 'Sếu đầu đỏ 🦩', `<b>“${p.en}”</b><br>${p.vi}<br><small>💡 ${p.tip}</small>${S.tcSeen.includes(key) ? '' : '<br>🎓 +' + exp + ' EXP'}`, [{ label:'OK 👍', fn:closeModal }]);
     if (!S.tcSeen.includes(key)) { S.tcSeen.push(key); gainExp(exp); save(); }
   }
@@ -2412,7 +2432,7 @@ class TramChim extends Base {
     S.tcTour = S.tcTour || {}; S.tcTalk = S.day; snd('chat');
     const n = TC_TOUR.filter(t => S.tcTour[t.id]).length;
     const btns = TC_TOUR.map(t => ({ label:(S.tcTour[t.id] ? '✔ ' : '') + t.icon + ' ' + t.title, fn:() => this.tourPage(t, 0) }));
-    btns.push({ label:'❓ Đố vui cùng Chú Tư', fn:() => this.quiz(0, 0) }, { label:'Đóng', fn:closeModal });
+    btns.push({ label:'❓ Đố vui cùng Chú Tư', fn:() => this.quiz(0, 0) }, { label:'🎬 Xem lại phim Tràm Chim', fn:() => { closeModal(); this.cutscene(); } }, { label:'Đóng', fn:closeModal });
     modal('Chú Tư · Hướng dẫn viên', `<b>“Welcome to Tram Chim National Park!”</b><br>(Chào mừng đến Vườn quốc gia Tràm Chim!)<br>Chú là Tư, hướng dẫn viên ở đây. Cháu muốn nghe chú kể chuyện gì nào?<br><small>📖 Đã nghe ${n}/${TC_TOUR.length} câu chuyện · nghe xong lần đầu mỗi câu chuyện được +8 EXP</small>`, btns, false, 'guide');
   }
 
