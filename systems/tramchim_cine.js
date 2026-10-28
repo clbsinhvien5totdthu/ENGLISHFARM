@@ -33,18 +33,20 @@ C.play = (sc, opt = {}) => {
 
   // ---- lớp phủ: letterbox, vignette, phụ đề, tiêu đề, nút bỏ qua ----
   const el = document.createElement('div'); el.id = 'tcCine';
-  el.innerHTML = '<div class="tc-bar top"></div><div class="tc-bar bot"></div><div class="tc-vig"></div>' +
+  el.innerHTML = '<div class="tc-fade"></div><div class="tc-bar top"></div><div class="tc-bar bot"></div><div class="tc-vig"></div>' +
     '<div class="tc-cap"><b></b><small></small></div>' +
     '<div class="tc-title"><div class="t1">VƯỜN QUỐC GIA TRÀM CHIM</div><div class="t2">TRAM CHIM NATIONAL PARK</div><div class="t3">Khu Ramsar thứ 2.000 của thế giới · Đồng Tháp</div></div>' +
     '<button type="button" class="tc-skip">⏭ Bỏ qua</button>';
   host.appendChild(el); app.classList.add('tc-cine');
+  const fadeEl = el.querySelector('.tc-fade');
+  const fade = (to, ms) => { fadeEl.style.transition = 'opacity ' + ms + 'ms linear'; fadeEl.style.opacity = to; };   // thay cho cam.fadeIn/fadeOut (không thể kẹt đen)
   const capB = el.querySelector('.tc-cap b'), capS = el.querySelector('.tc-cap small'), capEl = el.querySelector('.tc-cap'), titleEl = el.querySelector('.tc-title');
   requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
 
   // ---- trạng thái ----
   const fitZ = () => Math.max(1, Math.min(sc.scale.height / 432, sc.scale.width / 640));
   const focus = { x: sc.player.x, y: sc.player.y, m: 1 };
-  cam.stopFollow(); cam.fadeOut(1, 0, 0, 0);
+  cam.stopFollow(); try { cam.resetFX(); } catch (e) {}
   const t0 = performance.now(); let shot = -1, ended = false, fadedOut = false, state = {}, extras = [];
   const hero = sc.player;
 
@@ -88,22 +90,28 @@ C.play = (sc, opt = {}) => {
   const tick = () => { try { tickBody(); } catch (err) { console.error('[TC_CINE] lỗi khi chiếu, tự thoát cutscene:', err); finish(true); } };
   const tickBody = () => {
     if (ended) return;
+    lastTick = performance.now();
     const t = (performance.now() - t0) / 1000;
     let i = TM.findIndex((s, k) => t >= s && t < TM[k + 1]); if (i < 0) i = SHOTS.length - 1;
     if (t >= TM[TM.length - 1]) return finish(false);
     if (i !== shot) {
       shot = i; fadedOut = false; if (SHOTS[i].enter) SHOTS[i].enter();
-      if (i > 0 && i < 5) cam.fadeIn(320, 0, 0, 0); else if (i === 0) cam.fadeIn(1200, 0, 0, 0);
+      if (i > 0 && i < 5) fade(0, 320); else if (i === 0) fade(0, 1200);
       setCap(i);
       if (i === 5) setTimeout(() => { if (!ended) titleEl.classList.add('on'); }, 2000);
     }
     // cắt "mờ về đen" ở cuối mỗi cảnh (trừ cảnh E → F là một cú máy liền)
-    if (!fadedOut && shot < 4 && t > TM[shot + 1] - .34) { fadedOut = true; cam.fadeOut(320, 0, 0, 0); }
+    if (!fadedOut && shot < 4 && t > TM[shot + 1] - .34) { fadedOut = true; fade(1, 320); }
     const u = clamp01((t - TM[shot]) / (TM[shot + 1] - TM[shot])), p = SHOTS[shot].at(u);
     if (sc.night) { sc.cinK = (sc.cinK == null ? 1 : sc.cinK); sc.cinK += (.1 - sc.cinK) * .06; sc.night.setAlpha((sc.nightBase || 0) * sc.cinK); }   // lớp tối ngày/đêm của game đứng yên khi bị khoá → làm sáng cho cảnh phim
     const sway = Math.sin(t * .9) * 1.6, sway2 = Math.cos(t * .7) * 1.1;          // rung nhẹ như máy cầm tay
     cam.setZoom(fitZ() * p[2]); cam.centerOn(p[0] + sway / p[2], p[1] + sway2 / p[2]);
   };
+  let lastTick = performance.now() + 1500;
+  const showErr = m => { let b = el.querySelector('.tc-err'); if (!b) { b = document.createElement('div'); b.className = 'tc-err'; el.appendChild(b); } b.textContent = '⚠ ' + m; };
+  const onErr = ev => { const m = (ev.message || (ev.reason && (ev.reason.message || ev.reason)) || 'lỗi không rõ') + (ev.filename ? ' @' + ev.filename.split('/').pop() + ':' + ev.lineno : ''); console.error('[TC_CINE] lỗi trong lúc chiếu:', m, ev.error || ev.reason || ''); showErr(m); };
+  window.addEventListener('error', onErr); window.addEventListener('unhandledrejection', onErr);
+  const wd = setInterval(() => { if (!ended && performance.now() - lastTick > 2500) { showErr('Phaser không còn gọi update (game bị treo?) – tự thoát cutscene'); finish(true); } }, 800);
   sc.events.on('update', tick);
 
   // ---- bỏ qua / kết thúc ----
@@ -124,7 +132,8 @@ C.play = (sc, opt = {}) => {
     extras.forEach(o => { try { o.destroy(); } catch (e) {} });
     const back = () => { if (sc.cinK == null) { sc.events.off('update', back); return; } sc.cinK += (1 - sc.cinK) * .05; if (sc.night) sc.night.setAlpha((sc.nightBase || 0) * sc.cinK); if (sc.cinK > .995) { sc.cinK = 1; sc.events.off('update', back); } };
     sc.events.on('update', back);   // trả độ tối ngày/đêm về từ từ
-    cam.fadeIn(skipped ? 350 : 1, 0, 0, 0);
+    fade(0, skipped ? 350 : 1); try { cam.resetFX(); } catch (e) {}
+    clearInterval(wd); window.removeEventListener('error', onErr); window.removeEventListener('unhandledrejection', onErr);
     // trả camera về người chơi
     cam.setZoom(fitZ()); cam.centerOn(hero.x, hero.y - 30); cam.startFollow(hero, false, .12, .12);
     el.classList.remove('in'); el.classList.add('out'); titleEl.classList.remove('on'); capEl.classList.remove('on');
