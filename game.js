@@ -609,10 +609,8 @@ function rewardSeed() {
 // ====== CỐT TRUYỆN · CÂU CÁ · BẢN ĐỒ NHỎ ======
 const SCENE_NAME = { Farm:'🌾 Nông trại', Town:'🏘️ Thị trấn Sunny', Forest:'🌲 Rừng Sương', TramChim:'🦢 Tràm Chim', Lake:'🎣 Hồ Trăng', Home:'🏠 Nhà', Workshop:'🌱 Plant Workshop', Guild:'🏛️ Đình làng' };
 const MM = { big:false };
-// điều kiện mở khu Tràm Chim (phía bắc Rừng Sương): đủ cấp + đã nhặt đồ rừng + đã câu cá; mở rồi thì mở luôn (S.tcOpen)
-const TC_NEED = { lvl:5, forage:10, fish:3 };
-const tcReady = () => !!S.tcOpen || (S.lvl >= TC_NEED.lvl && S.story.cnt.forage >= TC_NEED.forage && S.story.cnt.fish >= TC_NEED.fish);
-const tcNeedText = () => `Lv ${Math.min(S.lvl, TC_NEED.lvl)}/${TC_NEED.lvl} · nhặt ${Math.min(S.story.cnt.forage, TC_NEED.forage)}/${TC_NEED.forage} món trong rừng · câu ${Math.min(S.story.cnt.fish, TC_NEED.fish)}/${TC_NEED.fish} con cá`;
+// Tràm Chim được mở tự do trong giai đoạn trải nghiệm; không còn yêu cầu cấp độ / nhiệm vụ / vật phẩm.
+const tcReady = () => true;
 const COST_FISH = 5;
 
 // hội thoại nhiều trang: pages = [{who,en,vi}], fin chạy sau trang cuối
@@ -637,7 +635,7 @@ function questLog() { EF.UI.questLog(); }
 function worldMap() {
   snd('click');
   const here = activeScene() ? activeScene().scene.key : '', mk = k => (here === k ? '📍' : '') + SCENE_NAME[k];
-  modal('🗺️ Bản đồ', `<pre style="font:inherit;line-height:1.7;margin:0 0 8px;text-align:center">${mk('TramChim')}${tcReady() ? '' : ' 🔒'}\n↕\n${mk('Forest')}\n↕\n${mk('Farm')} ↔ ${mk('Town')}\n↕\n${mk('Lake')}</pre><small>Rừng: đi lên phía trên nông trại · Hồ: đi xuống phía dưới · Thị trấn: đi sang phải. Phím M: phóng to / thu nhỏ bản đồ nhỏ.</small>`, [{ label:'Đóng', fn:closeModal }]);
+  modal('🗺️ Bản đồ', `<pre style="font:inherit;line-height:1.7;margin:0 0 8px;text-align:center">${mk('TramChim')} · MỞ TỰ DO\n↕\n${mk('Forest')}\n↕\n${mk('Farm')} ↔ ${mk('Town')}\n↕\n${mk('Lake')}</pre><small>Rừng: đi lên phía trên nông trại · Hồ: đi xuống phía dưới · Thị trấn: đi sang phải. Phím M: phóng to / thu nhỏ bản đồ nhỏ.</small>`, [{ label:'Đóng', fn:closeModal }]);
 }
 
 // ====== CÂU CÁ ======
@@ -2105,7 +2103,7 @@ class Forest extends Base {
     for (let i = 0; i < 3; i++) this.addAnimal(i === 1 ? 'piglet' : 'rooster', 300 + i * 220, 400 + i * 40, [80, 250, 1100, 450]);
     this.add.text(640, 770, '↓ Nông trại', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
     this.add.text(330, 150, '🌲 Rừng Sương', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
-    this.add.text(736, 34, tcReady() ? '🦢 Tràm Chim ↑' : '🔒 Tràm Chim ↑', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
+    this.add.text(736, 34, '🦢 Tràm Chim ↑', { fontSize:'15px', color:'#fff', backgroundColor:'#4a3320', padding:{ x:6, y:2 } }).setOrigin(.5).setDepth(1500);
     this.mm.exits.push([520, H - 8, 240, 8], [704, 0, 64, 8]);
     this.mm.spots = this.spots;
     hud();
@@ -2116,8 +2114,7 @@ class Forest extends Base {
     const p = this.player;
     if (p.y > this.H - 14 && p.x > 520 && p.x < 760) this.go('Farm');
     else if (p.y < 14 && p.x > 690 && p.x < 780) {
-      if (tcReady()) { if (!S.tcOpen) { S.tcOpen = true; save(); toast('🦢 Cổng Tràm Chim đã mở!'); } this.go('TramChim'); }
-      else { p.setVelocity(0); p.y = 34; toast('🔒 Tràm Chim chưa mở — cần: ' + tcNeedText()); }
+      this.go('TramChim');
     }
   }
 
@@ -2322,7 +2319,8 @@ class TramChim extends Base {
     // nước vỗ bờ, giọt nước: lớp âm thanh dày hơn tiếng ngẫu nhiên chung của game
     this.time.addEvent({ delay:3100, loop:true, callback: () => { if (open || !AU.on || !AU.c || !window.TC_AUDIO || TC_AUDIO.busy) return; if (Math.random() < .6) (Math.random() < .55 ? TC_AUDIO.fx.lap : TC_AUDIO.fx.drop)(0, .8); } });
     const hint = () => toast('Tràm Chim 🦢 — hồ sen, rừng tràm và sếu đầu đỏ. Theo ván gỗ ra chòi quan sát nhé!');
-    if (!S.tcIntro && window.TC_CINE) this.time.delayedCall(700, () => this.cutscene(hint));
+    // Mỗi lần bước vào Tràm Chim đều có phim giới thiệu; người chơi có thể bỏ qua bất cứ lúc nào.
+    if (window.TC_CINE) this.time.delayedCall(700, () => this.cutscene(hint));
     else this.time.delayedCall(450, hint);
   }
 
@@ -2332,7 +2330,7 @@ class TramChim extends Base {
     if (AU.on) au();
     open = true; this.player.setVelocity(0); this.target = null; this.animate(0, 0, false);
     let ok = false;
-    try { ok = TC_CINE.play(this, { mood: moodNow(), snd, onEnd: () => { open = false; if (!S.tcIntro) { S.tcIntro = 1; save(); } if (after) this.time.delayedCall(600, after); } }); }
+    try { ok = TC_CINE.play(this, { mood: moodNow(), snd, onEnd: () => { open = false; S.tcIntro = 1; save(); if (after) this.time.delayedCall(600, after); } }); }
     catch (err) { console.error('[TC_CINE] không chiếu được:', err); if (TC_CINE.skip) TC_CINE.skip(); TC_CINE.on = false; document.getElementById('farm-app').classList.remove('tc-cine'); const e = document.getElementById('tcCine'); if (e) e.remove(); this.cameras.main.setZoom(Math.max(1, Math.min(this.scale.height / 432, this.scale.width / 640))); this.cameras.main.startFollow(this.player, false, .12, .12); open = false; if (after) this.time.delayedCall(600, after); }
     if (!ok) open = false;
   }
