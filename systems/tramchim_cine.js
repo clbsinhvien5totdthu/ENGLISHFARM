@@ -111,8 +111,9 @@ C.play = (sc, opt = {}) => {
   const showErr = m => { let b = el.querySelector('.tc-err'); if (!b) { b = document.createElement('div'); b.className = 'tc-err'; el.appendChild(b); } b.textContent = '⚠ ' + m; };
   const onErr = ev => { const m = (ev.message || (ev.reason && (ev.reason.message || ev.reason)) || 'lỗi không rõ') + (ev.filename ? ' @' + ev.filename.split('/').pop() + ':' + ev.lineno : ''); console.error('[TC_CINE] lỗi trong lúc chiếu:', m, ev.error || ev.reason || ''); showErr(m); };
   window.addEventListener('error', onErr); window.addEventListener('unhandledrejection', onErr);
-  const wd = setInterval(() => { if (!ended && performance.now() - lastTick > 2500) { showErr('Phaser không còn gọi update (game bị treo?) – tự thoát cutscene'); finish(true); } }, 800);
+  const wd = setInterval(() => { if (document.hidden) { lastTick = performance.now(); return; } if (!ended && performance.now() - lastTick > 3500) { showErr('Phaser không còn gọi update (game bị treo?) – tự thoát cutscene'); finish(true); } }, 800);
   sc.events.on('update', tick);
+  const unblack = setTimeout(() => { if (!ended) fade(0, 700); }, 2200);     // chốt chặn: dù Phaser có chậm/kẹt thì màn đen vẫn tan (đang ở cảnh A, chưa tới lúc cắt đen)
 
   // ---- bỏ qua / kết thúc ----
   const onKey = e => {
@@ -133,7 +134,7 @@ C.play = (sc, opt = {}) => {
     const back = () => { if (sc.cinK == null) { sc.events.off('update', back); return; } sc.cinK += (1 - sc.cinK) * .05; if (sc.night) sc.night.setAlpha((sc.nightBase || 0) * sc.cinK); if (sc.cinK > .995) { sc.cinK = 1; sc.events.off('update', back); } };
     sc.events.on('update', back);   // trả độ tối ngày/đêm về từ từ
     fade(0, skipped ? 350 : 1); try { cam.resetFX(); } catch (e) {}
-    clearInterval(wd); window.removeEventListener('error', onErr); window.removeEventListener('unhandledrejection', onErr);
+    clearInterval(wd); clearTimeout(unblack); window.removeEventListener('error', onErr); window.removeEventListener('unhandledrejection', onErr);
     // trả camera về người chơi
     cam.setZoom(fitZ()); cam.centerOn(hero.x, hero.y - 30); cam.startFollow(hero, false, .12, .12);
     el.classList.remove('in'); el.classList.add('out'); titleEl.classList.remove('on'); capEl.classList.remove('on');
@@ -142,6 +143,8 @@ C.play = (sc, opt = {}) => {
     if (opt.onEnd) opt.onEnd(skipped);
   }
   C.skip = () => finish(true);
+
+  tick();   // đặt camera đúng cảnh A ngay (mọi hàm/biến đã khai báo xong), không chờ khung hình kế tiếp
 
   // âm thanh cho cảnh phim
   try { if (AUD) AUD.score(mood, snd); } catch (err) { console.error('[TC_CINE] âm thanh:', err); }
