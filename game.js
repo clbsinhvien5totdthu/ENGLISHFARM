@@ -1829,10 +1829,15 @@ class Town extends Base {
     this.lamps.forEach((l, i) => l.glow.setAlpha(dim ? .3 + Math.sin(time / 300 + i) * .04 : 0));
     const fly = h >= 7 && h < 18 && wxNow() !== 'rain'; this.bfly.forEach(b => b.setVisible(fly));
     const pb = this.player.body;                                                  // lội nước: gợn sóng quanh chân
-    if (pb && pb.speed > 20 && time > (this.wadeT || 0)) {
-      const k = this.rows[Math.floor((this.player.y + 20) / 32)]?.[Math.floor(this.player.x / 32)];
-      if (k === '-' || k === 'o') { this.wadeT = time + 260; const r = this.add.image(this.player.x, this.player.y + 22, 'tc_ripple1').setDepth(.56).setAlpha(.9).setScale(.5);
-        this.tweens.add({ targets: r, scale: 1.7, alpha: 0, duration: 950, ease: 'Sine.Out', onComplete: () => r.destroy() }); }
+    // Town không có tile-grid `rows` (biến này chỉ thuộc bản đồ Tràm Chim).
+    // Dùng vùng nước/vùng cầu đã khai báo trong Base để tránh truy cập undefined
+    // khi người chơi di chuyển trong thị trấn.
+    if (pb && pb.speed > 20 && this.isWet(this.player.x, this.player.y) && time > (this.wadeT || 0)) {
+      this.wadeT = time + 260;
+      if (this.textures.exists('tc_ripple1')) {
+        const r = this.add.image(this.player.x, this.player.y + 22, 'tc_ripple1').setDepth(.56).setAlpha(.9).setScale(.5);
+        this.tweens.add({ targets: r, scale: 1.7, alpha: 0, duration: 950, ease: 'Sine.Out', onComplete: () => r.destroy() });
+      }
     }
     if (this.guide) this.guide.bub.setAlpha(S.tcTalk === S.day ? 0 : 1);
     super.update(time, delta);
