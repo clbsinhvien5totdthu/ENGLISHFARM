@@ -2317,7 +2317,7 @@ class TramChim extends Base {
     // nước vỗ bờ, giọt nước: lớp âm thanh dày hơn tiếng ngẫu nhiên chung của game
     this.time.addEvent({ delay:3100, loop:true, callback: () => { if (open || !AU.on || !AU.c || !window.TC_AUDIO || TC_AUDIO.busy) return; if (Math.random() < .6) (Math.random() < .55 ? TC_AUDIO.fx.lap : TC_AUDIO.fx.drop)(0, .8); } });
     const hint = () => toast('Tràm Chim 🦢 — hồ sen, rừng tràm và sếu đầu đỏ. Theo ván gỗ ra chòi quan sát nhé!');
-    if (!S.tcIntro && window.TC_CINE) this.time.delayedCall(700, () => { S.tcIntro = 1; save(); this.cutscene(hint); });
+    if (!S.tcIntro && window.TC_CINE) this.time.delayedCall(700, () => this.cutscene(hint));
     else this.time.delayedCall(450, hint);
   }
 
@@ -2327,7 +2327,7 @@ class TramChim extends Base {
     if (AU.on) au();
     open = true; this.player.setVelocity(0); this.target = null; this.animate(0, 0, false);
     let ok = false;
-    try { ok = TC_CINE.play(this, { mood: moodNow(), snd, onEnd: () => { open = false; if (after) this.time.delayedCall(600, after); } }); }
+    try { ok = TC_CINE.play(this, { mood: moodNow(), snd, onEnd: () => { open = false; if (!S.tcIntro) { S.tcIntro = 1; save(); } if (after) this.time.delayedCall(600, after); } }); }
     catch (err) { console.error('[TC_CINE] không chiếu được:', err); if (TC_CINE.skip) TC_CINE.skip(); TC_CINE.on = false; document.getElementById('farm-app').classList.remove('tc-cine'); const e = document.getElementById('tcCine'); if (e) e.remove(); this.cameras.main.setZoom(Math.max(1, Math.min(this.scale.height / 432, this.scale.width / 640))); this.cameras.main.startFollow(this.player, false, .12, .12); open = false; if (after) this.time.delayedCall(600, after); }
     if (!ok) open = false;
   }
@@ -2613,6 +2613,14 @@ class Home extends Base {
 EF.host = { invItems, holdSeed, bin:() => ({ n:binCount(), v:binValue() }), S:() => S, modal, closeModal, toast, snd, gainExp, save, hud, use, talk, rewardSeed, sico, crop, maxSt, LESSON, B2_LEVEL, oldWordBook };
 ['Lang', 'Quest', 'Story', 'Dialogue', 'Inventory'].forEach(k => EF[k].init(EF.host));
 let game;
+// Vòng lặp Phaser chạy trong requestAnimationFrame: chỉ một lỗi JS ném ra trong update/create/tween là vòng lặp CHẾT
+// (màn hình đứng im, đen mãi). Bọc lại để lỗi chỉ được ghi log + báo một lần, game vẫn tiếp tục chạy.
+function efGuardLoop(g) {
+  let shown = 0;
+  const wrap = fn => function (...a) { try { return fn.apply(this, a); } catch (err) { console.error('[EF] lỗi trong vòng lặp game (đã chặn để không bị treo):', err); if (shown++ < 2) { try { toast('⚠ Lỗi trong game: ' + ((err && err.message) || err)); } catch (e) {} } } };
+  g.step = wrap(g.step);   // game.start() gắn g.step vào vòng lặp sau khi texture sẵn sàng
+  if (g.loop && typeof g.loop.callback === 'function' && !g.loop.callback.__ef) { g.loop.callback = wrap(g.loop.callback); g.loop.callback.__ef = 1; }
+}
 const startGame = () => { game = new Phaser.Game({
   type: Phaser.AUTO, parent: 'game-container', pixelArt: true, backgroundColor: '#1d2b19',
   render: { pixelArt: true, antialias: false, roundPixels: false },   // không làm tròn pixel → di chuyển mượt
@@ -2620,7 +2628,7 @@ const startGame = () => { game = new Phaser.Game({
   scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' }, // lấp đầy khung, không còn viền
   physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false, fps: window.EF_TOUCH && EF_TOUCH.on ? 120 : 240 } }, // bước vật lý nhỏ → hết giật
   scene: [Boot, Farm, Town, Workshop, Guild, Forest, TramChim, Lake, Home]
-}); };
+}); efGuardLoop(game); };
 const loadImg = (key, src) => new Promise(r => { const i = new Image(); i.onload = () => { IMG[key] = i; r(); }; i.onerror = r; i.src = src; });
 Promise.all(['crops', 'hero', 'shop'].map(k => loadImg(k, window.ASSETS[k]))
   .concat([(document.fonts && document.fonts.load ? document.fonts.load('28px "VT323"').catch(() => 0) : Promise.resolve())])
